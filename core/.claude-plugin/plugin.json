@@ -1,0 +1,12 @@
+{
+  "name": "m",
+  "version": "4.0.0",
+  "description": "Spec-driven development plugin with plan and build workflows",
+  "author": {
+    "name": "Ivan Torres",
+    "email": "ivantorresedge@gmail.com"
+  },
+  "keywords": ["workflow", "development", "testing", "specs", "bdd"],
+  "commands": [],
+  "skills": []
+}
