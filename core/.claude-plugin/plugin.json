@@ -12,7 +12,10 @@
     "./plan/commands/setup.md",
     "./plan/commands/usecase.md",
     "./plan/commands/scenario.md",
-    "./plan/commands/spec.md"
+    "./plan/commands/spec.md",
+    "./plan/commands/update-feature.md",
+    "./plan/commands/update-usecase.md",
+    "./plan/commands/update-scenario.md"
   ],
   "skills": [
     "./plan/skills/feature-authoring/SKILL.md",
