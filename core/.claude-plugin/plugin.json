@@ -10,7 +10,8 @@
   "commands": [
     "./plan/commands/feature.md",
     "./plan/commands/setup.md",
-    "./plan/commands/usecase.md"
+    "./plan/commands/usecase.md",
+    "./plan/commands/scenario.md"
   ],
   "skills": [
     "./plan/skills/feature-authoring/SKILL.md",
