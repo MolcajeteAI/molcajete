@@ -15,10 +15,12 @@
     "./plan/commands/spec.md",
     "./plan/commands/update-feature.md",
     "./plan/commands/update-usecase.md",
-    "./plan/commands/update-scenario.md"
+    "./plan/commands/update-scenario.md",
+    "./plan/commands/plan.md"
   ],
   "skills": [
     "./plan/skills/feature-authoring/SKILL.md",
+    "./plan/skills/planning/SKILL.md",
     "./plan/skills/setup/SKILL.md",
     "./plan/skills/usecase-authoring/SKILL.md",
     "./shared/skills/gherkin/SKILL.md",
