@@ -7,7 +7,11 @@
     "email": "ivantorresedge@gmail.com"
   },
   "keywords": ["workflow", "development", "testing", "specs", "bdd"],
-  "commands": ["./plan/commands/feature.md", "./plan/commands/setup.md"],
+  "commands": [
+    "./plan/commands/feature.md",
+    "./plan/commands/setup.md",
+    "./plan/commands/usecase.md"
+  ],
   "skills": [
     "./plan/skills/feature-authoring/SKILL.md",
     "./plan/skills/setup/SKILL.md",
