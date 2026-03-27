@@ -112,7 +112,7 @@ Then read each template and generate the documents:
 2. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md`
    Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
-3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/ARCHITECTURE-template.md`
+3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
 4. Edit `prd/FEATURES.md` — add a new row:

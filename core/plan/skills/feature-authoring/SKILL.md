@@ -214,7 +214,7 @@ After all sections are confirmed:
 3. If the user provided image file paths, create `prd/features/FEAT-XXXX/assets/` and copy image files with descriptive names
 4. Write `REQUIREMENTS.md` using [REQUIREMENTS-template.md](./templates/REQUIREMENTS-template.md) -- include `## UI` section with confirmed ASCII art and/or image references if UI content was provided; omit `## UI` section entirely if user said no UI
 5. Write `USE-CASES.md` using [USE-CASES-template.md](./templates/USE-CASES-template.md) (empty table)
-6. Write `ARCHITECTURE.md` scaffold using [ARCHITECTURE-template.md](./templates/ARCHITECTURE-template.md)
+6. Write `ARCHITECTURE.md` scaffold using the template at `plan/skills/architecture/templates/ARCHITECTURE-template.md`
 6. Add row to `prd/FEATURES.md` (format from the Row Management section above)
 
 ## Update Mode
@@ -227,10 +227,15 @@ After all sections are confirmed:
 - Do NOT run the creation interview
 - Do NOT change the feature's lifecycle status
 
+## ARCHITECTURE.md
+
+For ARCHITECTURE.md schema, sections, and population rules, see the architecture skill (`plan/skills/architecture/SKILL.md`).
+
+During feature creation, scaffold ARCHITECTURE.md using the template at `plan/skills/architecture/templates/ARCHITECTURE-template.md`.
+
 ## Template Reference
 
 | Template | Purpose |
 |----------|---------|
 | [REQUIREMENTS-template.md](./templates/REQUIREMENTS-template.md) | REQUIREMENTS.md for each feature |
 | [USE-CASES-template.md](./templates/USE-CASES-template.md) | USE-CASES.md index for each feature |
-| [ARCHITECTURE-template.md](./templates/ARCHITECTURE-template.md) | ARCHITECTURE.md scaffold for each feature |
