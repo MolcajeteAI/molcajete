@@ -15,6 +15,8 @@
 ### T-001: {Task title — verb-noun describing what gets built}
 **Use Cases:** {UC-XXXX, UC-YYYY}
 **Feature:** {feature-slug}
+**Architecture:** {prd/features/FEAT-XXXX/ARCHITECTURE.md}
+**Intent:** {implement | wire-bdd}
 **Status:** pending
 **Estimated context:** ~{N}K tokens
 **Done signal:** {description — which scenarios pass, or validator check}
@@ -34,6 +36,8 @@ Files to create/modify:
 ### T-002: {Task title}
 **Use Cases:** {UC-XXXX}
 **Feature:** {feature-slug}
+**Architecture:** {prd/features/FEAT-XXXX/ARCHITECTURE.md}
+**Intent:** {implement | wire-bdd}
 **Status:** pending
 **Estimated context:** ~{N}K tokens
 **Done signal:** {description}

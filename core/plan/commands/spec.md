@@ -181,7 +181,7 @@ For each new feature:
 3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md`
    Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
-4. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/ARCHITECTURE-template.md`
+4. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
 5. Edit `prd/FEATURES.md` — add a new row:

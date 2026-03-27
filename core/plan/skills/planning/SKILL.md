@@ -43,6 +43,25 @@ Infrastructure tasks that don't map to any scenario are allowed when they are pr
 
 These tasks use the **validator done signal** instead of BDD gate.
 
+### Using ARCHITECTURE.md Enrichment
+
+When ARCHITECTURE.md contains a Code Map section with entries, use it to:
+- Map scenarios to implementation files for more accurate task decomposition
+- Include referenced files in each task's "Files to create/modify" list
+- Estimate context budgets more precisely (the Code Map tells you which files each task needs)
+- Identify shared files that appear across multiple scenarios — these may need infrastructure tasks
+
+### Task Intent
+
+Each task carries an `Intent` field that tells the build dispatcher what kind of work to do:
+
+| Intent | Set by | Meaning |
+|--------|--------|---------|
+| `implement` | `/m:plan` | Build new code from specs. Tasks create files, implement logic, wire up components. |
+| `wire-bdd` | `/m:reverse-plan` | Write BDD step definitions for existing code. The application already works — tasks implement step definitions that exercise it. |
+
+The command that generates the plan sets the intent. Build reads it and adjusts its approach accordingly.
+
 ### Task Sizing
 
 Each task must fit within an estimated **200K token context budget**. This budget covers:

@@ -139,6 +139,8 @@ Read all in-scope materials:
 - Gherkin .feature files for the in-scope UCs
 - `bdd/steps/INDEX.md` (if exists) for existing step definitions
 
+If any ARCHITECTURE.md contains a Code Map section with entries, use it to map scenarios to implementation files. Include the ARCHITECTURE.md path in each task's Architecture field so build tasks can load it for context.
+
 Read the plan template:
 ```
 ${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-template.md
@@ -157,6 +159,8 @@ Decompose into tasks following the planning skill rules:
    - Title: verb-noun describing what gets built
    - Use Cases: which UC-XXXX IDs this task advances
    - Feature: parent feature slug
+   - Architecture: path to the feature's ARCHITECTURE.md
+   - Intent: `implement` (forward plan always uses implement)
    - Status: `pending`
    - Estimated context: `~{N}K tokens`
    - Done signal: which `@SC-XXXX` scenarios must pass, or validator check
