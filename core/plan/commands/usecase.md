@@ -242,7 +242,7 @@ Then read the template and generate the UC file:
 1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
 
 2. Write `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
-   - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (backlog), version (1), actor, tag (@UC-XXXX)
+   - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)
    - Title: `# UC-XXXX: {Use Case Name}`
    - Objective blockquote
    - Preconditions section
@@ -253,7 +253,7 @@ Then read the template and generate the UC file:
 
 3. Add a new row to `prd/features/FEAT-XXXX/USE-CASES.md`:
    ```
-   | UC-XXXX | {Use Case Name} | {One-sentence description} | backlog | [UC-XXXX.md](use-cases/UC-XXXX.md) |
+   | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
    ```
 
 ## Step 8: Report
@@ -261,6 +261,6 @@ Then read the template and generate the UC file:
 Tell the user what was created:
 
 - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- UC file with flat scenario structure
-- `prd/features/FEAT-XXXX/USE-CASES.md` -- updated with new row (UC-XXXX, status: backlog)
+- `prd/features/FEAT-XXXX/USE-CASES.md` -- updated with new row (UC-XXXX, status: pending)
 
 Suggest next step: "Use `/m:scenario UC-XXXX` to generate Gherkin scenarios for this use case."

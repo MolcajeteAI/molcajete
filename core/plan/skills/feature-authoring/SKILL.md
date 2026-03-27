@@ -139,14 +139,14 @@ Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 When creating a feature, add a new row to `prd/FEATURES.md`:
 
 ```
-| FEAT-XXXX | {Feature Name} | {One-sentence description} | scoped | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
+| FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
 ```
 
 **Column rules:**
 - **ID:** `FEAT-XXXX` — the generated ID
 - **Feature:** Short name (3-5 words)
 - **Description:** One sentence — enough for an agent to decide if this is the right feature
-- **Status:** Always `scoped` when first created
+- **Status:** Always `pending` when first created
 - **Tag:** `@FEAT-XXXX` — used as Gherkin feature tag
 - **Directory:** Relative Markdown link to `prd/features/FEAT-XXXX/`
 

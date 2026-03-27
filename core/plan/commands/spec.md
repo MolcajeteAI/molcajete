@@ -186,7 +186,7 @@ For each new feature:
 
 5. Edit `prd/FEATURES.md` — add a new row:
    ```
-   | FEAT-XXXX | {Feature Name} | {One-sentence description} | scoped | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
+   | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
 
 ### 9.2 Modified Features
@@ -201,7 +201,7 @@ For each new use case:
 1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
 
 2. Write `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
-   - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (backlog), version (1), actor, tag (@UC-XXXX)
+   - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)
    - Title: `# UC-XXXX: {Use Case Name}`
    - Objective blockquote
    - Preconditions section
@@ -211,7 +211,7 @@ For each new use case:
 
 3. Add a new row to `prd/features/FEAT-XXXX/USE-CASES.md`:
    ```
-   | UC-XXXX | {Use Case Name} | {One-sentence description} | backlog | [UC-XXXX.md](use-cases/UC-XXXX.md) |
+   | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
    ```
 
 ### 9.4 Modified Use Cases
@@ -276,11 +276,16 @@ Use AskUserQuestion to show a summary of generated Gherkin:
 
 If the user selects "Show full content", display the full Gherkin via AskUserQuestion and ask for confirmation.
 
-### 10.7 Update UC Statuses
+### 10.7 Update Scenario Headings
 
 For each use case that received Gherkin generation:
-1. Edit the UC file's YAML frontmatter: set `status` from `backlog` to `specified`.
-2. Update the corresponding row in `prd/features/FEAT-XXXX/USE-CASES.md`: change the Status column to `specified`.
+1. Add a `pending` status annotation to each scenario heading line in the UC file:
+   ```
+   ### SC-XXXX: {Scenario Name} `pending`
+   ```
+   Gherkin files stay clean — no status tags in `.feature` files.
+2. The UC file's YAML frontmatter `status` stays as-is (`pending`). Do not change it.
+3. Do not change the USE-CASES.md status column.
 
 ## Step 11: Report
 
@@ -300,7 +305,7 @@ Tell the user a structured summary of everything created and updated:
 - Updated INDEX.md files
 
 **Status Changes:**
-- UCs moved from `backlog` → `specified`
+- Scenario headings annotated with `pending`
 - Modified UCs set to `dirty`
 
 Suggest next steps based on what was created:

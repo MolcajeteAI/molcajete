@@ -103,7 +103,7 @@ Use validator gates sparingly — most tasks should have BDD gates.
 ## Task Status Lifecycle
 
 ```
-pending → in_progress → done
+pending → in_progress → implemented
                       → failed
 ```
 
@@ -111,13 +111,13 @@ pending → in_progress → done
 |--------|---------|
 | `pending` | Not started, waiting for dependencies |
 | `in_progress` | Currently being worked on by m::build |
-| `done` | Done signal satisfied |
+| `implemented` | Done signal satisfied |
 | `failed` | Attempted but could not complete — needs intervention |
 
 Plan-level status follows the same values:
 - `pending` — no tasks started
 - `in_progress` — at least one task in progress
-- `done` — all tasks done
+- `implemented` — all tasks implemented
 - `failed` — any task failed and work stopped
 
 ## Plan File Naming

@@ -105,12 +105,29 @@ Apply the confirmed changes:
 
 2. If architecture changes were confirmed, edit `prd/features/FEAT-XXXX/ARCHITECTURE.md`.
 
-3. Do NOT change the FEAT ID, tag, or lifecycle status in FEATURES.md.
+3. Do NOT change the FEAT ID or tag.
 
-## Step 7: Report
+## Step 7: Dirty Cascade
+
+If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
+
+1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
+
+2. Read `prd/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
+   - Set the UC's status to `dirty` in USE-CASES.md.
+   - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
+   - Set all scenario heading annotations in the UC file to `dirty`:
+     ```
+     ### SC-XXXX: {Scenario Name} `dirty`
+     ```
+
+If the feature's current status is `pending`, do not cascade — the feature hasn't been implemented yet so there's nothing to mark dirty.
+
+## Step 8: Report
 
 Tell the user what changed:
 
 - List each file that was modified
 - Summarize the changes applied
-- Note: Feature-level changes may affect downstream use cases. Suggest: "If these changes affect existing use cases, use `/m:update-usecase UC-XXXX <description>` to update them."
+- If dirty cascade was triggered: list the feature, UCs, and scenarios that were set to `dirty`
+- Note: "Use `/m:update-usecase UC-XXXX <description>` to refine individual use cases if needed."

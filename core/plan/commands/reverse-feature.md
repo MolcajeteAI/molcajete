@@ -111,8 +111,9 @@ The subagent prompt must include:
    - `prd/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/REQUIREMENTS-template.md`
    - `prd/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
    - `prd/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
-   - Append a row to `prd/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | scoped | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
+   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `implemented` (not `pending`), and annotate each scenario heading with `implemented`: `### SC-XXXX: {Scenario Name} \`implemented\``
+   - In USE-CASES.md rows, set status column to `implemented`
+   - Append a row to `prd/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | implemented | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -157,7 +158,8 @@ The subagent prompt must include:
      - Step stubs must throw pending/not-implemented errors (per reverse-engineering skill convention)
      - Follow dedup procedure for existing feature files
    - Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md`
-   - Update UC statuses from `backlog` to `specified` in both UC files and USE-CASES.md
+   - Set UC statuses to `implemented` in both UC files and USE-CASES.md
+   - Add `implemented` annotation to each scenario heading in UC files: `### SC-XXXX: {Scenario Name} \`implemented\``
    - Run splitting check for any feature file exceeding 15 scenarios
 
 4. **Report format:** The subagent must end with a structured report listing:
@@ -183,6 +185,8 @@ Tell the user what was created:
 - Updated BDD indexes
 
 **Status Changes:**
-- UCs moved from `backlog` to `specified`
+- Feature set to `implemented`
+- UCs set to `implemented`
+- Scenario headings annotated with `implemented`
 
 Suggest next step: "Review the specs and Gherkin, then run `/m:plan FEAT-XXXX` to plan step implementation."

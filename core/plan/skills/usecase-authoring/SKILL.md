@@ -245,7 +245,7 @@ This table defines how UC elements map to Gherkin output for the Tester agent.
 | `id` | string | `UC-XXXX` -- 4-character timestamp ID |
 | `name` | string | Verb-noun goal phrase (e.g., "Create Feature") |
 | `feature` | string | Parent feature ID: `FEAT-XXXX` |
-| `status` | enum | `backlog` when first created. Lifecycle: backlog, scoped, specified, building, live, dirty, deprecated |
+| `status` | enum | `pending` when first created. Lifecycle: pending, implemented, dirty, deprecated |
 | `version` | integer | Starts at `1`. Incremented by /m:plan on each edit |
 | `actor` | string | Primary actor role (must exist in prd/ACTORS.md) |
 | `tag` | string | `@UC-XXXX` -- used for Gherkin scenario filtering |
@@ -267,14 +267,14 @@ Prepend `UC-` to the output (e.g., `UC-0S9A`).
 When creating a use case, add a new row to the feature's `USE-CASES.md`:
 
 ```
-| UC-XXXX | {Use Case Name} | {One-sentence description} | backlog | [UC-XXXX.md](use-cases/UC-XXXX.md) |
+| UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
 ```
 
 **Column rules:**
 - **ID:** `UC-XXXX` -- the generated ID
 - **Name:** Verb-noun goal phrase (matches frontmatter `name`)
 - **Description:** One sentence -- enough for an agent to identify this use case
-- **Status:** Always `backlog` when first created
+- **Status:** Always `pending` when first created
 - **File:** Relative Markdown link to `use-cases/UC-XXXX.md`
 
 **When updating a use case,** do NOT change the ID. Update Status only when the use case advances through its lifecycle.
@@ -342,7 +342,7 @@ After all sections are confirmed:
 1. Generate UC-XXXX ID (4-character timestamp code)
 2. Create `prd/features/FEAT-XXXX/use-cases/` directory if it does not exist
 3. If any scenario has image files, create `prd/features/FEAT-XXXX/use-cases/assets/` and copy images with `{UC-ID}-{descriptive-slug}.{ext}` naming
-4. Write `UC-XXXX.md` using [UC-template.md](./templates/UC-template.md) -- fill all sections with confirmed content, include inline `**UI:**` blocks within Steps for scenarios that have UI, set frontmatter status to `backlog`, version to `1`
+4. Write `UC-XXXX.md` using [UC-template.md](./templates/UC-template.md) -- fill all sections with confirmed content, include inline `**UI:**` blocks within Steps for scenarios that have UI, set frontmatter status to `pending`, version to `1`
 6. Add row to the feature's `USE-CASES.md`
 
 ## Update Mode

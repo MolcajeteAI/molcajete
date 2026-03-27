@@ -1,7 +1,7 @@
 ---
 id: FEAT-XXXX
 name: {Feature Name}
-status: scoped
+status: pending
 version: 1
 ---
 
@@ -72,4 +72,4 @@ Linked to: UC-XXXX
 - All use cases have Gherkin scenarios passing
 - All scenarios include side effect assertions
 - Architecture.md diagrams reflect the built system
-- FEATURES.md status is `live`
+- FEATURES.md status is `implemented`

@@ -111,7 +111,13 @@ Apply the confirmed changes to the UC file:
 
 4. Update the status column in `prd/features/FEAT-XXXX/USE-CASES.md` to `dirty` for this UC row.
 
-5. Do NOT change the UC-XXXX ID or tag.
+5. Set affected scenario headings to `dirty`. For each scenario that was modified, update its heading annotation:
+   ```
+   ### SC-XXXX: {Scenario Name} `dirty`
+   ```
+   If new scenarios were added, annotate them with `pending`.
+
+6. Do NOT change the UC-XXXX ID or tag.
 
 6. If new scenarios were added, generate SC IDs for them:
 

@@ -250,11 +250,14 @@ Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` st
 
 Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If the scenario count in the target feature file exceeds 15, run the splitting procedure.
 
-## Step 15: Update UC Status
+## Step 15: Update Scenario Headings and UC Status
 
-1. If the UC file's current `status` is `backlog`, set it to `specified`.
-2. Otherwise, only increment the `version` (already done in Step 7).
-3. Update the corresponding row in `prd/features/FEAT-XXXX/USE-CASES.md`: change the Status column to match.
+1. For each new scenario appended to the UC file, add an `implemented` annotation to the heading:
+   ```
+   ### SC-XXXX: {Scenario Name} `implemented`
+   ```
+2. If all scenarios in the UC file now have `implemented` status, set the UC's YAML frontmatter `status` to `implemented` and update the USE-CASES.md status column to `implemented`.
+3. Otherwise, only increment the `version` (already done in Step 7).
 
 ## Step 16: Report
 

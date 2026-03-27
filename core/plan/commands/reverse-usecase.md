@@ -146,8 +146,8 @@ The subagent prompt must include:
 
 5. **Files to write:**
    - Create directory if needed: `prd/features/FEAT-XXXX/use-cases/`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
-   - Edit `prd/features/FEAT-XXXX/USE-CASES.md` — add row: `| UC-XXXX | {name} | {description} | backlog | [UC-XXXX.md](use-cases/UC-XXXX.md) |`
+   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `implemented` (not `pending`), and annotate each scenario heading with `implemented`: `### SC-XXXX: {Scenario Name} \`implemented\``
+   - Edit `prd/features/FEAT-XXXX/USE-CASES.md` — add row: `| UC-XXXX | {name} | {description} | implemented | [UC-XXXX.md](use-cases/UC-XXXX.md) |`
    - Edit `prd/features/FEAT-XXXX/ARCHITECTURE.md` — add Code Map entries for UC-XXXX and all SC-XXXX IDs, update frontmatter `use_cases` and `scenarios` arrays, update `last_update` date
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
@@ -192,7 +192,7 @@ The subagent prompt must include:
    - Step stubs must throw pending/not-implemented errors (per reverse-engineering skill convention)
    - Follow dedup procedure for existing feature files
    - Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md`
-   - Update UC status from `backlog` to `specified` in both UC file and USE-CASES.md
+   - Verify UC status is `implemented` in both UC file and USE-CASES.md (should already be set by T1)
    - Run splitting check if feature file exceeds 15 scenarios
 
 4. **Report format:** The subagent must end with a structured report listing:
@@ -209,7 +209,8 @@ Tell the user what was created:
 - `prd/features/FEAT-XXXX/ARCHITECTURE.md` — updated with Code Map entries
 - Feature file path + scenario count
 - Step definition stubs (pending/not-implemented)
-- UC status: `backlog` → `specified`
+- UC status: `implemented`
+- Scenario headings annotated with `implemented`
 
 Suggest next steps:
 - "Use `/m:reverse-usecase FEAT-XXXX <description>` to extract more use cases from this feature's code."

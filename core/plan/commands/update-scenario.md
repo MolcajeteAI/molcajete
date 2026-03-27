@@ -95,13 +95,18 @@ Apply the confirmed changes to the scenario within the UC file:
 
 1. Edit `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- modify only the `### SC-XXXX:` block with confirmed changes.
 
-2. Increment the `version` field in the UC file's YAML frontmatter.
+2. Set the scenario heading annotation to `dirty`:
+   ```
+   ### SC-XXXX: {Scenario Name} `dirty`
+   ```
 
-3. Set `status` to `dirty` in the UC file's YAML frontmatter.
+3. Increment the `version` field in the UC file's YAML frontmatter.
 
-4. Update the status column in `prd/features/FEAT-XXXX/USE-CASES.md` to `dirty` for this UC row.
+4. Set `status` to `dirty` in the UC file's YAML frontmatter.
 
-5. Do NOT change the SC-XXXX ID, UC-XXXX ID, or any tags.
+5. Update the status column in `prd/features/FEAT-XXXX/USE-CASES.md` to `dirty` for this UC row.
+
+6. Do NOT change the SC-XXXX ID, UC-XXXX ID, or any tags.
 
 ## Step 7: Gherkin Propagation
 

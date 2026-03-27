@@ -87,12 +87,12 @@ Find everything that needs implementation:
 
 1. Parse `prd/FEATURES.md` for all features.
 2. For each feature, read `prd/features/FEAT-XXXX/USE-CASES.md`.
-3. Collect UCs with status `specified` or `dirty` in the USE-CASES.md table.
-4. Also include features with status `scoped` that have UCs ready.
+3. Collect UCs with status `pending` or `dirty` in the USE-CASES.md table.
+4. Also include features with status `pending` that have UCs ready.
 5. For each in-scope feature, read `REQUIREMENTS.md` and `ARCHITECTURE.md` (if exists).
 6. Build the full picture of all pending work.
 
-If nothing plannable is found: tell the user "No unimplemented specs found. All use cases are either already implemented or still in backlog. Use `/m:feature`, `/m:usecase`, or `/m:spec` to author new specs, then `/m:scenario` to generate Gherkin." Then stop.
+If nothing plannable is found: tell the user "No unimplemented specs found. All use cases are either already implemented or not yet specified. Use `/m:feature`, `/m:usecase`, or `/m:spec` to author new specs, then `/m:scenario` to generate Gherkin." Then stop.
 
 ## Step 6: Verify Gherkin + Step Stubs
 

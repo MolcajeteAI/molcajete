@@ -154,7 +154,9 @@ The subagent prompt must include:
      - Generate step definition stubs that throw pending/not-implemented errors
      - Follow dedup procedure for existing feature files
    - Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md`
-   - Update UC statuses from `backlog` to `specified` in both UC files and USE-CASES.md
+   - Set UC statuses to `implemented` in both UC files and USE-CASES.md
+   - Set feature statuses to `implemented` in FEATURES.md
+   - Add `implemented` annotation to each scenario heading in UC files: `### SC-XXXX: {Scenario Name} \`implemented\``
    - Run splitting check for any feature file exceeding 15 scenarios
 
 4. **Report format:** The subagent must end with a structured report listing:
@@ -178,6 +180,8 @@ Tell the user what was created across all features:
 - Updated indexes
 
 **Status Changes:**
-- UCs moved from `backlog` to `specified`
+- Features set to `implemented`
+- UCs set to `implemented`
+- Scenario headings annotated with `implemented`
 
 Suggest next step: "Review the specs and Gherkin, then run `/m:plan FEAT-XXXX` to plan step implementation for a specific feature."

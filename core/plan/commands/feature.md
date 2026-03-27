@@ -117,7 +117,7 @@ Then read each template and generate the documents:
 
 4. Edit `prd/FEATURES.md` — add a new row:
    ```
-   | FEAT-XXXX | {Feature Name} | {One-sentence description} | scoped | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
+   | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
 
 ## Step 8: Report

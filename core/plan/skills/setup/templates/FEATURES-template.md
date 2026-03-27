@@ -6,12 +6,9 @@
 
 ## Status Key
 
-- `backlog` -- Intended but not yet scoped
-- `scoped` -- REQUIREMENTS.md created; use cases listed but not detailed
-- `specified` -- All use case files written; ARCHITECTURE.md complete
-- `building` -- Active implementation in progress
-- `live` -- In production, maintained
-- `dirty` -- Spec updated but code has not caught up yet (needs /m:build)
+- `pending` -- Spec written, not yet implemented
+- `implemented` -- Code exists that fulfills this spec
+- `dirty` -- Spec changed after implementation; code needs to catch up
 - `deprecated` -- No longer active; retained for audit trail
 
 ## Features

@@ -2,7 +2,7 @@
 id: UC-XXXX
 name: {Verb-noun goal name}
 feature: FEAT-XXXX
-status: backlog
+status: pending
 version: 1
 actor: {Primary actor role}
 tag: @UC-XXXX
