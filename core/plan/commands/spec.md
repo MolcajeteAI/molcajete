@@ -220,7 +220,7 @@ For each new use case:
    - Preconditions section
    - Trigger section
    - Gherkin Tags: `@FEAT-XXXX @UC-XXXX`
-   - All confirmed scenarios in flat structure — each scenario preceded and followed by a `---` horizontal rule (including after the last scenario), each with SC-XXXX ID, Given/Steps/Outcomes/Side Effects
+   - All confirmed scenarios in flat structure — each scenario preceded and followed by a `---` horizontal rule (including after the last scenario), each with SC-XXXX ID, Given/Steps/Outcomes/Side Effects. Each scenario heading must include a `pending` status annotation: `### SC-XXXX: {Scenario Name} \`pending\``
 
 3. Add a new row to `prd/features/FEAT-XXXX/USE-CASES.md`:
    ```
