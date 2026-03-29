@@ -8,6 +8,10 @@
   },
   "keywords": ["workflow", "development", "testing", "specs", "bdd"],
   "commands": [
+    "./build/commands/build.md",
+    "./build/commands/build/task.md",
+    "./build/commands/build/review.md",
+    "./build/commands/build/update-architecture.md",
     "./plan/commands/feature.md",
     "./plan/commands/plan.md",
     "./plan/commands/reverse-feature.md",
@@ -24,6 +28,7 @@
     "./plan/commands/usecase.md"
   ],
   "skills": [
+    "./build/skills/dispatch/SKILL.md",
     "./plan/skills/architecture/SKILL.md",
     "./plan/skills/feature-authoring/SKILL.md",
     "./plan/skills/planning/SKILL.md",
