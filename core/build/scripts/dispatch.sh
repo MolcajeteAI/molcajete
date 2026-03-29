@@ -149,6 +149,115 @@ write_plan_summary() {
   ' "$PLAN_FILE" > "${PLAN_FILE}.tmp" && mv "${PLAN_FILE}.tmp" "$PLAN_FILE"
 }
 
+update_prd_statuses() {
+  # After a build session, propagate implemented status up through the PRD:
+  # UC files -> USE-CASES.md -> FEATURES.md
+  # Only marks a UC as implemented when ALL its scenarios are covered by done_tags.
+
+  local prd_dir="${PROJECT_ROOT}/prd"
+  if [ ! -d "$prd_dir" ]; then
+    log "Warning: prd/ directory not found — skipping PRD status update"
+    return 0
+  fi
+
+  # Collect all done_tags from implemented tasks into a set (newline-separated)
+  local done_tags
+  done_tags=$(jq -r '[.tasks[] | select(.status == "implemented") | .done_tags[]] | unique | .[]' "$TASKS_JSON" 2>/dev/null) || true
+  if [ -z "$done_tags" ]; then
+    log "No done_tags found — skipping PRD status update"
+    return 0
+  fi
+
+  # Collect unique UCs from implemented tasks
+  local implemented_ucs
+  implemented_ucs=$(jq -r '[.tasks[] | select(.status == "implemented") | .use_cases[]] | unique | .[]' "$TASKS_JSON" 2>/dev/null) || true
+  if [ -z "$implemented_ucs" ]; then
+    return 0
+  fi
+
+  # Track which features were affected for feature-level check
+  local affected_features=""
+
+  for uc_id in $implemented_ucs; do
+    # Find the UC file
+    local uc_file
+    uc_file=$(find "$prd_dir/features" -path "*/use-cases/${uc_id}.md" -print -quit 2>/dev/null) || true
+    if [ -z "$uc_file" ] || [ ! -f "$uc_file" ]; then
+      log "Warning: UC file not found for $uc_id — skipping"
+      continue
+    fi
+
+    # Extract all scenario IDs from this UC file
+    local scenario_ids
+    scenario_ids=$(grep -oE '^### SC-[A-Za-z0-9]+' "$uc_file" | sed 's/^### //' || true)
+    if [ -z "$scenario_ids" ]; then
+      continue
+    fi
+
+    # Check if every scenario's @tag is in the done_tags set
+    local all_covered=true
+    for sc_id in $scenario_ids; do
+      if echo "$done_tags" | grep -qxF "@${sc_id}"; then
+        :
+      else
+        all_covered=false
+        break
+      fi
+    done
+
+    if [ "$all_covered" = "true" ]; then
+      # Update UC file frontmatter: status: pending/dirty -> status: implemented
+      sed -i '' -E 's/^status: (pending|dirty)$/status: implemented/' "$uc_file"
+
+      # Find the feature directory containing this UC
+      local feature_dir
+      feature_dir=$(dirname "$(dirname "$uc_file")")
+      local use_cases_index="${feature_dir}/USE-CASES.md"
+
+      if [ -f "$use_cases_index" ]; then
+        # Update the UC's row in USE-CASES.md: replace pending/dirty with implemented
+        sed -i '' -E "/^\\| *${uc_id} /s/\\| *(pending|dirty) *\\|/| implemented |/" "$use_cases_index"
+      fi
+
+      # Track the feature directory for feature-level check
+      local feat_dir_name
+      feat_dir_name=$(basename "$feature_dir")
+      case "$affected_features" in
+        *"$feat_dir_name"*) ;;
+        *) affected_features="${affected_features}${feat_dir_name} " ;;
+      esac
+
+      log "PRD updated: $uc_id → implemented"
+    fi
+  done
+
+  # Feature-level check: if all UCs in a feature are implemented, mark the feature
+  local features_md="${prd_dir}/FEATURES.md"
+  if [ ! -f "$features_md" ]; then
+    return 0
+  fi
+
+  for feat_dir_name in $affected_features; do
+    [ -z "$feat_dir_name" ] && continue
+    local use_cases_index="${prd_dir}/features/${feat_dir_name}/USE-CASES.md"
+    if [ ! -f "$use_cases_index" ]; then
+      continue
+    fi
+
+    # Check if any UC row in USE-CASES.md is NOT implemented
+    # Table rows start with "| UC-" — check if any have pending/dirty status
+    local non_implemented
+    non_implemented=$(grep -E '^\| *UC-' "$use_cases_index" | grep -vE '\| *implemented *\|' || true)
+
+    if [ -z "$non_implemented" ]; then
+      # All UCs implemented — update FEATURES.md row for this feature
+      # feat_dir_name is the FEAT-XXXX ID
+      sed -i '' -E "/^\\| *${feat_dir_name} /s/\\| *(pending|dirty) *\\|/| implemented |/" "$features_md"
+      log "PRD updated: ${feat_dir_name} → implemented (all UCs done)"
+    fi
+  done
+}
+
 # ── Task Functions ──
 
 run_task() {
@@ -467,6 +576,11 @@ for task_idx in $(seq 0 $((TASK_COUNT - 1))); do
     *)           printf "  %-8s  %-12s %s\n" "$task_id" "$task_status" "$task_title" ;;
   esac
 done
+
+# Update PRD statuses (UC files, USE-CASES.md, FEATURES.md)
+if [ "$DONE_COUNT" -gt 0 ]; then
+  update_prd_statuses
+fi
 
 # Update plan-level status (only the first **Status:** line — before any task headings)
 ALL_IMPLEMENTED=$(jq '[.tasks[] | select(.status == "implemented")] | length' "$TASKS_JSON")
