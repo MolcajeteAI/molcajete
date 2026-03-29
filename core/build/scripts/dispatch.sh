@@ -290,7 +290,7 @@ run_task() {
       watch_outs=$(echo "$CLAUDE_OUTPUT" | jq -r '.watch_outs // [] | join("; ")' 2>/dev/null)
 
       update_json "(.tasks[] | select(.id == \"$task_id\")) |=
-        (.status = \"in_progress\" | .commits = $commits | .error = null)"
+        (.commits = $commits | .error = null)"
 
       # Build full summary for plan file
       local full_summary="$summary"
@@ -353,7 +353,16 @@ run_review_fix() {
     --output-format json --json-schema "$TASK_SCHEMA" \
     --resume "$session_name" \
     --dangerously-skip-permissions \
-    "The review agent found issues with your implementation. Fix them and recommit.
+    "REVIEW FIX MODE — Do NOT re-run your full workflow. Focus only on the issues below.
+
+For each issue:
+1. Read the cited file
+2. Fix the specific problem described
+3. Run the formatter and linter on changed files
+4. Re-run unit tests if production code changed
+
+After fixing all issues, stage and commit:
+  git add -A && git commit -m \"Fixes review issues for $task_id\"
 
 Issues:
 $issues"; then
@@ -480,6 +489,7 @@ TASK_COUNT=$(jq '.tasks | length' "$TASKS_JSON")
 DONE_COUNT=0
 FAILED_COUNT=0
 SKIPPED_COUNT=0
+ARCH_UPDATED_FEATURES=""
 
 for task_idx in $(seq 0 $((TASK_COUNT - 1))); do
   TASK_ID=$(jq -r ".tasks[$task_idx].id" "$TASKS_JSON")
@@ -605,7 +615,13 @@ for task_idx in $(seq 0 $((TASK_COUNT - 1))); do
   fi
 
   # ── Phase 3: Architecture Update ──
-  run_architecture_update "$TASK_ID" "$WORKTREE_PATH"
+  case "$ARCH_UPDATED_FEATURES" in
+    *"$TASK_FEAT"*) log "Architecture already updated for $TASK_FEAT — skipping" ;;
+    *)
+      run_architecture_update "$TASK_ID" "$WORKTREE_PATH"
+      ARCH_UPDATED_FEATURES="${ARCH_UPDATED_FEATURES}${TASK_FEAT} "
+      ;;
+  esac
 
   # ── Phase 4: Merge ──
   merge_result=0

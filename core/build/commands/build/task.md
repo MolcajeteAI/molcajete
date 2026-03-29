@@ -188,6 +188,20 @@ If any error occurs that prevents completion:
 }
 ```
 
+## Fix Mode (Review Feedback)
+
+When you are resumed with review feedback (message starts with "REVIEW FIX MODE"), do NOT re-execute Steps 1-5. Instead:
+
+1. Parse the issues list from the message
+2. For each issue:
+   - Read the cited file to understand the context
+   - Apply the targeted fix
+   - If the issue is about step definitions: only edit `bdd/steps/` files
+   - If the issue is about production code: edit source files, re-run unit tests
+   - If the issue is about formatting/linting: run the project formatter/linter
+3. Stage and commit all fixes in a single commit
+4. Return the standard JSON result with `status: "done"` and the new commit SHA
+
 ## Rules
 
 - This is a headless command. Do not prompt the user or use AskUserQuestion.
