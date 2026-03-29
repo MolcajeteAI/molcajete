@@ -204,7 +204,10 @@ If the target step file exists, append new definitions. If not, create it using 
 Every new step definition must include:
 - A docstring (Python) or doc comment (Go, TypeScript) describing what the step does
 - Parameter descriptions with types in the docstring
-- A `TODO: implement step` placeholder body (not an empty body)
+- A pending-error stub body (never empty). The error message must be the literal string `"TODO: implement step"` so the build dispatcher can detect unimplemented steps with a single grep. Use the language-appropriate pattern:
+  - **Python:** `raise NotImplementedError("TODO: implement step")`
+  - **TypeScript:** `throw new Error("TODO: implement step")`
+  - **Go:** `return fmt.Errorf("TODO: implement step")`
 
 ## Index Maintenance Rules
 

@@ -98,7 +98,7 @@ Each task carries an `intent` field that controls task agent behavior:
 
 | Intent | Set by | Task agent behavior |
 |--------|--------|---------------------|
-| `implement` | `/m:plan` | **Phase A:** Replace `NotImplementedError` stubs with real BDD assertion code. Commit step definitions. **Phase B:** Implement production code to make assertions pass. Write unit tests. Quality gates. Commit production code. |
+| `implement` | `/m:plan` | **Phase A:** Replace pending-error stubs (`"TODO: implement step"`) with real BDD assertion code. Commit step definitions. **Phase B:** Implement production code to make assertions pass. Write unit tests. Quality gates. Commit production code. |
 | `wire-bdd` | `/m:reverse-plan` | **Single phase:** Write step definitions that exercise existing application code. No production code changes. Commit step definitions only. |
 
 dispatch.sh passes the intent to the task agent. The agent adjusts its workflow accordingly.

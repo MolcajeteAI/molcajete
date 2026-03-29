@@ -258,8 +258,7 @@ When generating step definitions during T2 (Gherkin generation), stubs must thro
 **JavaScript/TypeScript:**
 ```javascript
 Then('the user receives a valid token', async function () {
-  // TODO: implement step
-  throw new Error('Step not implemented');
+  throw new Error("TODO: implement step");
 });
 ```
 
@@ -267,11 +266,10 @@ Then('the user receives a valid token', async function () {
 ```python
 @then('the user receives a valid token')
 def step_impl(context):
-    # TODO: implement step
-    raise NotImplementedError('Step not implemented')
+    raise NotImplementedError("TODO: implement step")
 ```
 
-This ensures that running the BDD suite immediately shows which steps need implementation, and the build dispatcher can use "all scenarios passing" as its done signal.
+This ensures that running the BDD suite immediately shows which steps need implementation, and the build dispatcher can use "all scenarios passing" as its done signal. The literal string `"TODO: implement step"` is the canonical marker the build dispatcher greps for.
 
 ## Template Reference
 

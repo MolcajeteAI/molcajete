@@ -237,7 +237,7 @@ Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` st
 3. New stubs must throw pending/not-implemented errors (per the reverse-engineering skill's step stub convention):
    - Docstring (or doc comment) describing what the step does
    - Parameter descriptions with types
-   - Body throws `Error('Step not implemented')` or equivalent
+   - Pending-error stub body per the gherkin skill's Step Definition Rules (e.g. `raise NotImplementedError("TODO: implement step")` for Python)
 4. Place in correct file: `common_steps`, `api_steps`, `db_steps`, or `{domain}_steps` — follow the step file placement table from the gherkin skill.
 5. If the target step file exists → append. If not → create from language-appropriate template in `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/templates/`.
 6. Never mix languages.

@@ -193,7 +193,7 @@ The most important gate — catches what models typically rush through.
 **Gap detection:**
 - Check for TODO comments in changed files
 - Check for placeholder implementations, empty function bodies, stub returns
-- Check for `NotImplementedError` / `pending()` / `ErrPending` that should have been replaced
+- Check for `"TODO: implement step"` stub markers that should have been replaced
 - Flag any of these as **blocking** issues.
 
 **Rule compliance:**

@@ -87,12 +87,12 @@ Check the task's Intent field and follow the corresponding workflow.
 
 #### Phase A: Step Definitions
 
-Replace `NotImplementedError` stubs with real BDD assertion code for this task's scenarios.
+Replace pending-error stubs with real BDD assertion code for this task's scenarios.
 
-1. Find step definition files in `bdd/steps/` that contain `NotImplementedError` (or equivalent: `pending()` for cucumber-js, `godog.ErrPending` for Go)
+1. Find step definition files in `bdd/steps/` that contain the stub marker `"TODO: implement step"` (appears in `NotImplementedError`, `new Error`, or `fmt.Errorf` calls depending on language)
 2. Identify which steps correspond to this task's scenarios (match by `@SC-XXXX` tags from the done signal)
 3. Read the Gherkin scenarios to understand what each step should assert
-4. Replace `NotImplementedError` with real assertion logic. Preserve existing docstrings and parameter parsing.
+4. Replace the pending-error call with real assertion logic. Preserve existing docstrings and parameter parsing.
 5. Follow the gherkin skill's step writing rules
 
 Stage and commit step definitions:
@@ -115,7 +115,7 @@ Implement the production code to make the BDD assertions pass.
 
 1. Run the project's formatter on all changed files (e.g., `npx prettier --write`, `black`, `gofmt -w`). Detect the formatter from project config or CLAUDE.md.
 2. Run the project's linter on all changed files (e.g., `npx eslint --fix`, `ruff check --fix`, `golangci-lint run`). Fix any issues it reports.
-3. Self-review: `git diff` — check for debug statements, commented-out code, hardcoded secrets, `TODO` placeholders, `NotImplementedError` stubs that should be replaced, and obvious logic errors.
+3. Self-review: `git diff` — check for debug statements, commented-out code, hardcoded secrets, `TODO` placeholders, `"TODO: implement step"` stubs that should be replaced, and obvious logic errors.
 4. Re-run unit tests if you fixed anything in steps 1-3.
 
 Stage and commit production code:
@@ -133,7 +133,7 @@ git commit -m "Implements {TASK_ID}: {task title}"
 
 Write step definitions that exercise existing application code. The app already works — you are wiring BDD tests to it.
 
-1. Find step definition files in `bdd/steps/` with `NotImplementedError` stubs
+1. Find step definition files in `bdd/steps/` that contain the stub marker `"TODO: implement step"`
 2. Identify which steps correspond to this task's scenarios
 3. Read the existing application code (referenced in ARCHITECTURE.md Code Map or task description) to understand how it works
 4. Write step definitions that call the real application code and assert correct behavior
