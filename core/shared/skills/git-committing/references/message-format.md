@@ -5,14 +5,20 @@ Detailed rules for constructing commit messages. The SKILL.md has the summary �
 ## Structure
 
 ```
-<Verb> <what changed>
+<prefix>: <what changed>
 
-- <why detail 1>
-- <why detail 2>
-- <why detail 3>
+- <what was done detail 1>
+- <what was done detail 2>
+
+<FEAT-XXXX>
+- <UC-XXXX>: <use case name>
+  - <SC-XXXX>: <scenario name>
+  - <SC-XXXX>: <scenario name>
+- <UC-XXXX>: <use case name>
+  - <SC-XXXX>: <scenario name>
 ```
 
-The first line is the subject. The body (bullet points) is optional but recommended for non-trivial changes.
+The first line is the subject. The body (bullet points) is optional but recommended for non-trivial changes. The spec references block is mandatory when the commit has PRD context; omit it for commits with no feature/UC/scenario context (e.g., dependency updates, config changes).
 
 ## Subject Line
 
@@ -55,17 +61,17 @@ Aim for clarity, not sophistication:
 - Good: "Adds user search feature"
 - Bad: "Implements user discovery mechanism"
 
-### Conventional Commit Prefixes — Match Project Convention
+### Conventional Commit Prefixes — Default Style
 
-Prefixes like `feat:`, `fix:`, `test:`, `chore:`, `docs:` are widely used. Use the appropriate prefix based on the staged changes, but adapt to the project's style — check `git log --oneline -20`. If the project's history does not use prefixes, skip them and use the verb-only format instead.
+Prefixes like `feat:`, `fix:`, `test:`, `chore:`, `docs:` are the default. Always use them unless the project's history shows the majority of commits without prefixes — check `git log --oneline -20`. If the project does not use prefixes, fall back to verb-only format.
 
 ```
-# Project USES prefixes — follow the convention
+# Default — use prefixes
 feat: Add user dashboard
 fix: Resolve payment error
 chore: Update dependencies
 
-# Project DOES NOT use prefixes — use verb-only style
+# Fallback — project history does NOT use prefixes
 Adds user dashboard
 Fixes payment processing error
 Updates dependencies to latest versions
@@ -119,6 +125,46 @@ Fixes typo in README
 ```
 Updates dependencies to latest versions
 ```
+
+## Spec References Block
+
+When a commit is part of a task with PRD context (feature, use cases, scenarios), append a spec references block after the body.
+
+### Format
+
+```
+feat: Add user registration endpoint
+
+- Creates registration handler with input validation
+- Adds bcrypt password hashing
+- Stores new user in database
+
+FEAT-0012
+- UC-0041: Register new user
+  - SC-0101: Valid registration with all fields
+  - SC-0102: Duplicate email rejected
+```
+
+### Rules
+
+1. Separated from the body by a blank line
+2. Feature ID on its own line — no label prefix, just `FEAT-XXXX`
+3. Use cases as top-level bullets: `- UC-XXXX: Name`
+4. Scenarios indented under their parent UC: `  - SC-XXXX: Name`
+5. Only include UCs and scenarios relevant to this commit
+6. **Mandatory** when the commit has PRD context
+7. **Omit entirely** for non-PRD commits (dependency updates, config, tooling)
+
+### When to Omit
+
+```
+chore: Update dependencies to latest versions
+
+- Bumps express from 4.18 to 4.19
+- Updates jest to v30
+```
+
+No refs block — this commit has no feature/UC/scenario context.
 
 ## What NOT to Include
 

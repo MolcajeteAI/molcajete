@@ -21,7 +21,7 @@ Standards for how agents create git commits during task execution. This skill de
 Before writing any commit message, detect the project's existing style:
 
 1. Run `git log --oneline -20` and examine the output
-2. **Prefixes**: If the majority of recent commits use conventional prefixes (`feat:`, `fix:`, `chore:`, etc.), use them. If they don't, use the verb-only format.
+2. **Prefixes**: Default to conventional prefixes (`feat:`, `fix:`, `chore:`, etc.). Only drop them and use verb-only format if the majority of recent commits do NOT use prefixes.
 3. **Verb tense**: Match the existing pattern. Most projects use either "Adds" (third person) or "Add" (imperative). Follow what's already there.
 4. **Casing**: Match subject line casing — some projects capitalize after the prefix, some don't.
 
@@ -32,14 +32,18 @@ The detected style applies to all commits in the session. Do not mix styles.
 ### Structure
 
 ```
-<Verb> <what changed>
+<prefix>: <what changed>
 
-- <why detail 1>
-- <why detail 2>
-- <why detail 3>
+- <what was done detail 1>
+- <what was done detail 2>
+
+<FEAT-XXXX>
+- <UC-XXXX>: <use case name>
+  - <SC-XXXX>: <scenario name>
+  - <SC-XXXX>: <scenario name>
 ```
 
-The first line is the subject. The body (bullet points) is optional but recommended for non-trivial changes. Separate the subject from the body with a blank line.
+The first line is the subject. The body (bullet points) is optional but recommended for non-trivial changes. The spec references block is mandatory when the commit has PRD context (see Spec References below). Separate each section with a blank line.
 
 ### Subject Line Rules
 
@@ -67,7 +71,7 @@ The first line is the subject. The body (bullet points) is optional but recommen
 
 ### Conventional Commit Prefixes
 
-Only use prefixes if the project already does (see Style Detection):
+Use conventional prefixes by default (see Style Detection). Only drop them if the project's history shows the majority of commits without prefixes.
 
 | Prefix | Use When |
 |--------|----------|
@@ -97,6 +101,31 @@ Fixes payment processing error (#123)
 ```
 
 Do not use issue tracker language as the subject — "Resolves #123" says nothing about what changed.
+
+## Spec References
+
+When a commit is part of a task that has PRD context (feature, use cases, scenarios), include a spec references block at the end of the commit body.
+
+### Format
+
+```
+FEAT-XXXX
+- UC-XXXX: Use case name
+  - SC-XXXX: Scenario name
+  - SC-XXXX: Scenario name
+- UC-XXXX: Use case name
+  - SC-XXXX: Scenario name
+```
+
+### Rules
+
+1. Place the refs block **after** the description body, separated by a blank line
+2. Feature ID alone on its own line (no label prefix like "Feature:" — just the ID)
+3. Use cases as top-level bullets with their name
+4. Scenarios indented under their parent use case with their name
+5. Only include use cases and scenarios relevant to this commit, not the entire feature
+6. **Mandatory** when the commit is part of a task with feature/UC/scenario context
+7. **Omit** for commits with no PRD context (dependency updates, config changes, tooling)
 
 ## No AI Attribution
 
