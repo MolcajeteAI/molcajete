@@ -26,7 +26,7 @@ You are updating an existing feature's requirements or architecture based on a c
 Read the feature-authoring skill for EARS syntax rules, Fit Criteria format, and update mode rules:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/SKILL.md
 ```
 
 Follow the skill's Update Mode rules: propose specific changes, do NOT run the creation interview, do NOT change lifecycle status.

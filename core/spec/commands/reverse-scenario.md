@@ -25,9 +25,9 @@ You are extracting scenarios from existing code and generating Gherkin feature f
 
 Read all skills that govern this command:
 
-1. `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, ID resolution, step stub convention
+1. `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, ID resolution, step stub convention
 2. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — generation rules, tagging, step writing, scaffold, detection, index maintenance
-3. `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` — flat scenario structure, Gherkin Mapping table, Side Effects conventions
+3. `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` — flat scenario structure, Gherkin Mapping table, Side Effects conventions
 
 Follow these skills' rules for all subsequent steps.
 

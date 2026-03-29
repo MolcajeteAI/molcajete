@@ -26,7 +26,7 @@ You are creating a new feature spec from a freeform description. This command ru
 Read the feature-authoring skill for EARS syntax rules, Fit Criteria format, Non-Goals positioning, interview pattern, and template references:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/SKILL.md
 ```
 
 Follow the skill's rules for all subsequent steps.
@@ -125,13 +125,13 @@ If the user provided image file paths during the interview, also create `prd/fea
 
 Then read each template and generate the documents:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
    Write `prd/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Follow the section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
 
-2. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md`
+2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
    Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
-3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
+3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
 4. Edit `prd/FEATURES.md` — add a new row:

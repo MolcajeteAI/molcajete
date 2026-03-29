@@ -25,8 +25,8 @@ You are the broadest spec-authoring command. Unlike the granular commands (`feat
 
 Read all four authoring skills since this command can touch any layer:
 
-1. `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/SKILL.md` — EARS syntax, Fit Criteria, feature interview
-2. `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` — flat scenario structure, UC interview
+1. `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/SKILL.md` — EARS syntax, Fit Criteria, feature interview
+2. `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` — flat scenario structure, UC interview
 3. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — Gherkin generation, tagging, scaffold, indexes
 4. `${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/SKILL.md` — ID generation rules
 
@@ -194,13 +194,13 @@ For each new feature:
    mkdir -p prd/features/FEAT-XXXX/use-cases
    ```
 
-2. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
    Write `prd/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Follow section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
 
-3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md`
+3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
    Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
-4. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
+4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
 5. Edit `prd/FEATURES.md` — add a new row:
@@ -230,7 +230,7 @@ If the feature's current status is `pending`, do not cascade — the feature has
 
 For each new use case:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
 
 2. Write `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
    - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)

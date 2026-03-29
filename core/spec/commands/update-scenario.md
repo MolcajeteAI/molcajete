@@ -25,7 +25,7 @@ You are updating an existing scenario within a use case based on a change descri
 
 Read both skills that govern this command:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` -- flat scenario structure, Side Effects conventions, update mode rules
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` -- flat scenario structure, Side Effects conventions, update mode rules
 2. Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` -- generation rules, tagging, step writing
 
 ## Step 2: Parse Arguments

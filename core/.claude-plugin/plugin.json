@@ -1,7 +1,7 @@
 {
   "name": "m",
   "version": "4.0.0",
-  "description": "Spec-driven development plugin with plan and build workflows",
+  "description": "Spec-driven development plugin with spec, plan, and build workflows",
   "author": {
     "name": "Ivan Torres",
     "email": "ivantorresedge@gmail.com"
@@ -12,34 +12,34 @@
     "./build/commands/build/review.md",
     "./build/commands/build/task.md",
     "./build/commands/build/update-architecture.md",
-    "./plan/commands/feature.md",
     "./plan/commands/plan.md",
-    "./plan/commands/reverse-feature.md",
     "./plan/commands/reverse-plan.md",
-    "./plan/commands/reverse-scenario.md",
-    "./plan/commands/reverse-spec.md",
-    "./plan/commands/reverse-usecase.md",
-    "./plan/commands/scenario.md",
-    "./plan/commands/setup.md",
-    "./plan/commands/spec.md",
-    "./plan/commands/update-feature.md",
-    "./plan/commands/update-scenario.md",
-    "./plan/commands/update-usecase.md",
-    "./plan/commands/usecase.md",
-    "./research/commands/research.md"
+    "./research/commands/research.md",
+    "./spec/commands/feature.md",
+    "./spec/commands/reverse-feature.md",
+    "./spec/commands/reverse-scenario.md",
+    "./spec/commands/reverse-spec.md",
+    "./spec/commands/reverse-usecase.md",
+    "./spec/commands/scenario.md",
+    "./spec/commands/setup.md",
+    "./spec/commands/spec.md",
+    "./spec/commands/update-feature.md",
+    "./spec/commands/update-scenario.md",
+    "./spec/commands/update-usecase.md",
+    "./spec/commands/usecase.md"
   ],
   "skills": [
     "./build/skills/dispatch/SKILL.md",
-    "./plan/skills/architecture/SKILL.md",
-    "./plan/skills/feature-authoring/SKILL.md",
     "./plan/skills/planning/SKILL.md",
-    "./plan/skills/reverse-engineering/SKILL.md",
-    "./plan/skills/setup/SKILL.md",
-    "./plan/skills/usecase-authoring/SKILL.md",
     "./research/skills/headless-research/SKILL.md",
     "./research/skills/research-methods/SKILL.md",
     "./shared/skills/gherkin/SKILL.md",
     "./shared/skills/git-committing/SKILL.md",
-    "./shared/skills/id-generation/SKILL.md"
+    "./shared/skills/id-generation/SKILL.md",
+    "./spec/skills/architecture/SKILL.md",
+    "./spec/skills/feature-authoring/SKILL.md",
+    "./spec/skills/reverse-engineering/SKILL.md",
+    "./spec/skills/setup/SKILL.md",
+    "./spec/skills/usecase-authoring/SKILL.md"
   ]
 }

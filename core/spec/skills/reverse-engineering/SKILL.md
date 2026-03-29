@@ -126,7 +126,7 @@ Look for what the code explicitly does NOT do in certain paths:
 
 ## Populating ARCHITECTURE.md
 
-For section definitions and population rules, see the architecture skill (`plan/skills/architecture/SKILL.md`).
+For section definitions and population rules, see the architecture skill (`spec/skills/architecture/SKILL.md`).
 
 During reverse engineering, update `last_update` in the frontmatter to the current date. Discover files by tracing call chains from entry points through services to the data layer.
 
@@ -151,7 +151,7 @@ When code analysis reveals an actor not listed in ACTORS.md — a new user role,
 **Rules:**
 - Only add actors that are genuinely new — check ACTORS.md first
 - Use the naming style already present in ACTORS.md (if it says "End User", don't add "end-user")
-- If ACTORS.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/ACTORS-template.md`
+- If ACTORS.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/ACTORS-template.md`
 
 ### Tech Stack (prd/TECH-STACK.md)
 
@@ -166,7 +166,7 @@ When code analysis reveals a technology not listed in TECH-STACK.md — a databa
 **Rules:**
 - Only add technologies that play a structural role — not every npm package belongs in TECH-STACK.md
 - Match the existing format and section headings
-- If TECH-STACK.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/TECH-STACK-template.md`
+- If TECH-STACK.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/TECH-STACK-template.md`
 
 ### What NOT to Add
 
@@ -275,4 +275,4 @@ This ensures that running the BDD suite immediately shows which steps need imple
 
 | Template | Source | Purpose |
 |----------|--------|---------|
-| ARCHITECTURE-template.md | `plan/skills/architecture/templates/ARCHITECTURE-template.md` | ARCHITECTURE.md scaffold |
+| ARCHITECTURE-template.md | `spec/skills/architecture/templates/ARCHITECTURE-template.md` | ARCHITECTURE.md scaffold |

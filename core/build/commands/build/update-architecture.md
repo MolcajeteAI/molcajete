@@ -29,7 +29,7 @@ Do not interact with the user — this is a headless command invoked by `dispatc
 Read the architecture skill for section definitions and population rules:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/SKILL.md
 ```
 
 ## Step 3: Read Existing ARCHITECTURE.md

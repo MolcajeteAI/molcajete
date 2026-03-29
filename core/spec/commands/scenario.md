@@ -26,7 +26,7 @@ You are generating Gherkin feature files and step definition stubs from an exist
 Read both skills that govern this command:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — generation rules, tagging, step writing, scaffold, detection, index maintenance
-2. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` — Gherkin Mapping table only (the table that maps UC elements to Gherkin output)
+2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` — Gherkin Mapping table only (the table that maps UC elements to Gherkin output)
 
 Follow these skills' rules for all subsequent steps.
 

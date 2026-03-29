@@ -25,7 +25,7 @@ You are updating an existing use case based on a change description. You will lo
 
 Read both skills that govern this command:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` -- update mode rules, flat scenario structure, Side Effects conventions
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` -- update mode rules, flat scenario structure, Side Effects conventions
 2. Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` -- generation rules, tagging, step writing
 
 Follow the usecase-authoring skill's Update Mode rules: propose specific changes, do NOT run the creation interview, do NOT change the UC ID or tag.

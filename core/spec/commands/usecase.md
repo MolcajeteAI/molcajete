@@ -28,7 +28,7 @@ You are creating a new use case for an existing feature. You will extract struct
 Read the usecase-authoring skill for flat scenario structure rules, Side Effects conventions, creation interview pattern, and template reference:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md
 ```
 
 Follow the skill's rules for all subsequent steps.
@@ -258,7 +258,7 @@ If any scenario has image files, also create `prd/features/FEAT-XXXX/use-cases/a
 
 Then read the template and generate the UC file:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md`
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
 
 2. Write `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
    - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)

@@ -23,7 +23,7 @@ You are initializing a project's foundational documents. These documents are req
 Read the setup skill for interview rules, codebase detection patterns, confirmation rules, and template references:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/SKILL.md
 ```
 
 Follow the skill's rules for all subsequent steps.
@@ -126,21 +126,21 @@ mkdir -p prd
 
 Then read all 5 templates from the setup skill and generate the documents:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/PROJECT-template.md`
+1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/PROJECT-template.md`
    Write `prd/PROJECT.md` filled with the confirmed project description.
 
-2. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/TECH-STACK-template.md`
+2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/TECH-STACK-template.md`
    Write `prd/TECH-STACK.md` filled with the confirmed tech stack.
 
-3. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/ACTORS-template.md`
+3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/ACTORS-template.md`
    Write `prd/ACTORS.md` filled with the confirmed actors.
 
-4. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/GLOSSARY-template.md`
+4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/GLOSSARY-template.md`
    Write `prd/GLOSSARY.md` with starter terms:
    - 4 standard terms: Feature, Use Case, Actor, Side Effect (adapted to this project's domain)
    - 3-5 additional terms extracted from the project description and tech stack (e.g., the database name, the primary framework, domain-specific terms)
 
-5. Read `${CLAUDE_PLUGIN_ROOT}/plan/skills/setup/templates/FEATURES-template.md`
+5. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
    Write `prd/FEATURES.md` with the status key and an empty features table.
 
 ## Step 7: Create Features Directory

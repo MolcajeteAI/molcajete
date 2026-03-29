@@ -25,9 +25,9 @@ This command runs as a two-task dispatcher to protect the 200K context limit. T1
 
 Read all skills that govern this command:
 
-1. `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, dispatcher integration
-2. `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/SKILL.md` — EARS syntax, Fit Criteria, feature structure, templates
-3. `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` — flat scenario structure, Side Effects conventions, UC template
+1. `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, dispatcher integration
+2. `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/SKILL.md` — EARS syntax, Fit Criteria, feature structure, templates
+3. `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` — flat scenario structure, Side Effects conventions, UC template
 4. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — Gherkin generation, tagging, scaffold, step stubs
 
 Follow these skills' rules for all subsequent steps.
@@ -89,9 +89,9 @@ Use the Agent tool to launch a general-purpose subagent for deep analysis and sp
 The subagent prompt must include:
 
 1. **Skills to load:**
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md`
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/SKILL.md`
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md`
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md`
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/SKILL.md`
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
    - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/FEATURES.md`
@@ -108,10 +108,10 @@ The subagent prompt must include:
 
 5. **Files to write:**
    - Create directory: `prd/features/FEAT-XXXX/use-cases/`
-   - `prd/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   - `prd/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
-   - `prd/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
+   - `prd/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - `prd/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
+   - `prd/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
    - In USE-CASES.md rows, set status column to `pending`
    - Append a row to `prd/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
@@ -141,8 +141,8 @@ The subagent prompt must include:
 
 1. **Skills to load:**
    - `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md`
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` (Gherkin Mapping table)
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md` (step stub convention)
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` (Gherkin Mapping table)
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` (step stub convention)
 
 2. **Files to read:**
    - `prd/features/FEAT-XXXX/REQUIREMENTS.md`

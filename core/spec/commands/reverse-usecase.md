@@ -27,8 +27,8 @@ This command runs as a two-task dispatcher. T1 researches the code and extracts 
 
 Read all skills that govern this command:
 
-1. `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, ID resolution
-2. `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` — flat scenario structure, Side Effects conventions, UC template
+1. `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` — research methodology, extraction patterns, ARCHITECTURE.md enrichment, ID resolution
+2. `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` — flat scenario structure, Side Effects conventions, UC template
 3. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — Gherkin generation, tagging, scaffold, step stubs
 
 Follow these skills' rules for all subsequent steps.
@@ -127,8 +127,8 @@ Use the Agent tool to launch a general-purpose subagent for deep analysis and UC
 The subagent prompt must include:
 
 1. **Skills to load:**
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md`
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md`
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md`
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
    - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists)
@@ -146,7 +146,7 @@ The subagent prompt must include:
 
 5. **Files to write:**
    - Create directory if needed: `prd/features/FEAT-XXXX/use-cases/`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` using template at `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
+   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
    - Edit `prd/features/FEAT-XXXX/USE-CASES.md` — add row: `| UC-XXXX | {name} | {description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |`
    - Edit `prd/features/FEAT-XXXX/ARCHITECTURE.md` — add Code Map entries for UC-XXXX and all SC-XXXX IDs, update frontmatter `use_cases` and `scenarios` arrays, update `last_update` date
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
@@ -176,8 +176,8 @@ The subagent prompt must include:
 
 1. **Skills to load:**
    - `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md`
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/usecase-authoring/SKILL.md` (Gherkin Mapping table)
-   - `${CLAUDE_PLUGIN_ROOT}/plan/skills/reverse-engineering/SKILL.md` (step stub convention)
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` (Gherkin Mapping table)
+   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` (step stub convention)
 
 2. **Files to read:**
    - `prd/features/FEAT-XXXX/REQUIREMENTS.md`
