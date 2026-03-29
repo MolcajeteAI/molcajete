@@ -87,7 +87,7 @@ Find everything that needs implementation:
 
 1. Parse `prd/FEATURES.md` for all features.
 2. For each feature, read `prd/features/FEAT-XXXX/USE-CASES.md`.
-3. Collect UCs with status `implemented` or `dirty` in the USE-CASES.md table.
+3. Collect UCs with status `pending` or `dirty` in the USE-CASES.md table.
 4. Also include features with status `implemented` that have UCs ready.
 5. For each in-scope feature, read `REQUIREMENTS.md` and `ARCHITECTURE.md` (if exists).
 6. Build the full picture of all pending work.

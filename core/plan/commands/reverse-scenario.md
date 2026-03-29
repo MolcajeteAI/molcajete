@@ -252,12 +252,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If t
 
 ## Step 15: Update Scenario Headings and UC Status
 
-1. For each new scenario appended to the UC file, add an `implemented` annotation to the heading:
+1. For each new scenario appended to the UC file, add a `pending` annotation to the heading:
    ```
-   ### SC-XXXX: {Scenario Name} `implemented`
+   ### SC-XXXX: {Scenario Name} `pending`
    ```
-2. If all scenarios in the UC file now have `implemented` status, set the UC's YAML frontmatter `status` to `implemented` and update the USE-CASES.md status column to `implemented`.
-3. Otherwise, only increment the `version` (already done in Step 7).
+2. Do not change the UC's YAML frontmatter `status` — it transitions to `implemented` only after build completes and BDD tests pass.
+3. Only increment the `version` (already done in Step 7).
 
 ## Step 16: Report
 
