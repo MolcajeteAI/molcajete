@@ -7,7 +7,8 @@ set -euo pipefail
 #
 # Exit codes:
 #   0  Merge succeeded, worktree cleaned up
-#   1  Merge failed (conflict or error), worktree preserved for inspection
+#   1  Hard error (missing branch, etc.), worktree preserved
+#   2  Rebase conflicts detected, worktree preserved for resolution
 
 if [ $# -ne 2 ]; then
   echo "Usage: merge.sh <worktree-path> <base-branch>" >&2
@@ -34,7 +35,14 @@ fi
 MAIN_WORKTREE=$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir)
 MAIN_WORKTREE=$(dirname "$MAIN_WORKTREE")
 
-# Merge the worktree branch into the base branch
+# Rebase worktree branch onto latest base branch for a clean fast-forward
+if ! git -C "$WORKTREE_PATH" rebase "$BASE_BRANCH" 2>/dev/null; then
+  git -C "$WORKTREE_PATH" rebase --abort 2>/dev/null || true
+  echo "Rebase conflicts detected for $WORKTREE_BRANCH onto $BASE_BRANCH" >&2
+  exit 2
+fi
+
+# Merge the worktree branch into the base branch (fast-forward after rebase)
 if ! git -C "$MAIN_WORKTREE" checkout "$BASE_BRANCH" 2>/dev/null; then
   echo "Error: could not checkout base branch: $BASE_BRANCH" >&2
   exit 1

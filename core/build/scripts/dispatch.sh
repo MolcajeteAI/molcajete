@@ -35,6 +35,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 PLAN_FILE="${PROJECT_ROOT}/$(jq -r '.plan_file' "$TASKS_JSON")"
 BASE_BRANCH=$(jq -r '.base_branch' "$TASKS_JSON")
+BDD_COMMAND=$(jq -r '.bdd_command' "$TASKS_JSON")
 
 # ── Constants ──
 
@@ -402,6 +403,74 @@ run_architecture_update() {
   return 0  # Non-fatal — don't fail the task over architecture docs
 }
 
+resolve_conflicts() {
+  # Resolve rebase conflicts via Claude agent, then validate with BDD.
+  # Usage: resolve_conflicts "$task_id" "$worktree_path"
+  # Returns 0 if resolved + BDD passes, 1 otherwise.
+  local task_id="$1" worktree="$2"
+  local feat_id session_name
+  feat_id=$(jq -r ".tasks[] | select(.id == \"$task_id\") | .feature" "$TASKS_JSON")
+  session_name="${feat_id}-${task_id}"
+
+  # Gather context for the resolver
+  local done_tags bdd_command done_signal tag_expr
+  done_tags=$(jq -r ".tasks[] | select(.id == \"$task_id\") | .done_tags[]" "$TASKS_JSON" | tr '\n' ' ')
+  bdd_command=$(jq -r '.bdd_command' "$TASKS_JSON")
+  done_signal=$(jq -r ".tasks[] | select(.id == \"$task_id\") | .done_signal" "$TASKS_JSON")
+
+  # Build tag expression for BDD
+  tag_expr=$(echo "$done_tags" | xargs -n1 | sed 's/.*/"&"/' | paste -sd ' or ' -)
+
+  log "Conflict resolution: rebasing $task_id onto $BASE_BRANCH"
+
+  # Start the rebase (will stop at conflicts)
+  git -C "$worktree" rebase "$BASE_BRANCH" 2>/dev/null || true
+
+  # Build BDD validation instruction
+  local bdd_instruction=""
+  if [ "$done_signal" != "validator" ] && [ -n "$bdd_command" ] && [ "$bdd_command" != "null" ]; then
+    bdd_instruction="After resolving all conflicts and completing the rebase, run the BDD tests to validate:
+$bdd_command --tags=$tag_expr
+
+If the tests fail, your resolution was incorrect — investigate and fix."
+  fi
+
+  # Invoke claude to resolve — resume the task agent session so it has full context
+  local resolve_prompt="The branch needs to be rebased onto $BASE_BRANCH but there are merge conflicts.
+A rebase is already in progress. Your job:
+
+1. List conflicted files: git diff --name-only --diff-filter=U
+2. Open each conflicted file, understand both sides using your knowledge of the spec and implementation
+3. Resolve each conflict — remove all conflict markers, keep the correct combined code
+4. Stage each resolved file: git add <file>
+5. Continue the rebase: git rebase --continue
+6. If more conflicts appear (multi-commit rebase), repeat steps 1-5
+$bdd_instruction
+
+Report status 'done' if rebase completes (and BDD passes if applicable), 'failed' otherwise."
+
+  if invoke_claude "$worktree" \
+    --model claude-opus-4-6 \
+    --allowedTools "Read,Write,Edit,Glob,Grep,Bash" \
+    --max-turns "$MAX_TURNS_AGENT" --max-budget-usd "$BUDGET_AGENT" \
+    --output-format json --json-schema "$TASK_SCHEMA" \
+    --resume "$session_name" \
+    --dangerously-skip-permissions \
+    "$resolve_prompt"; then
+
+    local status
+    status=$(parse_json_field "status" "$CLAUDE_OUTPUT")
+    if [ "$status" = "done" ]; then
+      log "Conflicts resolved for $task_id"
+      return 0
+    fi
+  fi
+
+  # Resolution failed — abort any in-progress rebase
+  git -C "$worktree" rebase --abort 2>/dev/null || true
+  return 1
+}
+
 # ── Main Loop ──
 
 log "Starting dispatch: $TASKS_JSON"
@@ -539,7 +608,22 @@ for task_idx in $(seq 0 $((TASK_COUNT - 1))); do
   run_architecture_update "$TASK_ID" "$WORKTREE_PATH"
 
   # ── Phase 4: Merge ──
-  if bash "$SCRIPT_DIR/merge.sh" "$WORKTREE_PATH" "$BASE_BRANCH"; then
+  merge_result=0
+  bash "$SCRIPT_DIR/merge.sh" "$WORKTREE_PATH" "$BASE_BRANCH" || merge_result=$?
+
+  if [ $merge_result -eq 2 ]; then
+    # Rebase conflicts — attempt resolution
+    log "Task $TASK_ID: rebase conflicts detected, attempting resolution..."
+    if resolve_conflicts "$TASK_ID" "$WORKTREE_PATH"; then
+      # Resolution succeeded — retry merge (should be fast-forward now)
+      merge_result=0
+      bash "$SCRIPT_DIR/merge.sh" "$WORKTREE_PATH" "$BASE_BRANCH" || merge_result=$?
+    else
+      merge_result=1
+    fi
+  fi
+
+  if [ $merge_result -eq 0 ]; then
     update_json "(.tasks[$task_idx].status) = \"implemented\" | (.tasks[$task_idx].error) = null"
     update_plan_status "$TASK_ID" "implemented"
 
