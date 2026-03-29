@@ -11,6 +11,8 @@ allowed-tools:
   - Bash
   - Agent
   - AskUserQuestion
+  - WebSearch
+  - WebFetch
 ---
 
 # Create Use Case
@@ -70,7 +72,24 @@ Read these files to understand the project and feature:
 - `prd/features/FEAT-XXXX/REQUIREMENTS.md` -- feature requirements for context
 - `prd/features/FEAT-XXXX/USE-CASES.md` -- existing UCs
 
-## Step 4: Extract from Input
+## Step 4: Research Context
+
+Read the headless-research skill:
+
+```
+Read: ${CLAUDE_PLUGIN_ROOT}/research/skills/headless-research/SKILL.md
+```
+
+Check if `$ARGUMENTS` references a research document (a path matching `research/*.md`).
+If so, pass it to the headless-research skill as a user-provided reference.
+
+Otherwise, use the freeform description from `$ARGUMENTS` (after the FEAT-XXXX token) as the research query.
+
+Follow the skill's workflow (check user reference → scan existing → run agents if needed).
+
+Use the resulting context brief to inform subsequent extraction and interview steps (better requirement suggestions, awareness of existing patterns, up-to-date approaches).
+
+## Step 5: Extract from Input
 
 The remainder of `$ARGUMENTS` after the FEAT-XXXX token is the freeform description.
 
@@ -88,11 +107,11 @@ If the freeform part is empty, use AskUserQuestion to prompt the user:
 - Header: "Describe"
 - Options: "I'll describe the use case" (user provides via Other)
 
-## Step 5: Creation Interview
+## Step 6: Creation Interview
 
 Present each section for review via AskUserQuestion, following the usecase-authoring skill's Creation Interview rules. Process sections in this order:
 
-### 5.1 Use Case Name
+### 6.1 Use Case Name
 
 **If extracted from input:**
 Use AskUserQuestion:
@@ -105,7 +124,7 @@ Use AskUserQuestion:
 - Question: "What should this use case be called? Use a verb-noun goal phrase (e.g., 'Create Feature', 'Authenticate User')."
 - Header: "Name"
 
-### 5.2 Objective
+### 6.2 Objective
 
 **If an objective can be derived from the input** (what the actor achieves):
 Use AskUserQuestion:
@@ -118,7 +137,7 @@ Use AskUserQuestion:
 - Question: "What does the actor achieve by completing this use case? Provide a single sentence describing the actor's goal (e.g., 'The developer creates a new feature with structured requirements.')."
 - Header: "Objective"
 
-### 5.3 Actor
+### 6.3 Actor
 
 **If extracted and found in ACTORS.md:**
 Use AskUserQuestion:
@@ -138,7 +157,7 @@ Use AskUserQuestion:
 - Header: "Actor"
 - Options: list up to 4 actors from ACTORS.md
 
-### 5.4 Preconditions
+### 6.4 Preconditions
 
 **If extracted from input:**
 Use AskUserQuestion:
@@ -152,7 +171,7 @@ Use AskUserQuestion:
 - Header: "Preconditions"
 - Options: "I'll list them" (user provides via Other) / "No preconditions"
 
-### 5.5 Trigger
+### 6.5 Trigger
 
 **If extracted from input:**
 Use AskUserQuestion:
@@ -165,7 +184,7 @@ Use AskUserQuestion:
 - Question: "What triggers this use case? Describe the single action the actor performs or the event that occurs (e.g., 'User clicks Submit', 'Cron job fires at midnight')."
 - Header: "Trigger"
 
-### 5.6 Scenario Review
+### 6.6 Scenario Review
 
 For each scenario extracted from the input, present the full scenario block via AskUserQuestion:
 
@@ -194,11 +213,11 @@ If the user describes UI:
    - Options: "Yes, looks good" / "Edit" (user corrects via Other)
 3. Note the confirmed mockup and step number for file generation
 
-If the user provides image file paths, note them for Step 7 (copy to `use-cases/assets/` with `{UC-ID}-{descriptive-slug}.{ext}` naming).
+If the user provides image file paths, note them for Step 8 (copy to `use-cases/assets/` with `{UC-ID}-{descriptive-slug}.{ext}` naming).
 
 If the user says "No UI for this scenario", skip and proceed to the next scenario or the scenario loop.
 
-### 5.7 Scenario Loop
+### 6.7 Scenario Loop
 
 After all extracted scenarios are reviewed (or the first manual scenario is confirmed), ask:
 
@@ -207,9 +226,9 @@ Use AskUserQuestion:
 - Header: "More?"
 - Options: "Yes, I'll describe one" (user describes via Other) / "No, that's all"
 
-If the user adds a scenario, structure it into Given/Steps/Outcomes/Side Effects, present for confirmation via AskUserQuestion, then ask the UI question (same as Step 5.6 above). After UI is handled, ask the scenario loop question again. Repeat until the user says no.
+If the user adds a scenario, structure it into Given/Steps/Outcomes/Side Effects, present for confirmation via AskUserQuestion, then ask the UI question (same as Step 6.6 above). After UI is handled, ask the scenario loop question again. Repeat until the user says no.
 
-## Step 6: Assign IDs
+## Step 7: Assign IDs
 
 After all sections are confirmed, generate the use case ID:
 
@@ -227,7 +246,7 @@ node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js N
 
 Prepend `SC-` to each output line (e.g., `SC-1T4B`, `SC-1T4C`).
 
-## Step 7: Generate Documents
+## Step 8: Generate Documents
 
 Create the use case directory if it does not exist:
 
@@ -256,7 +275,7 @@ Then read the template and generate the UC file:
    | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
    ```
 
-## Step 8: Report
+## Step 9: Report
 
 Tell the user what was created:
 

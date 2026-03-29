@@ -120,6 +120,19 @@ Plan-level status follows the same values:
 - `implemented` — all tasks implemented
 - `failed` — any task failed and work stopped
 
+## Research Discovery
+
+When generating an implementation plan, scan for relevant research briefs:
+
+1. List `.molcajete/research/*.md` — filenames sort naturally by timestamp (newest first)
+2. Read only the YAML frontmatter of each file (not the body)
+3. Compare `description` and `query` against the plan's topic/scope
+4. If relevant, read the full document and use it as context
+5. Stop after the first relevant match to protect context window
+6. Also scan `research/*.md` at project root the same way
+
+The brief's "Existing Codebase Patterns" section helps understand what exists and what needs to change. The "Key Libraries/APIs" section informs task decomposition when new dependencies are involved.
+
 ## Plan File Naming
 
 ### Timestamp

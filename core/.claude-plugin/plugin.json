@@ -25,7 +25,8 @@
     "./plan/commands/update-feature.md",
     "./plan/commands/update-scenario.md",
     "./plan/commands/update-usecase.md",
-    "./plan/commands/usecase.md"
+    "./plan/commands/usecase.md",
+    "./research/commands/research.md"
   ],
   "skills": [
     "./build/skills/dispatch/SKILL.md",
@@ -35,6 +36,8 @@
     "./plan/skills/reverse-engineering/SKILL.md",
     "./plan/skills/setup/SKILL.md",
     "./plan/skills/usecase-authoring/SKILL.md",
+    "./research/skills/headless-research/SKILL.md",
+    "./research/skills/research-methods/SKILL.md",
     "./shared/skills/gherkin/SKILL.md",
     "./shared/skills/id-generation/SKILL.md"
   ]

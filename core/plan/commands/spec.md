@@ -11,6 +11,8 @@ allowed-tools:
   - Bash
   - Agent
   - AskUserQuestion
+  - WebSearch
+  - WebFetch
 ---
 
 # Spec Command
@@ -56,7 +58,24 @@ Read all project-level files and every existing feature's specs. This is the key
 
 For large projects with many features, use Agent sub-agents to parallelize reading.
 
-## Step 4: Collect Input
+## Step 4: Research Context
+
+Read the headless-research skill:
+
+```
+Read: ${CLAUDE_PLUGIN_ROOT}/research/skills/headless-research/SKILL.md
+```
+
+Check if `$ARGUMENTS` references a research document (a path matching `research/*.md`).
+If so, pass it to the headless-research skill as a user-provided reference.
+
+Otherwise, use the freeform description from `$ARGUMENTS` as the research query.
+
+Follow the skill's workflow (check user reference → scan existing → run agents if needed).
+
+Use the resulting context brief to inform subsequent extraction, classification, and interview steps (better requirement suggestions, awareness of existing patterns, up-to-date approaches).
+
+## Step 5: Collect Input
 
 If `$ARGUMENTS` is not empty, use it as the free-form input.
 
@@ -64,7 +83,7 @@ If `$ARGUMENTS` is empty, use AskUserQuestion:
 - Question: "Describe what you want to spec out. You can mention new features, new use cases for existing features, changes to existing features, or any combination.\n\n**Examples:**\n- \"Add user authentication with email/password login and OAuth support\"\n- \"Add a password reset flow to FEAT-0S9A and create a new audit logging feature\"\n- \"Update the checkout feature to support gift cards and add a returns workflow\""
 - Header: "Spec Input"
 
-## Step 5: Analyze and Classify
+## Step 6: Analyze and Classify
 
 Parse the free-form text against the loaded PRD context. Classify each entity the user described into one of these categories:
 
@@ -85,7 +104,7 @@ For each entity, extract as much structured content as possible:
 
 **Modified Use Cases:** which UC-XXXX, new or changed scenarios.
 
-## Step 6: Present Spec Plan
+## Step 7: Present Spec Plan
 
 Use a single AskUserQuestion to show the full picture before any changes:
 
@@ -105,11 +124,11 @@ If the user selects "Edit plan", use AskUserQuestion to collect corrections and 
 
 If the user selects "Cancel", stop.
 
-## Step 7: Streamlined Interviews
+## Step 8: Streamlined Interviews
 
 For each entity in the spec plan, present a consolidated review. Unlike the granular commands which go section-by-section, spec presents all sections at once since the user already provided substantial context.
 
-### 7.1 New Features
+### 8.1 New Features
 
 For each new feature, present all sections in one view via AskUserQuestion:
 
@@ -119,7 +138,7 @@ For each new feature, present all sections in one view via AskUserQuestion:
 
 If the user selects "Edit", ask which section to change, collect the correction, and re-present the full view.
 
-### 7.2 New Use Cases
+### 8.2 New Use Cases
 
 For each new use case, present all sections in one view via AskUserQuestion:
 
@@ -133,7 +152,7 @@ If the user selects "Edit", collect the correction and re-present. After confirm
 - Header: "More Scenarios?"
 - Options: "Yes, I'll describe one" (user provides via Other) / "No, that's all"
 
-### 7.3 Modified Features
+### 8.3 Modified Features
 
 For each modified feature, present a diff-style view via AskUserQuestion:
 
@@ -141,7 +160,7 @@ For each modified feature, present a diff-style view via AskUserQuestion:
 - Header: "Update: {FEAT-XXXX}"
 - Options: "Looks good" / "Edit" (user specifies what to change via Other)
 
-### 7.4 Modified Use Cases
+### 8.4 Modified Use Cases
 
 For each modified use case, present a diff-style view via AskUserQuestion:
 
@@ -149,7 +168,7 @@ For each modified use case, present a diff-style view via AskUserQuestion:
 - Header: "Update: {UC-XXXX}"
 - Options: "Looks good" / "Edit" (user specifies what to change via Other)
 
-## Step 8: Generate IDs
+## Step 9: Generate IDs
 
 After all interviews are confirmed, count the total number of new IDs needed (features + use cases + scenarios) and batch-generate them:
 
@@ -162,11 +181,11 @@ Assign prefixes from the output lines in order:
 - `UC-` for new use cases
 - `SC-` for new scenarios
 
-## Step 9: Write PRD Documents
+## Step 10: Write PRD Documents
 
 Write in dependency order so that parent structures exist before children.
 
-### 9.1 New Features
+### 11.1 New Features
 
 For each new feature:
 
@@ -189,7 +208,7 @@ For each new feature:
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
 
-### 9.2 Modified Features
+### 11.2 Modified Features
 
 For each modified feature:
 - Edit `prd/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed changes (new FRs, NFRs, acceptance criteria).
@@ -207,7 +226,7 @@ For each modified feature:
 
 If the feature's current status is `pending`, do not cascade — the feature hasn't been implemented yet so there's nothing to mark dirty.
 
-### 9.3 New Use Cases
+### 11.3 New Use Cases
 
 For each new use case:
 
@@ -227,7 +246,7 @@ For each new use case:
    | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
    ```
 
-### 9.4 Modified Use Cases
+### 11.4 Modified Use Cases
 
 For each modified use case:
 - Edit the UC file with new/changed scenarios.
@@ -235,13 +254,13 @@ For each modified use case:
 - Set `status` to `dirty` in YAML frontmatter.
 - Update the corresponding row in `prd/features/FEAT-XXXX/USE-CASES.md` (status column to `dirty`).
 
-## Step 10: Gherkin Generation
+## Step 11: Gherkin Generation
 
-For each **new** use case that has scenarios, generate Gherkin files (Steps 10.1–10.7).
+For each **new** use case that has scenarios, generate Gherkin files (Steps 11.1–11.7).
 
-For each **modified** use case, propagate Gherkin changes instead (Step 10.8).
+For each **modified** use case, propagate Gherkin changes instead (Step 11.8).
 
-### 10.1 Scaffold Setup (once)
+### 11.1 Scaffold Setup (once)
 
 Run the scaffold procedure from `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/scaffold.md` (steps 2a–2h):
 - Check for existing scaffold, create if missing
@@ -250,7 +269,7 @@ Run the scaffold procedure from `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/ref
 - Persist BDD settings to `.molcajete/settings.json`
 - Validate existing indexes, rebuild if drift detected
 
-### 10.2 Domain Selection
+### 11.2 Domain Selection
 
 Infer domains from each feature's subject area. Check existing domain folders under `bdd/features/`.
 
@@ -259,7 +278,7 @@ Use a single AskUserQuestion for all features at once:
 - Header: "Domains"
 - Options: "Looks good" / "Edit" (user corrects via Other)
 
-### 10.3 Generate Feature Files
+### 11.3 Generate Feature Files
 
 For each UC with scenarios, follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md`:
 
@@ -267,7 +286,7 @@ For each UC with scenarios, follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/
 2. **Construct** — Build .feature file content using the Gherkin Mapping table from the usecase-authoring skill.
 3. **Write** — Write to `bdd/features/{domain}/{feature-name}.feature` (kebab-case). If appending to an existing file, use Edit to append new scenarios.
 
-### 10.4 Generate Step Stubs
+### 11.4 Generate Step Stubs
 
 For each step in the generated feature files:
 1. Read `bdd/steps/INDEX.md` for existing reusable patterns.
@@ -278,11 +297,11 @@ For each step in the generated feature files:
 3. Place in correct file: `common_steps`, `api_steps`, `db_steps`, or `{domain}_steps`.
 4. If the target step file exists → append. If not → create from language-appropriate template in `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/templates/`.
 
-### 10.5 Update Indexes
+### 11.5 Update Indexes
 
 Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3d — update both `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` together. Never leave partial index state.
 
-### 10.6 Gherkin Preview
+### 11.6 Gherkin Preview
 
 Use AskUserQuestion to show a summary of generated Gherkin:
 - Question: "**Generated Gherkin:**\n\n{for each feature file: file path, scenario count, tag summary}\n\nWould you like to see the full content of any file?"
@@ -291,7 +310,7 @@ Use AskUserQuestion to show a summary of generated Gherkin:
 
 If the user selects "Show full content", display the full Gherkin via AskUserQuestion and ask for confirmation.
 
-### 10.7 Update Scenario Headings
+### 11.7 Update Scenario Headings
 
 For each use case that received Gherkin generation:
 1. Add a `pending` status annotation to each scenario heading line in the UC file:
@@ -302,17 +321,17 @@ For each use case that received Gherkin generation:
 2. The UC file's YAML frontmatter `status` stays as-is (`pending`). Do not change it.
 3. Do not change the USE-CASES.md status column.
 
-### 10.8 Gherkin Propagation (Modified UCs)
+### 11.8 Gherkin Propagation (Modified UCs)
 
-For each modified use case, propagate changes to existing Gherkin files. Skip this step for new use cases (they were handled in 10.3).
+For each modified use case, propagate changes to existing Gherkin files. Skip this step for new use cases (they were handled in 11.3).
 
-Grep `bdd/features/` for `@UC-XXXX`. If no `.feature` file contains this tag, treat as a new UC and follow Steps 10.3–10.7 for it instead.
+Grep `bdd/features/` for `@UC-XXXX`. If no `.feature` file contains this tag, treat as a new UC and follow Steps 11.3–11.7 for it instead.
 
 If a `.feature` file exists with `@UC-XXXX`:
 
-#### 10.8.1 Determine Gherkin Changes
+#### 11.8.1 Determine Gherkin Changes
 
-Based on the spec changes applied in Step 9.4, determine what Gherkin changes are needed:
+Based on the spec changes applied in Step 10.4, determine what Gherkin changes are needed:
 
 - **Preconditions changed** — update the `Background:` block (Given/And clauses)
 - **Scenario Given changed** — update `Given`/`And` clauses in the matching `@SC-XXXX` scenario
@@ -322,7 +341,7 @@ Based on the spec changes applied in Step 9.4, determine what Gherkin changes ar
 - **New scenarios added** — append new scenario blocks with the new `@SC-XXXX` tags
 - **Step text changed** — find and update matching step definitions (check `bdd/steps/INDEX.md` or grep step definition files)
 
-#### 10.8.2 Preview Gherkin Changes
+#### 11.8.2 Preview Gherkin Changes
 
 Use AskUserQuestion to preview the Gherkin changes:
 - Question: "The following Gherkin changes are needed to match the updated spec:\n\n**{feature-file-path}:**\n{describe each change — before/after for modified blocks, full content for new scenarios}\n\n{if step definitions changed}**Step definitions:**\n{list step text changes}{/if}\n\nDoes this look correct?"
@@ -331,14 +350,14 @@ Use AskUserQuestion to preview the Gherkin changes:
 
 If the user wants edits, revise and present again.
 
-#### 10.8.3 Apply Gherkin Changes
+#### 11.8.3 Apply Gherkin Changes
 
 1. Edit the `.feature` file with the confirmed changes.
 2. If step definitions changed, edit the corresponding step definition files.
 3. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
 4. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
 
-## Step 11: Report
+## Step 12: Report
 
 Tell the user a structured summary of everything created and updated:
 

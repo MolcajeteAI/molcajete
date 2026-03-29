@@ -128,6 +128,19 @@ Non-obvious choices that future agents should not reverse. Uses the format:
 In the context of {situation}, facing {concern}, we decided {choice} to achieve {quality}, accepting {tradeoff}.
 ```
 
+## Research Discovery
+
+When generating or updating an ARCHITECTURE.md, scan for relevant research briefs:
+
+1. List `.molcajete/research/*.md` — filenames sort naturally by timestamp (newest first)
+2. Read only the YAML frontmatter of each file (not the body)
+3. Compare `description` and `query` against the feature's topic
+4. If relevant, read the full document and use it as context
+5. Stop after the first relevant match to protect context window
+6. Also scan `research/*.md` at project root the same way
+
+The brief's "Current Best Practices" and "Key Libraries/APIs" sections directly inform architecture decisions. Cite relevant findings in the Architecture Decisions section when they influenced a choice.
+
 ## Population Rules
 
 - Sections are **additive** — append rows, don't replace existing ones

@@ -11,6 +11,8 @@ allowed-tools:
   - Bash
   - Agent
   - AskUserQuestion
+  - WebSearch
+  - WebFetch
 ---
 
 # Create a New Feature
@@ -50,7 +52,24 @@ Read the following files to understand the project and avoid duplicate features:
 
 Use the project context to inform your extraction and suggestions in the interview.
 
-## Step 4: Extract from Input
+## Step 4: Research Context
+
+Read the headless-research skill:
+
+```
+Read: ${CLAUDE_PLUGIN_ROOT}/research/skills/headless-research/SKILL.md
+```
+
+Check if `$ARGUMENTS` references a research document (a path matching `research/*.md`).
+If so, pass it to the headless-research skill as a user-provided reference.
+
+Otherwise, use the freeform description from `$ARGUMENTS` as the research query.
+
+Follow the skill's workflow (check user reference → scan existing → run agents if needed).
+
+Use the resulting context brief to inform subsequent extraction and interview steps (better requirement suggestions, awareness of existing patterns, up-to-date approaches).
+
+## Step 5: Extract from Input
 
 If `$ARGUMENTS` is not empty, extract as much as possible from the freeform description:
 
@@ -68,7 +87,7 @@ If `$ARGUMENTS` is empty, use AskUserQuestion to ask:
 
 Then extract from the response.
 
-## Step 5: Creation Interview
+## Step 6: Creation Interview
 
 Present each section for review via AskUserQuestion, following the interview pattern from the skill exactly:
 
@@ -84,7 +103,7 @@ For each section, follow the skill's interview rules:
 - If extracted from input: present and ask "Does this look correct?" with "Yes, looks good" / "Edit" options
 - If not found in input: ask if the user has any, with option to skip where appropriate
 
-## Step 6: Assign Feature ID
+## Step 7: Assign Feature ID
 
 After all sections are confirmed, generate the feature ID:
 
@@ -94,7 +113,7 @@ node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js
 
 Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
-## Step 7: Generate Documents
+## Step 8: Generate Documents
 
 Create the feature directory structure:
 
@@ -120,7 +139,7 @@ Then read each template and generate the documents:
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
 
-## Step 8: Report
+## Step 9: Report
 
 Tell the user what was created:
 
