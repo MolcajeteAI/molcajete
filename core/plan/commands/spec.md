@@ -194,6 +194,19 @@ For each new feature:
 For each modified feature:
 - Edit `prd/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed changes (new FRs, NFRs, acceptance criteria).
 
+**Dirty Cascade:** If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
+
+1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
+2. Read `prd/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
+   - Set the UC's status to `dirty` in USE-CASES.md.
+   - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
+   - Set all scenario heading annotations in the UC file to `dirty`:
+     ```
+     ### SC-XXXX: {Scenario Name} `dirty`
+     ```
+
+If the feature's current status is `pending`, do not cascade — the feature hasn't been implemented yet so there's nothing to mark dirty.
+
 ### 9.3 New Use Cases
 
 For each new use case:
@@ -224,7 +237,9 @@ For each modified use case:
 
 ## Step 10: Gherkin Generation
 
-For each use case (new or modified) that has scenarios, generate Gherkin files.
+For each **new** use case that has scenarios, generate Gherkin files (Steps 10.1–10.7).
+
+For each **modified** use case, propagate Gherkin changes instead (Step 10.8).
 
 ### 10.1 Scaffold Setup (once)
 
@@ -286,6 +301,42 @@ For each use case that received Gherkin generation:
    Gherkin files stay clean — no status tags in `.feature` files.
 2. The UC file's YAML frontmatter `status` stays as-is (`pending`). Do not change it.
 3. Do not change the USE-CASES.md status column.
+
+### 10.8 Gherkin Propagation (Modified UCs)
+
+For each modified use case, propagate changes to existing Gherkin files. Skip this step for new use cases (they were handled in 10.3).
+
+Grep `bdd/features/` for `@UC-XXXX`. If no `.feature` file contains this tag, treat as a new UC and follow Steps 10.3–10.7 for it instead.
+
+If a `.feature` file exists with `@UC-XXXX`:
+
+#### 10.8.1 Determine Gherkin Changes
+
+Based on the spec changes applied in Step 9.4, determine what Gherkin changes are needed:
+
+- **Preconditions changed** — update the `Background:` block (Given/And clauses)
+- **Scenario Given changed** — update `Given`/`And` clauses in the matching `@SC-XXXX` scenario
+- **Scenario Steps changed** — update `When`/`And` clauses in the matching `@SC-XXXX` scenario
+- **Scenario Outcomes changed** — update `Then`/`And` clauses in the matching `@SC-XXXX` scenario
+- **Scenario Side Effects changed** — update trailing `And`/`And no` clauses in the matching `@SC-XXXX` scenario
+- **New scenarios added** — append new scenario blocks with the new `@SC-XXXX` tags
+- **Step text changed** — find and update matching step definitions (check `bdd/steps/INDEX.md` or grep step definition files)
+
+#### 10.8.2 Preview Gherkin Changes
+
+Use AskUserQuestion to preview the Gherkin changes:
+- Question: "The following Gherkin changes are needed to match the updated spec:\n\n**{feature-file-path}:**\n{describe each change — before/after for modified blocks, full content for new scenarios}\n\n{if step definitions changed}**Step definitions:**\n{list step text changes}{/if}\n\nDoes this look correct?"
+- Header: "Gherkin Changes"
+- Options: "Yes, apply these changes" / "Edit" (user corrects via Other)
+
+If the user wants edits, revise and present again.
+
+#### 10.8.3 Apply Gherkin Changes
+
+1. Edit the `.feature` file with the confirmed changes.
+2. If step definitions changed, edit the corresponding step definition files.
+3. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
+4. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
 
 ## Step 11: Report
 
