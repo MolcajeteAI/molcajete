@@ -68,7 +68,16 @@ Read the gherkin skill for step writing conventions:
 Read: ${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md
 ```
 
-### 2e. Existing Code Context
+### 2e. Git Committing Skill
+
+Read the git-committing skill for commit message standards, style detection, and atomic commit rules:
+```
+Read: ${CLAUDE_PLUGIN_ROOT}/shared/skills/git-committing/SKILL.md
+```
+
+Detect the project's commit style from `git log --oneline -20` (run in Step 2f). Use this style for all commits in this task.
+
+### 2f. Existing Code Context
 
 Review what already exists in this worktree:
 ```bash
@@ -95,10 +104,10 @@ Replace pending-error stubs with real BDD assertion code for this task's scenari
 4. Replace the pending-error call with real assertion logic. Preserve existing docstrings and parameter parsing.
 5. Follow the gherkin skill's step writing rules
 
-Stage and commit step definitions:
+Stage and commit step definitions. Follow the git-committing skill for message format and style. The commit should describe the step definitions added, scoped to this task's scenarios:
 ```bash
 git add bdd/steps/
-git commit -m "Adds step definitions for {TASK_ID}: {task title}"
+git commit -m "{message following git-committing skill rules}"
 ```
 
 #### Phase B: Production Code
@@ -118,11 +127,11 @@ Implement the production code to make the BDD assertions pass.
 3. Self-review: `git diff` — check for debug statements, commented-out code, hardcoded secrets, `TODO` placeholders, `"TODO: implement step"` stubs that should be replaced, and obvious logic errors.
 4. Re-run unit tests if you fixed anything in steps 1-3.
 
-Stage and commit production code:
+Stage and commit production code. Follow the git-committing skill for message format and style. The commit should describe what was implemented, not just "implements task":
 ```bash
 git add -A
 git reset HEAD -- bdd/
-git commit -m "Implements {TASK_ID}: {task title}"
+git commit -m "{message following git-committing skill rules}"
 ```
 
 ---
@@ -140,10 +149,10 @@ Write step definitions that exercise existing application code. The app already 
 5. Follow the gherkin skill's step writing rules
 6. Do NOT modify production code — only step definitions
 
-Stage and commit:
+Stage and commit. Follow the git-committing skill for message format and style. The commit should describe what step definitions were wired:
 ```bash
 git add bdd/steps/
-git commit -m "Wires step definitions for {TASK_ID}: {task title}"
+git commit -m "{message following git-committing skill rules}"
 ```
 
 ## Step 4: Collect Results
@@ -199,7 +208,7 @@ When you are resumed with review feedback (message starts with "REVIEW FIX MODE"
    - If the issue is about step definitions: only edit `bdd/steps/` files
    - If the issue is about production code: edit source files, re-run unit tests
    - If the issue is about formatting/linting: run the project formatter/linter
-3. Stage and commit all fixes in a single commit
+3. Stage and commit all fixes in a single commit (follow git-committing skill for message format)
 4. Return the standard JSON result with `status: "done"` and the new commit SHA
 
 ## Rules

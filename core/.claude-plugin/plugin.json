@@ -9,8 +9,8 @@
   "keywords": ["workflow", "development", "testing", "specs", "bdd"],
   "commands": [
     "./build/commands/build.md",
-    "./build/commands/build/task.md",
     "./build/commands/build/review.md",
+    "./build/commands/build/task.md",
     "./build/commands/build/update-architecture.md",
     "./plan/commands/feature.md",
     "./plan/commands/plan.md",
@@ -39,6 +39,7 @@
     "./research/skills/headless-research/SKILL.md",
     "./research/skills/research-methods/SKILL.md",
     "./shared/skills/gherkin/SKILL.md",
+    "./shared/skills/git-committing/SKILL.md",
     "./shared/skills/id-generation/SKILL.md"
   ]
 }
