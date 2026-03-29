@@ -334,7 +334,7 @@ run_review() {
     --output-format json --json-schema "$REVIEW_SCHEMA" \
     --name "$session_name" \
     --dangerously-skip-permissions \
-    "/m:build:review $PLAN_FILE $task_id"
+    "/m:build:review $PLAN_FILE $task_id $BDD_COMMAND"
 }
 
 run_review_fix() {

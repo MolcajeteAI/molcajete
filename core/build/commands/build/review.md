@@ -1,7 +1,7 @@
 ---
 description: "[headless] Adversarial quality gate for a completed task"
 model: claude-sonnet-4-6
-argument-hint: <plan-file> <task-id>
+argument-hint: <plan-file> <task-id> <bdd-command>
 allowed-tools:
   - Read
   - Glob
@@ -26,9 +26,10 @@ You are running inside a **task worktree**. You make **zero code changes**. If a
 
 ## Step 1: Parse Arguments
 
-Split `$ARGUMENTS` into two values:
-- `PLAN_FILE` — the first value
-- `TASK_ID` — the second value
+Split `$ARGUMENTS` into three values:
+- `PLAN_FILE` — the first value (before first space)
+- `TASK_ID` — the second value (between first and second space)
+- `BDD_COMMAND` — everything after the second space (may contain spaces, e.g. `npx cucumber-js`)
 
 ## Step 2: Load Context (Independently)
 
@@ -126,18 +127,13 @@ If lint errors are found: report them as **blocking** issues.
 
 ### Gate 3: BDD Tests
 
-Determine the BDD runner and run the task's scenarios using the done tags from the plan.
+Use `BDD_COMMAND` (received as the third argument) to run the task's scenarios using the done tags from the plan.
 
 Build the tag expression from the task's done signal tags (e.g., `@SC-0A1b or @SC-0A2c`).
 
 ```bash
 $BDD_COMMAND --tags="@SC-XXXX or @SC-YYYY"
 ```
-
-Detect the BDD command the same way dispatch.sh does:
-1. Check `.molcajete/settings.json` for `bdd.framework`
-2. Check `bdd/CLAUDE.md` for runner hints
-3. Detect from step file extensions in `bdd/steps/`
 
 If the done signal is `validator` (infrastructure task), skip this gate and pass it.
 
