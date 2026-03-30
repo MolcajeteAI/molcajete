@@ -2,14 +2,15 @@
 name: setup
 description: >-
   Rules and templates for the /m:setup command. Defines the interview flow
-  for generating PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, and
-  FEATURES.md. Covers codebase inference for tech stack and actors,
-  confirmation patterns, and document generation sequence.
+  for generating PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md,
+  DOMAINS.md, and per-domain FEATURES.md. Covers codebase inference for
+  tech stack, actors, and domains, confirmation patterns, and document
+  generation sequence.
 ---
 
 # Project Setup
 
-Rules for initializing a project's foundational documents. The /m:setup command references this skill to interview the user and generate the five global documents that all other commands depend on.
+Rules for initializing a project's foundational documents. The /m:setup command references this skill to interview the user and generate the global documents (PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md) and per-domain FEATURES.md that all other commands depend on.
 
 ## When to Use
 
@@ -52,6 +53,29 @@ Fill in the TECH-STACK.md template with the confirmed answers.
 **If actors cannot be inferred**, use AskUserQuestion to ask: "Who interacts with this system? List the roles (human or system) that use it, along with any constraints or permissions."
 
 Fill in the ACTORS.md template with the confirmed actors.
+
+### Stage 4: Domains
+
+Domains are logical boundaries for organizing specs. Every project has at least one domain. A domain can represent a physical app, a backend service, or a logical concern area within a single app.
+
+**If a codebase exists**, infer domains from the project structure:
+- Check for `apps/`, `packages/`, or `services/` directories — each subdirectory suggests a domain
+- Check for `src/` subdirectories that suggest distinct concern areas
+- Check for monorepo workspace configurations (package.json workspaces, pnpm-workspace.yaml)
+- Use AskUserQuestion to present the inferred domains: "I found these logical domains in your project:\n\n{domain table}\n\nDomains are logical boundaries for organizing your specs. They can represent physical apps (patient, doctor) or logical concerns (billing, analytics) within a single app. Molcajete treats them all the same way.\n\nDo these look correct?"
+
+**If no codebase exists**, use AskUserQuestion to ask about bounded contexts:
+- "What are the logical domains in your project? A domain can be a separate app (patient app, admin console), a service (auth API, billing service), or a concern area within one app (onboarding, analytics).\n\nDomains are logical boundaries for organizing your specs — not deployment boundaries. Molcajete treats all domain types the same way."
+
+**For single-app projects**, suggest one domain using the project name or `app`:
+- "This appears to be a single-app project. I'll create one domain: **{project-name-slug}** (type: app). You can add more domains later if your project grows. Does this look correct?"
+
+For each confirmed domain, assign:
+- **ID:** Sequential integer (1, 2, 3...)
+- **Name:** Short descriptive name (lowercase, kebab-case)
+- **Type:** `app`, `service`, or `concern`
+- **Description:** One sentence explaining what this domain covers
+- **Directory:** `domains/{name}/` (relative path within `prd/`)
 
 ## Codebase Detection
 
@@ -104,7 +128,7 @@ These are suggestions only -- always confirm with the user.
 
 ## Document Generation
 
-After the interview, generate these documents in order. **All 5 files go directly in `prd/`, NOT in `prd/features/`.** The `prd/features/` subdirectory is only for feature-specific specs.
+After the interview, generate these documents in order. **All global files go directly in `prd/`.** Per-domain files go in `prd/domains/{domain}/`.
 
 | Order | Document | Template | Location |
 |-------|----------|----------|----------|
@@ -112,15 +136,17 @@ After the interview, generate these documents in order. **All 5 files go directl
 | 2 | TECH-STACK.md | [TECH-STACK-template.md](./templates/TECH-STACK-template.md) | `prd/TECH-STACK.md` |
 | 3 | ACTORS.md | [ACTORS-template.md](./templates/ACTORS-template.md) | `prd/ACTORS.md` |
 | 4 | GLOSSARY.md | [GLOSSARY-template.md](./templates/GLOSSARY-template.md) | `prd/GLOSSARY.md` |
-| 5 | FEATURES.md | [FEATURES-template.md](./templates/FEATURES-template.md) | `prd/FEATURES.md` |
+| 5 | DOMAINS.md | [DOMAINS-template.md](./templates/DOMAINS-template.md) | `prd/DOMAINS.md` |
+| 6 | FEATURES.md (per domain) | [FEATURES-template.md](./templates/FEATURES-template.md) | `prd/domains/{domain}/FEATURES.md` |
 
-After generating all documents, create the `prd/features/` directory.
+After generating all documents, create `prd/domains/{domain}/features/` for each domain.
 
 ### GLOSSARY.md Starter Terms
 
 When generating GLOSSARY.md, include these starter terms (adapted to the project's domain):
 
 - **Command** -- the project's primary interaction unit (if applicable)
+- **Domain** -- a logical bounded context for organizing specs (app, service, or concern area)
 - **Feature** -- a permanent, named capability of the system
 - **Use Case** -- a specific interaction between an actor and the system
 - **Actor** -- a role (human or system) that participates in use cases
@@ -129,7 +155,7 @@ Add 3-5 additional terms extracted from the project description and tech stack (
 
 ### FEATURES.md Initial State
 
-Generate FEATURES.md with the status key and an empty features table. No features are populated at setup time -- they are added by /m:plan.
+Generate one FEATURES.md per domain at `prd/domains/{domain}/FEATURES.md` with the status key and an empty features table. No features are populated at setup time -- they are added by /m:feature or /m:spec.
 
 ## Regeneration
 
@@ -146,4 +172,5 @@ If `prd/PROJECT.md` already exists when /m:setup is run:
 | [TECH-STACK-template.md](./templates/TECH-STACK-template.md) | TECH-STACK.md structure |
 | [ACTORS-template.md](./templates/ACTORS-template.md) | ACTORS.md structure |
 | [GLOSSARY-template.md](./templates/GLOSSARY-template.md) | GLOSSARY.md structure |
-| [FEATURES-template.md](./templates/FEATURES-template.md) | FEATURES.md structure |
+| [DOMAINS-template.md](./templates/DOMAINS-template.md) | DOMAINS.md structure |
+| [FEATURES-template.md](./templates/FEATURES-template.md) | Per-domain FEATURES.md structure |

@@ -13,9 +13,20 @@ Rules for creating and maintaining feature documents: REQUIREMENTS.md, USE-CASES
 
 ## When to Use
 
-- Creating a new feature with /m:plan
-- Updating an existing feature's requirements with /m:plan
+- Creating a new feature with /m:feature or /m:spec
+- Updating an existing feature's requirements with /m:update-feature
 - Understanding the structure and rules for REQUIREMENTS.md, USE-CASES.md, and ARCHITECTURE.md
+
+## Domain Resolution
+
+Before creating or locating a feature, resolve the target domain:
+
+1. Read `prd/DOMAINS.md` to get the list of registered domains
+2. If only one domain exists, use it automatically (no user prompt needed)
+3. If multiple domains exist, present them via AskUserQuestion: "Which domain should this feature belong to?\n\n{domain table from DOMAINS.md}"
+4. Use the selected domain for all path operations
+
+All feature paths use the pattern `prd/domains/{domain}/features/FEAT-XXXX/`.
 
 ## EARS Syntax
 
@@ -104,11 +115,11 @@ ASCII art conveys layout and element hierarchy. It is always the default -- gene
 ![Dashboard overview](assets/overview-dashboard.png)
 ```
 
-Images are a post-creation enhancement. The `assets/` directory is created inside the feature directory after the feature directory exists. When the user provides image files (file paths), copy them to `prd/features/FEAT-XXXX/assets/` with descriptive names and reference them in the `## UI` section.
+Images are a post-creation enhancement. The `assets/` directory is created inside the feature directory after the feature directory exists. When the user provides image files (file paths), copy them to `prd/domains/{domain}/features/FEAT-XXXX/assets/` with descriptive names and reference them in the `## UI` section.
 
 ### Asset Management
 
-- Feature-level images go in `prd/features/FEAT-XXXX/assets/`
+- Feature-level images go in `prd/domains/{domain}/features/FEAT-XXXX/assets/`
 - File naming: `{descriptive-slug}.{ext}` -- lowercase, hyphens, no spaces, max 50 character slug
 - Supported formats: PNG, JPG
 - When the user provides image file paths during creation or update, copy the files and add references
@@ -136,7 +147,7 @@ Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
 ## FEATURES.md Row Management
 
-When creating a feature, add a new row to `prd/FEATURES.md`:
+When creating a feature, add a new row to the domain's `prd/domains/{domain}/FEATURES.md`:
 
 ```
 | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
@@ -148,7 +159,7 @@ When creating a feature, add a new row to `prd/FEATURES.md`:
 - **Description:** One sentence — enough for an agent to decide if this is the right feature
 - **Status:** Always `pending` when first created
 - **Tag:** `@FEAT-XXXX` — used as Gherkin feature tag
-- **Directory:** Relative Markdown link to `prd/features/FEAT-XXXX/`
+- **Directory:** Relative Markdown link to `features/FEAT-XXXX/` (relative to the domain's FEATURES.md)
 
 **When updating a feature,** do NOT change the ID or Tag. Update Status only when the feature advances through its lifecycle.
 
@@ -210,12 +221,12 @@ If the user describes the UI, generate ASCII art mockups from their description 
 
 After all sections are confirmed:
 1. Generate FEAT-XXXX ID (4-character timestamp code)
-2. Create `prd/features/FEAT-XXXX/` directory and `prd/features/FEAT-XXXX/use-cases/`
-3. If the user provided image file paths, create `prd/features/FEAT-XXXX/assets/` and copy image files with descriptive names
-4. Write `REQUIREMENTS.md` using [REQUIREMENTS-template.md](./templates/REQUIREMENTS-template.md) -- include `## UI` section with confirmed ASCII art and/or image references if UI content was provided; omit `## UI` section entirely if user said no UI
+2. Create `prd/domains/{domain}/features/FEAT-XXXX/` directory and `prd/domains/{domain}/features/FEAT-XXXX/use-cases/`
+3. If the user provided image file paths, create `prd/domains/{domain}/features/FEAT-XXXX/assets/` and copy image files with descriptive names
+4. Write `REQUIREMENTS.md` using [REQUIREMENTS-template.md](./templates/REQUIREMENTS-template.md) -- include `## UI` section with confirmed ASCII art and/or image references if UI content was provided; omit `## UI` section entirely if user said no UI. Add `domain: {domain}` to the frontmatter.
 5. Write `USE-CASES.md` using [USE-CASES-template.md](./templates/USE-CASES-template.md) (empty table)
 6. Write `ARCHITECTURE.md` scaffold using the template at `spec/skills/architecture/templates/ARCHITECTURE-template.md`
-6. Add row to `prd/FEATURES.md` (format from the Row Management section above)
+7. Add row to `prd/domains/{domain}/FEATURES.md` (format from the Row Management section above)
 
 ## Update Mode
 

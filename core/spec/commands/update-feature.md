@@ -50,19 +50,19 @@ If the change description is empty (only a FEAT ID was provided), use AskUserQue
 
 ## Step 3: Verify Feature Exists
 
-1. Check that `prd/FEATURES.md` exists. If missing, tell the user:
+1. Check that `prd/DOMAINS.md` exists. If missing, tell the user:
 
-   "Run `/m:setup` first -- FEATURES.md is required."
-
-   Then stop.
-
-2. Look up the FEAT token in `prd/FEATURES.md`. If not found, tell the user:
-
-   "Feature {FEAT-XXXX} not found in FEATURES.md. Check the ID and try again."
+   "Run `/m:setup` first -- DOMAINS.md is required."
 
    Then stop.
 
-3. Verify that `prd/features/FEAT-XXXX/REQUIREMENTS.md` exists. If missing, tell the user:
+2. Glob `prd/domains/*/features/FEAT-XXXX/` to find the feature directory and extract the domain from the path. If not found, tell the user:
+
+   "Feature {FEAT-XXXX} not found. Check the ID and try again."
+
+   Then stop.
+
+3. Verify that `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` exists. If missing, tell the user:
 
    "REQUIREMENTS.md not found for {FEAT-XXXX}. The feature directory may be incomplete."
 
@@ -75,8 +75,8 @@ Read these files to understand the current state:
 - `prd/PROJECT.md` -- project description
 - `prd/TECH-STACK.md` -- technology choices (if exists)
 - `prd/ACTORS.md` -- system actors (if exists)
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md` -- current feature requirements
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` -- current architecture (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` -- current feature requirements
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` -- current architecture (if exists)
 
 ## Step 5: Analyze and Propose Changes
 
@@ -101,9 +101,9 @@ If the user wants edits, revise the proposal and present again via AskUserQuesti
 
 Apply the confirmed changes:
 
-1. Edit `prd/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed requirement changes. Follow EARS syntax and Fit Criteria format from the skill.
+1. Edit `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed requirement changes. Follow EARS syntax and Fit Criteria format from the skill.
 
-2. If architecture changes were confirmed, edit `prd/features/FEAT-XXXX/ARCHITECTURE.md`.
+2. If architecture changes were confirmed, edit `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md`.
 
 3. Do NOT change the FEAT ID or tag.
 
@@ -111,9 +111,9 @@ Apply the confirmed changes:
 
 If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
 
-1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
+1. Set the feature's status to `dirty` in `prd/domains/{domain}/FEATURES.md`.
 
-2. Read `prd/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
+2. Read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
    - Set the UC's status to `dirty` in USE-CASES.md.
    - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
    - Set all scenario heading annotations in the UC file to `dirty`:

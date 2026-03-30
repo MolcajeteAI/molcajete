@@ -124,13 +124,14 @@ Minimal machine-readable state for dispatch.sh to loop, gate, and report.
       "id": "T-001",
       "title": "Auth foundation",
       "feature": "FEAT-0F3y",
+      "domain": "app",
       "use_cases": ["UC-0F4a", "UC-0F5b"],
       "intent": "implement",
       "status": "pending",
       "done_signal": "bdd",
       "done_tags": ["@SC-0A1b", "@SC-0A2c"],
       "depends_on": [],
-      "architecture": "prd/features/FEAT-0F3y/ARCHITECTURE.md",
+      "architecture": "prd/domains/app/features/FEAT-0F3y/ARCHITECTURE.md",
       "retries": 0,
       "commits": [],
       "review": null,
@@ -148,6 +149,7 @@ Minimal machine-readable state for dispatch.sh to loop, gate, and report.
 | `tasks[].id` | string | Task ID matching the plan file (T-001, T-002, ...) |
 | `tasks[].title` | string | Human-readable task title |
 | `tasks[].feature` | string | Parent feature ID (FEAT-XXXX) |
+| `tasks[].domain` | string | Domain name from DOMAINS.md |
 | `tasks[].use_cases` | string[] | UC-XXXX IDs this task advances |
 | `tasks[].intent` | string | `"implement"` or `"wire-bdd"` |
 | `tasks[].status` | string | Current status from lifecycle |

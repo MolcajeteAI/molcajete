@@ -34,7 +34,7 @@ Follow these skills' rules for all subsequent steps.
 
 ## Step 2: Verify Prerequisites
 
-Check that `prd/PROJECT.md` and `prd/FEATURES.md` both exist.
+Check that `prd/PROJECT.md` and `prd/DOMAINS.md` both exist.
 
 If either is missing, tell the user:
 
@@ -49,7 +49,8 @@ Read the following files to understand the project:
 1. `prd/PROJECT.md` — project description (required)
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
-4. `prd/FEATURES.md` — existing features (required, check for duplicates)
+4. `prd/DOMAINS.md` — domain registry (required)
+5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
 
 ## Step 4: Collect Description
 
@@ -94,9 +95,10 @@ For each feature group, the subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/FEATURES.md`
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, all `prd/domains/*/FEATURES.md`
 
 3. **The specific task:**
+   - Read `prd/DOMAINS.md` and assign each extracted feature to the most appropriate domain based on the code's location and purpose
    - Read and analyze the confirmed files for this feature group
    - Extract a feature: name, non-goals, actors, EARS functional requirements with Fit Criteria, non-functional requirements, acceptance criteria
    - Extract use cases: name, objective, actor, preconditions, trigger, scenarios (Given/Steps/Outcomes/Side Effects)
@@ -105,11 +107,11 @@ For each feature group, the subagent prompt must include:
    - Generate IDs: run `node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js {count}` for all needed IDs (FEAT-, UC-, SC-)
 
 4. **Files to write:**
-   - `prd/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   - `prd/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
-   - `prd/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
-   - Append rows to `prd/FEATURES.md` and `prd/features/FEAT-XXXX/USE-CASES.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
+   - Append rows to `prd/domains/{domain}/FEATURES.md` and `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -125,7 +127,7 @@ After each subagent returns, compile the results into a summary.
 
 Use AskUserQuestion to present all created specs:
 
-- Question: "**Research + Spec Extraction Complete**\n\n{for each feature:\n  **{FEAT-XXXX}: {name}**\n  - REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n  - ARCHITECTURE.md: enriched with {sections list}\n  - Use Cases:\n    {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n}\n\nPlease review the generated specs in `prd/features/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
+- Question: "**Research + Spec Extraction Complete**\n\n{for each feature:\n  **{FEAT-XXXX}: {name}**\n  - REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n  - ARCHITECTURE.md: enriched with {sections list}\n  - Use Cases:\n    {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n}\n\nPlease review the generated specs in `prd/domains/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
 - Header: "Specs Ready for Review"
 - Options: "Proceed with Gherkin generation" / "I need to review and edit first — I'll re-run when ready"
 

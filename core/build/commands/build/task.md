@@ -49,14 +49,14 @@ Read project-level context:
 - `prd/PROJECT.md` — project description
 - `prd/TECH-STACK.md` (if exists) — technology choices
 
-For the task's feature, read:
-- `prd/features/{FEAT-XXXX}/REQUIREMENTS.md` — functional requirements
+For the task's feature, read (using the domain from the task's Domain field):
+- `prd/domains/{domain}/features/{FEAT-XXXX}/REQUIREMENTS.md` — functional requirements
 - The ARCHITECTURE.md path from the task's Architecture field (if the file exists)
 
 ### 2c. UC and Gherkin Files
 
 For each UC-XXXX in the task's Use Cases:
-1. Find the UC file: glob `prd/features/*/use-cases/{UC-XXXX}.md`
+1. Find the UC file: glob `prd/domains/*/features/*/use-cases/{UC-XXXX}.md`
 2. Read the UC file for scenario specifications
 3. Find the Gherkin feature file: grep `bdd/features/` for `@{UC-XXXX}`
 4. Read the feature file to understand what the BDD tests expect

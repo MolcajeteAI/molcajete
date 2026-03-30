@@ -32,7 +32,7 @@ Follow these skills' rules for all subsequent steps.
 
 ## Step 2: Verify Prerequisites
 
-1. Verify `prd/PROJECT.md` and `prd/FEATURES.md` both exist. If either is missing:
+1. Verify `prd/PROJECT.md` and `prd/DOMAINS.md` both exist. If either is missing:
 
    "Project foundation not found. Run `/m:setup` first to create PROJECT.md and FEATURES.md."
 
@@ -51,9 +51,9 @@ Parse `$ARGUMENTS` for entity IDs:
 - **With arguments** → parse tokens matching `FEAT-XXXX`, `UC-XXXX`, or `SC-XXXX` patterns; scope the plan to those entities
 
 If arguments are provided, validate every ID exists in the PRD:
-- `FEAT-XXXX` → must appear in `prd/FEATURES.md`
-- `UC-XXXX` → must exist as `prd/features/*/use-cases/UC-XXXX.md`
-- `SC-XXXX` → must exist as a scenario heading in some UC file (grep `prd/features/*/use-cases/*.md` for `### SC-XXXX`)
+- `FEAT-XXXX` → must appear in some `prd/domains/*/FEATURES.md`
+- `UC-XXXX` → must exist as `prd/domains/*/features/*/use-cases/UC-XXXX.md`
+- `SC-XXXX` → must exist as a scenario heading in some UC file (grep `prd/domains/*/features/*/use-cases/*.md` for `### SC-XXXX`)
 
 If any ID is not found, report which ones are invalid and stop.
 
@@ -63,7 +63,8 @@ Read project-level files:
 - `prd/PROJECT.md` — project description (required)
 - `prd/TECH-STACK.md` — technology choices (if exists)
 - `prd/ACTORS.md` — system actors (if exists)
-- `prd/FEATURES.md` — feature registry (required)
+- `prd/DOMAINS.md` — domain registry (required)
+- All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — feature registries
 
 Per-feature files will be loaded in Step 5 based on scope.
 
@@ -73,22 +74,22 @@ Per-feature files will be loaded in Step 5 based on scope.
 
 Plan work for exactly the provided IDs — **no status filtering**. The user is explicitly telling you what to work on.
 
-- `FEAT-XXXX` → include all UCs under that feature. Read `prd/features/FEAT-XXXX/USE-CASES.md` and all UC files in `prd/features/FEAT-XXXX/use-cases/`.
-- `UC-XXXX` → include that specific UC. Glob `prd/features/*/use-cases/UC-XXXX.md` to find it.
-- `SC-XXXX` → include the parent UC. Grep `prd/features/*/use-cases/*.md` for `### SC-XXXX` to find the UC file, then include the whole UC (scenarios aren't planned individually).
+- `FEAT-XXXX` → include all UCs under that feature. Glob `prd/domains/*/features/FEAT-XXXX/` to find it, then read `USE-CASES.md` and all UC files in `use-cases/`.
+- `UC-XXXX` → include that specific UC. Glob `prd/domains/*/features/*/use-cases/UC-XXXX.md` to find it.
+- `SC-XXXX` → include the parent UC. Grep `prd/domains/*/features/*/use-cases/*.md` for `### SC-XXXX` to find the UC file, then include the whole UC (scenarios aren't planned individually).
 
-For each in-scope feature, also read:
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md`
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` (if exists)
+For each in-scope feature, extract the domain from the path and also read:
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` (if exists)
 
 ### Mode B: No Arguments (full scan)
 
 Find everything that needs implementation:
 
-1. Parse `prd/FEATURES.md` for all features.
-2. For each feature, read `prd/features/FEAT-XXXX/USE-CASES.md`.
+1. Read all `prd/domains/*/FEATURES.md` for all features across all domains.
+2. For each feature, read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`.
 3. Collect UCs with status `pending` or `dirty` in the USE-CASES.md table.
-4. Also scan `prd/FEATURES.md` for features with status `dirty`. For each dirty feature, include **all** its UCs from USE-CASES.md — even those with `implemented` status — since a dirty feature means requirements changed and all UCs may need re-planning.
+4. Also scan all `prd/domains/*/FEATURES.md` for features with status `dirty`. For each dirty feature, include **all** its UCs from USE-CASES.md — even those with `implemented` status — since a dirty feature means requirements changed and all UCs may need re-planning.
 5. Also include features with status `pending` that have UCs ready.
 6. For each in-scope feature, read `REQUIREMENTS.md` and `ARCHITECTURE.md` (if exists).
 6. Build the full picture of all pending work.
@@ -159,8 +160,9 @@ Decompose into tasks following the planning skill rules:
    - Task ID: `T-001`, `T-002`, etc. (flat sequential)
    - Title: verb-noun describing what gets built
    - Use Cases: which UC-XXXX IDs this task advances
-   - Feature: parent feature slug
-   - Architecture: path to the feature's ARCHITECTURE.md
+   - Feature: parent feature ID (FEAT-XXXX)
+   - Domain: the domain the feature belongs to
+   - Architecture: path to the feature's ARCHITECTURE.md (at `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md`)
    - Intent: `implement` (forward plan always uses implement)
    - Status: `pending`
    - Estimated context: `~{N}K tokens`

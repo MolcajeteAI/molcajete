@@ -33,11 +33,11 @@ Follow the skill's rules for all subsequent steps.
 
 ## Step 2: Verify Prerequisites
 
-Check that `prd/PROJECT.md` and `prd/FEATURES.md` both exist.
+Check that `prd/PROJECT.md` and `prd/DOMAINS.md` both exist.
 
 If either is missing, tell the user:
 
-"Project foundation not found. Run `/m:setup` first to create PROJECT.md and FEATURES.md."
+"Project foundation not found. Run `/m:setup` first to create PROJECT.md and DOMAINS.md."
 
 Then stop. Do not proceed.
 
@@ -48,9 +48,19 @@ Read the following files to understand the project and avoid duplicate features:
 1. `prd/PROJECT.md` — project description (required)
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
-4. `prd/FEATURES.md` — existing features (required, check for duplicates)
+4. `prd/DOMAINS.md` — domain registry (required)
+5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
 
 Use the project context to inform your extraction and suggestions in the interview.
+
+## Step 3.5: Domain Selection
+
+Read `prd/DOMAINS.md` and resolve the target domain following the feature-authoring skill's Domain Resolution rules:
+
+- If only one domain exists, use it automatically
+- If multiple domains exist, use AskUserQuestion to ask which domain this feature belongs to
+
+Record the selected domain for all subsequent path operations.
 
 ## Step 4: Research Context
 
@@ -115,26 +125,26 @@ Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
 ## Step 8: Generate Documents
 
-Create the feature directory structure:
+Create the feature directory structure using the selected domain:
 
 ```bash
-mkdir -p prd/features/FEAT-XXXX/use-cases
+mkdir -p prd/domains/{domain}/features/FEAT-XXXX/use-cases
 ```
 
-If the user provided image file paths during the interview, also create `prd/features/FEAT-XXXX/assets/` and copy the images there.
+If the user provided image file paths during the interview, also create `prd/domains/{domain}/features/FEAT-XXXX/assets/` and copy the images there.
 
 Then read each template and generate the documents:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   Write `prd/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Follow the section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Add `domain: {domain}` to the frontmatter. Follow the section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
 
 2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
-   Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
 3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
-4. Edit `prd/FEATURES.md` — add a new row:
+4. Edit `prd/domains/{domain}/FEATURES.md` — add a new row:
    ```
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
@@ -143,9 +153,9 @@ Then read each template and generate the documents:
 
 Tell the user what was created:
 
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax)
-- `prd/features/FEAT-XXXX/USE-CASES.md` — use case index (empty, ready for /m:usecase)
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` — architecture scaffold
-- Updated `prd/FEATURES.md` with new row
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax)
+- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index (empty, ready for /m:usecase)
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — architecture scaffold
+- Updated `prd/domains/{domain}/FEATURES.md` with new row
 
 Suggest next step: "Use `/m:usecase FEAT-XXXX {description}` to add use cases to this feature."

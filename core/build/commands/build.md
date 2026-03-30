@@ -59,6 +59,7 @@ Read the plan file and extract all task metadata. For each task section (`### T-
 | Title | Text after `T-NNN:` in heading |
 | Use Cases | `**Use Cases:**` line |
 | Feature | `**Feature:**` line — extract the FEAT-XXXX ID |
+| Domain | `**Domain:**` line |
 | Architecture | `**Architecture:**` line |
 | Intent | `**Intent:**` line (`implement` or `wire-bdd`) |
 | Status | `**Status:**` line |
@@ -125,13 +126,14 @@ Build the tasks.json file from the parsed plan data:
       "id": "T-001",
       "title": "{task title}",
       "feature": "FEAT-XXXX",
+      "domain": "{domain}",
       "use_cases": ["UC-XXXX", "UC-YYYY"],
       "intent": "implement",
       "status": "pending",
       "done_signal": "bdd",
       "done_tags": ["@SC-XXXX", "@SC-YYYY"],
       "depends_on": [],
-      "architecture": "prd/features/FEAT-XXXX/ARCHITECTURE.md",
+      "architecture": "prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md",
       "retries": 0,
       "commits": [],
       "error": null

@@ -34,7 +34,7 @@ Follow these skills' rules for all subsequent steps.
 
 ## Step 2: Verify Prerequisites
 
-Check that `prd/PROJECT.md` and `prd/FEATURES.md` both exist.
+Check that `prd/PROJECT.md` and `prd/DOMAINS.md` both exist.
 
 If either is missing, tell the user:
 
@@ -49,9 +49,16 @@ Read the following files to understand the project and avoid duplicate features:
 1. `prd/PROJECT.md` — project description (required)
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
-4. `prd/FEATURES.md` — existing features (required, check for duplicates)
+4. `prd/DOMAINS.md` — domain registry (required)
+5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
 
 Use the project context to inform your code analysis and extraction.
+
+## Step 3.5: Domain Selection
+
+Read `prd/DOMAINS.md` and resolve the target domain:
+- If only one domain exists, use it automatically
+- If multiple domains exist, use AskUserQuestion to ask which domain this feature belongs to
 
 ## Step 4: Collect Description
 
@@ -94,7 +101,7 @@ The subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/FEATURES.md`
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, all `prd/domains/*/FEATURES.md`
 
 3. **The confirmed file list** from Step 5.2
 
@@ -107,13 +114,13 @@ The subagent prompt must include:
    - Generate IDs: run `node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js {count}` for all needed IDs (1 FEAT + N UCs + M SCs)
 
 5. **Files to write:**
-   - Create directory: `prd/features/FEAT-XXXX/use-cases/`
-   - `prd/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   - `prd/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
-   - `prd/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
+   - Create directory: `prd/domains/{domain}/features/FEAT-XXXX/use-cases/`
+   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
+   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
    - In USE-CASES.md rows, set status column to `pending`
-   - Append a row to `prd/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
+   - Append a row to `prd/domains/{domain}/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -127,7 +134,7 @@ The subagent prompt must include:
 
 After the subagent returns, present the results via AskUserQuestion:
 
-- Question: "**Research + Spec Extraction Complete**\n\n**{FEAT-XXXX}: {name}**\n- REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n- ARCHITECTURE.md: enriched with {sections list}\n- Use Cases:\n  {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n\nPlease review the generated specs in `prd/features/FEAT-XXXX/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
+- Question: "**Research + Spec Extraction Complete**\n\n**{FEAT-XXXX}: {name}**\n- REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n- ARCHITECTURE.md: enriched with {sections list}\n- Use Cases:\n  {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n\nPlease review the generated specs in `prd/domains/{domain}/features/FEAT-XXXX/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
 - Header: "Specs Ready for Review"
 - Options: "Proceed with Gherkin generation" / "I need to review and edit first — I'll re-run when ready"
 
@@ -145,9 +152,9 @@ The subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` (step stub convention)
 
 2. **Files to read:**
-   - `prd/features/FEAT-XXXX/REQUIREMENTS.md`
-   - `prd/features/FEAT-XXXX/ARCHITECTURE.md`
-   - All UC files in `prd/features/FEAT-XXXX/use-cases/`
+   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md`
+   - All UC files in `prd/domains/{domain}/features/FEAT-XXXX/use-cases/`
    - `prd/TECH-STACK.md` (if exists) for language/framework detection
 
 3. **The specific task:**
@@ -173,11 +180,11 @@ The subagent prompt must include:
 Tell the user what was created:
 
 **Specs Created:**
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax, extracted from code)
-- `prd/features/FEAT-XXXX/USE-CASES.md` — use case index
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` — enriched with implementation research
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax, extracted from code)
+- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — enriched with implementation research
 - UC files with scenario counts
-- Updated `prd/FEATURES.md` with new row
+- Updated `prd/domains/{domain}/FEATURES.md` with new row
 
 **Gherkin Created:**
 - Feature file paths with scenario counts

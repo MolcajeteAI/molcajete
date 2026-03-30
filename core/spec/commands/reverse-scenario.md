@@ -37,21 +37,21 @@ Follow these skills' rules for all subsequent steps.
 
 Parse `$ARGUMENTS` for a `UC-XXXX` token. If found:
 
-1. Glob `prd/features/*/use-cases/UC-XXXX.md` (substituting the actual ID) to find the UC file. If not found:
+1. Glob `prd/domains/*/features/*/use-cases/UC-XXXX.md` (substituting the actual ID) to find the UC file. If not found:
 
    "Use case {UC-XXXX} not found. Check the ID and try again."
 
    Then stop.
 
-2. Extract the parent `FEAT-XXXX` from the path (the directory name under `prd/features/`).
+2. Extract the parent `FEAT-XXXX` from the path (the directory name under `features/`) and the domain from the path (under `prd/domains/`).
 
-3. Verify `prd/FEATURES.md` exists. If missing:
+3. Verify `prd/DOMAINS.md` exists. If missing:
 
-   "Run `/m:setup` first — FEATURES.md is required."
+   "Run `/m:setup` first — DOMAINS.md is required."
 
    Then stop.
 
-4. Verify FEAT-XXXX exists in `prd/FEATURES.md`. If not found:
+4. Verify FEAT-XXXX exists in `prd/domains/{domain}/FEATURES.md`. If not found:
 
    "Feature {FEAT-XXXX} not found in FEATURES.md. Check the ID and try again."
 
@@ -61,7 +61,7 @@ Parse `$ARGUMENTS` for a `UC-XXXX` token. If found:
 
 If no `UC-XXXX` token is found in `$ARGUMENTS`, resolve the use case using the ID resolution rules from the reverse-engineering skill:
 
-1. Glob `prd/features/*/use-cases/*.md` to find all UC files
+1. Glob `prd/domains/*/features/*/use-cases/*.md` to find all UC files
 2. Read YAML frontmatter of each to get `id`, `name`, and `feature`
 3. Match by keyword similarity to the freeform description in `$ARGUMENTS`
 4. If 1 match → confirm via AskUserQuestion: "This appears to belong to **{UC-XXXX}: {name}** (under {FEAT-XXXX}). Is that correct?"
@@ -78,9 +78,9 @@ Read these files to understand the project, feature, and use case:
 - `prd/PROJECT.md` — what this project is
 - `prd/TECH-STACK.md` — technology context (if exists)
 - `prd/ACTORS.md` — known actors (if exists)
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` — architecture context (if exists)
-- `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` — the target use case
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — architecture context (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` — the target use case
 
 ## Step 4: Collect Description
 
@@ -141,14 +141,14 @@ Prepend `SC-` to each output line (e.g., `SC-1T4B`, `SC-1T4C`).
 
 ## Step 7: Append to UC File
 
-Edit the UC file (`prd/features/FEAT-XXXX/use-cases/UC-XXXX.md`):
+Edit the UC file (`prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md`):
 
 1. Append each confirmed scenario in flat structure — each preceded and followed by a `---` horizontal rule, with SC-XXXX ID, Given/Steps/Outcomes/Side Effects.
 2. Increment the `version` number in the YAML frontmatter.
 
 ## Step 8: Update ARCHITECTURE.md
 
-If `prd/features/FEAT-XXXX/ARCHITECTURE.md` exists:
+If `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` exists:
 
 1. Add Code Map entries for each new SC-XXXX linking to the implementation files discovered during scanning.
 2. Add the new SC-XXXX IDs to the frontmatter `scenarios` array.
@@ -263,7 +263,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If t
 
 Tell the user what was created:
 
-- Scenarios appended to `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` (list SC-XXXX IDs and names)
+- Scenarios appended to `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` (list SC-XXXX IDs and names)
 - ARCHITECTURE.md Code Map entries added
 - Feature file path + scenario count
 - Step definition file(s) + new/reused step counts

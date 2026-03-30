@@ -43,6 +43,10 @@ Infrastructure tasks that don't map to any scenario are allowed when they are pr
 
 These tasks use the **validator done signal** instead of BDD gate.
 
+### Cross-Domain Awareness
+
+Read `prd/DOMAINS.md` as part of project context. When a feature spans domains (tagged with multiple `@{domain}` tags), the first task for that feature absorbs infrastructure cost. Do not create T-000 infrastructure tasks per domain. Tasks slice vertically by scenario — a task's files may span any number of domains' codebases.
+
 ### Using ARCHITECTURE.md Enrichment
 
 When ARCHITECTURE.md contains a Code Map section with entries, use it to:
@@ -151,6 +155,20 @@ Derive the slug from the scope:
 | Full scan | `full-scan` | `full-scan` |
 
 Full plan file name example: `202603261430-user-authentication.md`
+
+## Documentation Task Rule
+
+Every plan must include a final task that updates directory documentation for all modules modified by the preceding tasks. This task:
+
+- Is always the **last task** in the plan (highest T-NNN number)
+- **Depends on** all other tasks in the plan
+- Uses the **validator done signal**: "README.md files exist and are current for all directories containing modified files"
+- **Intent** matches the plan's intent (`implement` or `wire-bdd`)
+- References the code-documentation skill so the build agent knows the conventions
+- Lists `{directory}/README.md` for every directory that appears in preceding tasks' "Files to create/modify" lists
+- Skips directories on the code-documentation skill's skip list
+
+This task goes through the same build pipeline as any other task — it is tracked, visible, and committed.
 
 ## Template
 

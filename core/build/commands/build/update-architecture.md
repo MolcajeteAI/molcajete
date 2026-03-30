@@ -24,6 +24,10 @@ Do not interact with the user — this is a headless command invoked by `dispatc
 
 `FEAT_ID` = `$ARGUMENTS` (e.g., `FEAT-0F3y`)
 
+## Step 1.5: Resolve Domain
+
+Glob `prd/domains/*/features/{FEAT_ID}/` to find the feature directory and extract the domain from the path.
+
 ## Step 2: Load Architecture Skill
 
 Read the architecture skill for section definitions and population rules:
@@ -34,7 +38,7 @@ Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/SKILL.md
 
 ## Step 3: Read Existing ARCHITECTURE.md
 
-Check if `prd/features/{FEAT_ID}/ARCHITECTURE.md` exists.
+Check if `prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md` exists.
 
 - **If it exists:** Read it and note which sections are already populated.
 - **If it doesn't exist:** Read the template from the architecture skill and scaffold a new file with the feature's frontmatter.
@@ -116,7 +120,7 @@ Update System Context, Container View, Integration Points, and State Transitions
 ## Step 7: Commit
 
 ```bash
-git add prd/features/{FEAT_ID}/ARCHITECTURE.md
+git add prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md
 git commit -m "Updates ARCHITECTURE.md for {FEAT_ID}"
 ```
 

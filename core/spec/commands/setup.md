@@ -1,5 +1,5 @@
 ---
-description: Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, FEATURES.md
+description: Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, and per-domain FEATURES.md
 model: claude-opus-4-6
 allowed-tools:
   - Read
@@ -114,17 +114,57 @@ Use AskUserQuestion:
 
 After gathering the answer, use AskUserQuestion to present the structured actor table for confirmation.
 
+## Step 5.5: Interview -- Domains
+
+Follow the setup skill's Stage 4 (Domains) rules.
+
+### If a codebase exists
+
+Launch an `Explore` sub-agent to infer domains from the project structure:
+- Check for `apps/`, `packages/`, `services/` directories -- each subdirectory suggests a domain
+- Check for `src/` subdirectories suggesting distinct concern areas
+- Check for monorepo workspace configurations (package.json workspaces, pnpm-workspace.yaml)
+
+After inference, use AskUserQuestion to present the inferred domains:
+- Question: "I found these logical domains in your project:\n\n{domain table: Name | Type | Description}\n\nDomains are logical boundaries for organizing your specs. They can represent physical apps (patient, doctor) or logical concerns (billing, analytics) within a single app. Molcajete treats them all the same way.\n\nDo these look correct?"
+- Header: "Domains"
+- Options:
+  - "Yes, that's correct" -- proceed
+  - "Needs changes" -- user provides corrections via Other
+
+### If no codebase exists
+
+Use AskUserQuestion:
+- Question: "What are the logical domains in your project? A domain can be a separate app (patient app, admin console), a service (auth API, billing service), or a concern area within one app (onboarding, analytics).\n\nDomains are logical boundaries for organizing your specs -- not deployment boundaries. Molcajete treats all domain types the same way."
+- Header: "Domains"
+
+### For single-app projects
+
+If the project appears to be a single application (one framework, one entry point, no monorepo structure), suggest one domain:
+- Question: "This appears to be a single-app project. I'll create one domain: **{project-name-slug}** (type: app). You can add more domains later if your project grows. Does this look correct?"
+- Header: "Domains"
+- Options:
+  - "Yes, one domain is fine" -- proceed
+  - "I have multiple domains" -- user provides corrections via Other
+
+After confirmation, record the domain list for document generation.
+
 ## Step 6: Generate Documents
 
-**All 5 project files go directly in `prd/`, NOT in `prd/features/`.** The `prd/features/` subdirectory is only for feature-specific specs added later by /m:plan.
+**Global project files go directly in `prd/`.** Per-domain files go in `prd/domains/{domain}/`.
 
-First, create the prd directory:
+First, create the prd directory and domain directories:
 
 ```bash
 mkdir -p prd
 ```
 
-Then read all 5 templates from the setup skill and generate the documents:
+Then for each confirmed domain:
+```bash
+mkdir -p prd/domains/{domain}/features
+```
+
+Read all templates from the setup skill and generate the documents:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/PROJECT-template.md`
    Write `prd/PROJECT.md` filled with the confirmed project description.
@@ -137,21 +177,16 @@ Then read all 5 templates from the setup skill and generate the documents:
 
 4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/GLOSSARY-template.md`
    Write `prd/GLOSSARY.md` with starter terms:
-   - 4 standard terms: Feature, Use Case, Actor, Side Effect (adapted to this project's domain)
+   - 5 standard terms: Domain, Feature, Use Case, Actor, Side Effect (adapted to this project's domain)
    - 3-5 additional terms extracted from the project description and tech stack (e.g., the database name, the primary framework, domain-specific terms)
 
-5. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
-   Write `prd/FEATURES.md` with the status key and an empty features table.
+5. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/DOMAINS-template.md`
+   Write `prd/DOMAINS.md` filled with the confirmed domains table.
 
-## Step 7: Create Features Directory
+6. For each domain, read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
+   Write `prd/domains/{domain}/FEATURES.md` with the status key and an empty features table.
 
-This is a separate, empty directory for feature specs added later by /m:plan. Do NOT place any project files (PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, FEATURES.md) here — those belong directly in `prd/`.
-
-```bash
-mkdir -p prd/features
-```
-
-## Step 8: Report
+## Step 7: Report
 
 Tell the user what was created:
 
@@ -159,7 +194,9 @@ Tell the user what was created:
 - `prd/TECH-STACK.md` -- technology choices
 - `prd/ACTORS.md` -- system actors
 - `prd/GLOSSARY.md` -- domain vocabulary with starter terms
-- `prd/FEATURES.md` -- empty feature inventory
-- `prd/features/` -- directory for feature specs
+- `prd/DOMAINS.md` -- domain registry
+- For each domain:
+  - `prd/domains/{domain}/FEATURES.md` -- empty feature inventory
+  - `prd/domains/{domain}/features/` -- directory for feature specs
 
-Suggest next steps: "Use `/m:plan` to start planning your first feature."
+Explain the structure: "Your specs are organized by domain. Each domain has its own FEATURES.md and features directory. Use `/m:feature` to create your first feature."

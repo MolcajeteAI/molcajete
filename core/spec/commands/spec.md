@@ -34,27 +34,30 @@ Follow these skills' rules for all subsequent steps.
 
 ## Step 2: Verify Prerequisites
 
-Check that `prd/PROJECT.md` and `prd/FEATURES.md` both exist.
+Check that `prd/PROJECT.md` and `prd/DOMAINS.md` both exist.
 
 If either is missing, tell the user:
 
-"Project foundation not found. Run `/m:setup` first to create PROJECT.md and FEATURES.md."
+"Project foundation not found. Run `/m:setup` first to create PROJECT.md and DOMAINS.md."
 
 Then stop. Do not proceed.
 
 ## Step 3: Load Full Project Context
 
-Read all project-level files and every existing feature's specs. This is the key difference from granular commands — spec needs the full PRD picture.
+Read all project-level files, the domain registry, and every existing feature's specs. This is the key difference from granular commands — spec needs the full PRD picture.
 
 **Project-level files:**
 - `prd/PROJECT.md` — project description (required)
 - `prd/TECH-STACK.md` — technology choices (if exists)
 - `prd/ACTORS.md` — system actors (if exists)
-- `prd/FEATURES.md` — existing features (required)
+- `prd/DOMAINS.md` — domain registry (required)
 
-**Per-feature files:** For every feature listed in FEATURES.md, read:
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md`
-- `prd/features/FEAT-XXXX/USE-CASES.md`
+**Per-domain files:** For each domain in DOMAINS.md, read:
+- `prd/domains/{domain}/FEATURES.md` — features in this domain
+
+**Per-feature files:** For every feature listed in each domain's FEATURES.md, read:
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
+- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`
 
 For large projects with many features, use Agent sub-agents to parallelize reading.
 
@@ -89,7 +92,7 @@ Parse the free-form text against the loaded PRD context. Classify each entity th
 
 | Category | Trigger | Action |
 |----------|---------|--------|
-| **New Feature** | Describes capability not covered by any existing feature | Create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add FEATURES.md row |
+| **New Feature** | Describes capability not covered by any existing feature | Assign target domain, create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add domain's FEATURES.md row |
 | **New Use Case** | Describes a workflow belonging to an existing feature | Create UC file in existing feature, add row to USE-CASES.md |
 | **Modified Feature** | Adds or changes requirements of an existing feature | Update REQUIREMENTS.md (new FRs, NFRs, acceptance criteria) |
 | **Modified Use Case** | Adds or changes scenarios in an existing UC | Update UC file (new/changed scenarios), increment version, set status to dirty |
@@ -109,7 +112,7 @@ For each entity, extract as much structured content as possible:
 Use a single AskUserQuestion to show the full picture before any changes:
 
 - Question: Format as a structured plan showing:
-  - **New Features** — list with name and one-line description each
+  - **New Features** — list with name, target domain, and one-line description each
   - **New Use Cases** — list with parent feature, name, and one-line description each
   - **Modified Features** — list with FEAT-XXXX and summary of changes
   - **Modified Use Cases** — list with UC-XXXX and summary of changes
@@ -191,19 +194,19 @@ For each new feature:
 
 1. Create the directory structure:
    ```bash
-   mkdir -p prd/features/FEAT-XXXX/use-cases
+   mkdir -p prd/domains/{domain}/features/FEAT-XXXX/use-cases
    ```
 
 2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   Write `prd/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Follow section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Follow section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
 
 3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
-   Write `prd/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
 
 4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   Write `prd/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
+   Write `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
-5. Edit `prd/FEATURES.md` — add a new row:
+5. Edit `prd/domains/{domain}/FEATURES.md` — add a new row:
    ```
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
@@ -211,12 +214,12 @@ For each new feature:
 ### 11.2 Modified Features
 
 For each modified feature:
-- Edit `prd/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed changes (new FRs, NFRs, acceptance criteria).
+- Edit `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` with the confirmed changes (new FRs, NFRs, acceptance criteria).
 
 **Dirty Cascade:** If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
 
-1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
-2. Read `prd/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
+1. Set the feature's status to `dirty` in `prd/domains/{domain}/FEATURES.md`.
+2. Read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
    - Set the UC's status to `dirty` in USE-CASES.md.
    - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
    - Set all scenario heading annotations in the UC file to `dirty`:
@@ -232,7 +235,7 @@ For each new use case:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
 
-2. Write `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
+2. Write `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
    - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)
    - Title: `# UC-XXXX: {Use Case Name}`
    - Objective blockquote
@@ -241,7 +244,7 @@ For each new use case:
    - Gherkin Tags: `@FEAT-XXXX @UC-XXXX`
    - All confirmed scenarios in flat structure — each scenario preceded and followed by a `---` horizontal rule (including after the last scenario), each with SC-XXXX ID, Given/Steps/Outcomes/Side Effects. Each scenario heading must include a `pending` status annotation: `### SC-XXXX: {Scenario Name} \`pending\``
 
-3. Add a new row to `prd/features/FEAT-XXXX/USE-CASES.md`:
+3. Add a new row to `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`:
    ```
    | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
    ```
@@ -252,7 +255,7 @@ For each modified use case:
 - Edit the UC file with new/changed scenarios.
 - Increment `version` in YAML frontmatter.
 - Set `status` to `dirty` in YAML frontmatter.
-- Update the corresponding row in `prd/features/FEAT-XXXX/USE-CASES.md` (status column to `dirty`).
+- Update the corresponding row in `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` (status column to `dirty`).
 
 ## Step 11: Gherkin Generation
 

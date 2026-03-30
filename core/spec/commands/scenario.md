@@ -38,21 +38,21 @@ Follow these skills' rules for all subsequent steps.
 
    Then stop.
 
-2. Glob `prd/features/*/use-cases/UC-XXXX.md` (substituting the actual ID) to find the UC file. If not found, tell the user:
+2. Glob `prd/domains/*/features/*/use-cases/UC-XXXX.md` (substituting the actual ID) to find the UC file. If not found, tell the user:
 
    "Use case {UC-XXXX} not found. Check the ID and try again."
 
    Then stop.
 
-3. Extract the parent `FEAT-XXXX` from the path (the directory name under `prd/features/`).
+3. Extract the parent `FEAT-XXXX` from the path (the directory name under `features/`) and the domain from the path (the directory name under `prd/domains/`).
 
-4. Verify `prd/FEATURES.md` exists. If missing, tell the user:
+4. Verify `prd/domains/{domain}/FEATURES.md` exists (using the domain extracted from Step 2.3). If missing, tell the user:
 
-   "Run `/m:setup` first — FEATURES.md is required."
+   "Run `/m:setup` first — DOMAINS.md and FEATURES.md are required."
 
    Then stop.
 
-5. Verify FEAT-XXXX exists in `prd/FEATURES.md`. If not found, tell the user:
+5. Verify FEAT-XXXX exists in `prd/domains/{domain}/FEATURES.md`. If not found, tell the user:
 
    "Feature {FEAT-XXXX} not found in FEATURES.md. Check the ID and try again."
 
@@ -65,9 +65,9 @@ Read these files to understand the project, feature, and use case:
 - `prd/PROJECT.md` — what this project is
 - `prd/TECH-STACK.md` — technology context (if exists)
 - `prd/ACTORS.md` — known actors (if exists)
-- `prd/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements
-- `prd/features/FEAT-XXXX/ARCHITECTURE.md` — architecture context (if exists)
-- `prd/features/FEAT-XXXX/use-cases/UC-XXXX.md` — the target use case
+- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements
+- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — architecture context (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` — the target use case
 
 ## Step 4: Parse Use Case
 
@@ -140,7 +140,7 @@ Use AskUserQuestion:
 
 Using the Gherkin Mapping table from the usecase-authoring skill:
 
-- **Feature-level tags:** `@FEAT-XXXX @{domain} @{priority-tag}`
+- **Feature-level tags:** `@FEAT-XXXX @{domain} @{priority-tag}` (where `{domain}` comes from the resolved domain path)
 - **Feature line:** `Feature: {UC Name}` with description from UC objective
 - **Background:** from UC Preconditions (each precondition becomes a `Given` / `And` clause)
 - **Each scenario:**
