@@ -180,9 +180,9 @@ update_prd_statuses() {
   local affected_features=""
 
   for uc_id in $implemented_ucs; do
-    # Find the UC file
+    # Find the UC file (search across all domains)
     local uc_file
-    uc_file=$(find "$prd_dir/features" -path "*/use-cases/${uc_id}.md" -print -quit 2>/dev/null) || true
+    uc_file=$(find "$prd_dir/domains" -path "*/use-cases/${uc_id}.md" -print -quit 2>/dev/null) || true
     if [ -z "$uc_file" ] || [ ! -f "$uc_file" ]; then
       log "Warning: UC file not found for $uc_id — skipping"
       continue
@@ -233,15 +233,13 @@ update_prd_statuses() {
   done
 
   # Feature-level check: if all UCs in a feature are implemented, mark the feature
-  local features_md="${prd_dir}/FEATURES.md"
-  if [ ! -f "$features_md" ]; then
-    return 0
-  fi
-
   for feat_dir_name in $affected_features; do
     [ -z "$feat_dir_name" ] && continue
-    local use_cases_index="${prd_dir}/features/${feat_dir_name}/USE-CASES.md"
-    if [ ! -f "$use_cases_index" ]; then
+
+    # Find the USE-CASES.md under the correct domain
+    local use_cases_index
+    use_cases_index=$(find "$prd_dir/domains" -path "*/${feat_dir_name}/USE-CASES.md" -print -quit 2>/dev/null) || true
+    if [ -z "$use_cases_index" ] || [ ! -f "$use_cases_index" ]; then
       continue
     fi
 
@@ -251,10 +249,14 @@ update_prd_statuses() {
     non_implemented=$(grep -E '^\| *UC-' "$use_cases_index" | grep -vE '\| *implemented *\|' || true)
 
     if [ -z "$non_implemented" ]; then
-      # All UCs implemented — update FEATURES.md row for this feature
-      # feat_dir_name is the FEAT-XXXX ID
-      sed -i '' -E "/^\\| *${feat_dir_name} /s/\\| *(pending|dirty) *\\|/| implemented |/" "$features_md"
-      log "PRD updated: ${feat_dir_name} → implemented (all UCs done)"
+      # All UCs implemented — find the domain's FEATURES.md and update it
+      local domain_dir
+      domain_dir=$(echo "$use_cases_index" | sed -E 's|/features/.*||')
+      local features_md="${domain_dir}/FEATURES.md"
+      if [ -f "$features_md" ]; then
+        sed -i '' -E "/^\\| *${feat_dir_name} /s/\\| *(pending|dirty) *\\|/| implemented |/" "$features_md"
+        log "PRD updated: ${feat_dir_name} → implemented (all UCs done)"
+      fi
     fi
   done
 }
@@ -277,7 +279,7 @@ run_task() {
     --output-format json --json-schema "$TASK_SCHEMA" \
     --name "$session_name" \
     --dangerously-skip-permissions \
-    "/m:build:task $PLAN_FILE $task_id"; then
+    "/m:task $PLAN_FILE $task_id"; then
 
     local status
     status=$(parse_json_field "status" "$CLAUDE_OUTPUT")
@@ -334,7 +336,7 @@ run_review() {
     --output-format json --json-schema "$REVIEW_SCHEMA" \
     --name "$session_name" \
     --dangerously-skip-permissions \
-    "/m:build:review $PLAN_FILE $task_id"
+    "/m:review $PLAN_FILE $task_id"
 }
 
 run_review_fix() {
@@ -395,7 +397,7 @@ run_architecture_update() {
     --output-format json --json-schema "$ARCH_SCHEMA" \
     --name "$session_name" \
     --dangerously-skip-permissions \
-    "/m:build:update-architecture $feat_id"; then
+    "/m:update-architecture $feat_id"; then
 
     local status
     status=$(parse_json_field "status" "$CLAUDE_OUTPUT")
@@ -528,19 +530,33 @@ for task_idx in $(seq 0 $((TASK_COUNT - 1))); do
   update_json "(.tasks[$task_idx].status) = \"in_progress\""
   update_plan_status "$TASK_ID" "in_progress"
 
-  # Create worktree
+  # Create or reuse worktree
   WORKTREE_BRANCH="dispatch/${TASK_FEAT}-${TASK_ID}"
   WORKTREE_PATH=".worktrees/${TASK_FEAT}-${TASK_ID}"
-  git worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_PATH" "$BASE_BRANCH" 2>/dev/null || {
-    # Branch may already exist from a prior run
+
+  if [ -d "$WORKTREE_PATH" ]; then
+    # Worktree exists from a prior run — reuse it
+    log "Reusing existing worktree: $WORKTREE_PATH"
+  elif git show-ref --verify --quiet "refs/heads/$WORKTREE_BRANCH" 2>/dev/null; then
+    # Branch exists but worktree was removed — prune stale refs and reattach
+    git worktree prune 2>/dev/null || true
     git worktree add "$WORKTREE_PATH" "$WORKTREE_BRANCH" 2>/dev/null || {
+      log "Error: could not reattach worktree for $TASK_ID"
+      update_json "(.tasks[$task_idx].status) = \"failed\" | (.tasks[$task_idx].error) = \"Worktree creation failed\""
+      update_plan_status "$TASK_ID" "failed"
+      FAILED_COUNT=$((FAILED_COUNT + 1))
+      continue
+    }
+  else
+    # Fresh start — create new branch and worktree
+    git worktree add -b "$WORKTREE_BRANCH" "$WORKTREE_PATH" "$BASE_BRANCH" 2>/dev/null || {
       log "Error: could not create worktree for $TASK_ID"
       update_json "(.tasks[$task_idx].status) = \"failed\" | (.tasks[$task_idx].error) = \"Worktree creation failed\""
       update_plan_status "$TASK_ID" "failed"
       FAILED_COUNT=$((FAILED_COUNT + 1))
       continue
     }
-  }
+  fi
   WORKTREE_PATH="$(cd "$WORKTREE_PATH" && pwd)"
 
   # ── Phase 1: Task Agent ──
