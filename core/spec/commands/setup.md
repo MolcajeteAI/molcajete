@@ -59,13 +59,24 @@ After gathering the description, use AskUserQuestion to present it back:
 
 ### If a codebase exists
 
-Launch an `Explore` sub-agent to scan for tech stack indicators. The agent should:
-- Check for package.json, tsconfig.json, go.mod, Cargo.toml, Gemfile, requirements.txt, pyproject.toml, docker-compose.yml, prisma/schema.prisma, drizzle.config.ts, .github/workflows/*.yml, vercel.json, netlify.toml, tailwind.config.*, biome.json
-- Read package.json dependencies if it exists (detect frameworks, state management, etc.)
-- Return a structured summary of the inferred tech stack
+Launch an `Explore` sub-agent to scan for tech stack indicators **grouped by module**. The agent should:
+
+1. **Discover modules:** Check for `apps/*/`, `packages/*/`, `services/*/`, `cmd/*/` directory structures. If none found, treat the project root as a single module.
+2. **Per module:** Read the module's directory and detect:
+   - Directory path (relative to project root)
+   - Language and version (from go.mod, package.json engines, tsconfig.json target, etc.)
+   - Framework (from dependencies: React, Next.js, Express, gqlgen, etc.)
+   - Build tool (Vite, Webpack, esbuild, `go build`, etc.)
+   - Key libraries (state management, GraphQL clients, ORMs, validation, i18n, etc.)
+   - Styling (Tailwind, CSS modules, styled-components — frontend modules only)
+   - Testing tools (Vitest, Jest, Go test, pytest, etc.)
+   - Lint/format tools (Biome, ESLint, golangci-lint, etc.)
+3. **Shared infrastructure:** Check docker-compose.yml for databases, caches, queues. Check .github/workflows/, vercel.json, netlify.toml for CI/CD and hosting.
+4. **External services:** Grep for API keys, SDK imports, or service client instantiations that indicate third-party services (payment processors, LLM providers, notification services, etc.)
+5. **Return a structured summary** organized as: one section per module (with directory, language, framework, libraries, tooling), then shared infrastructure, then external services.
 
 After the agent returns, use AskUserQuestion to present the inferred stack:
-- Question: "I found the following tech stack in your codebase:\n\n{inferred stack formatted as the TECH-STACK.md sections}\n\nIs this correct? Add or correct anything that's missing."
+- Question: "I found the following tech stack in your codebase:\n\n{inferred stack grouped by module, then shared infrastructure, then external services}\n\nIs this correct? Add or correct anything that's missing."
 - Header: "Tech Stack"
 - Options:
   - "Yes, that's correct" -- proceed
@@ -76,14 +87,14 @@ After the agent returns, use AskUserQuestion to present the inferred stack:
 Use AskUserQuestion to ask each tech stack question. You may batch related questions into a single AskUserQuestion with multiple questions (up to 4):
 
 Batch 1:
-- "What primary language and frameworks are you using?" (e.g., TypeScript + Next.js)
-- "What database, ORM, cache, or queue systems?" (e.g., PostgreSQL + Prisma + Redis)
+- "What applications or services make up your project? For each one, what language and framework does it use?" (e.g., "Patient app: React + TypeScript in apps/patient/, Backend: Go + gqlgen in server/")
+- "What database, cache, or queue systems?" (e.g., PostgreSQL + Redis)
 
 Batch 2:
-- "How is the project hosted and what CI/CD do you use?" (e.g., Vercel + GitHub Actions)
+- "How is the project hosted and what CI/CD do you use?" (e.g., Hetzner VPS + GitHub Actions)
 - "Is this a monorepo or multi-repo? What package manager?" (e.g., monorepo with pnpm)
 
-After gathering answers, use AskUserQuestion to present the composed tech stack for confirmation.
+After gathering answers, use AskUserQuestion to present the composed tech stack for confirmation (one module section per application/service).
 
 ## Step 5: Interview -- Actors
 

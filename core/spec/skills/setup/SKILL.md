@@ -36,15 +36,22 @@ If the user's initial description answers all three, skip the follow-ups. Extrac
 
 ### Stage 2: Tech Stack
 
-**If a codebase exists**, scan for tech stack indicators before asking the user. Use AskUserQuestion to present the inferred stack and ask: "I found the following tech stack in your codebase. Is this correct?"
+The tech stack is organized by **module** -- each application, service, or package gets its own section with the directory path, language, framework, key libraries, and tooling. Shared infrastructure (databases, hosting, CI/CD) and external services go in separate sections.
+
+**If a codebase exists**, scan for tech stack indicators and group findings by module:
+1. Identify top-level modules: check `apps/`, `packages/`, `services/`, `cmd/`, or other directory structures that separate distinct applications or services.
+2. For each module, detect: directory path, language, framework, build tool, key libraries, styling (if frontend), testing tools, lint/format tools.
+3. Detect shared infrastructure: databases, caches, queues, hosting, CI/CD, monitoring, containerization.
+4. Detect external services: third-party APIs, LLM providers, payment processors, notification services.
+5. Use AskUserQuestion to present the inferred stack organized by module: "I found the following tech stack in your codebase:\n\n{inferred stack grouped by module, then shared infrastructure, then external services}\n\nIs this correct?"
 
 **If no codebase exists**, use AskUserQuestion for each question:
-1. "What language and frameworks are you using?"
-2. "What database, ORM, cache, or queue systems?"
+1. "What applications or services make up your project? For each one, what language and framework does it use?" (e.g., "Patient app: React + TypeScript, Backend API: Go + gqlgen")
+2. "What database, cache, or queue systems?"
 3. "How is the project hosted and what CI/CD do you use?"
 4. "Is this a monorepo or multi-repo? What package manager?"
 
-Fill in the TECH-STACK.md template with the confirmed answers.
+Fill in the TECH-STACK.md template with the confirmed answers, one module section per application/service.
 
 ### Stage 3: Actors
 
@@ -79,9 +86,22 @@ For each confirmed domain, assign:
 
 ## Codebase Detection
 
-### Tech Stack Indicators
+### Module Discovery
 
-When a codebase exists, scan for these files to infer the tech stack:
+When a codebase exists, first identify the project's modules -- each application, service, or package that has its own tech stack:
+
+| Structure Pattern | Module Source |
+|------------------|--------------|
+| `apps/*/` | Each subdirectory is a module (monorepo apps) |
+| `packages/*/` | Each subdirectory is a module (monorepo packages) |
+| `services/*/` | Each subdirectory is a module (microservices) |
+| `cmd/*/` | Each subdirectory is a module (Go services) |
+| Single root `package.json` + `src/` | One module at root |
+| Single root `go.mod` + `main.go` | One module at root |
+
+For each identified module, run the tech stack indicators below scoped to that module's directory. Also run them at the project root for shared config.
+
+### Tech Stack Indicators
 
 | Indicator File | Infers |
 |---------------|--------|
