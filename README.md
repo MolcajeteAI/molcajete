@@ -20,7 +20,7 @@ There is also a **reverse** path: point Molcajete at an existing codebase and it
 
 ```
 # Spec — author the product spec
-/m:setup                  # initialize PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, FEATURES.md
+/m:setup                  # initialize PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, FEATURES.md
 /m:feature                # create a feature with EARS requirements
 /m:usecase                # create use cases under that feature
 /m:scenario               # generate Gherkin files and step stubs from a use case
@@ -42,7 +42,7 @@ All commands are prefixed with `/m:`.
 
 | Command | Description |
 |---------|-------------|
-| `setup` | Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, FEATURES.md |
+| `setup` | Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, FEATURES.md |
 
 ### Spec Authoring
 
@@ -96,22 +96,52 @@ Headless commands are invoked automatically by the build dispatch loop — you d
 
 ## The PRD Structure
 
+Every project is organized by **domains** — bounded contexts of concern. A domain can be a separate application, a backend service, or a logical area within one app. Even single-app projects have one domain. The `global` domain holds cross-cutting concerns (authentication, shared UI) that apply to every module.
+
 ```
 prd/
 ├── PROJECT.md                      # what the project does, who uses it, what problem it solves
-├── FEATURES.md                     # feature registry table (ID, Name, Status, Tag, Link)
-├── TECH-STACK.md                   # technology choices (language, frameworks, infra)
+├── FEATURES.md                     # master feature index (global section first, then per-domain)
+├── TECH-STACK.md                   # technology choices, organized by module
 ├── ACTORS.md                       # system actors (roles, permissions, constraints)
 ├── GLOSSARY.md                     # domain vocabulary
-└── features/
-    └── FEAT-XXXX/
-        ├── REQUIREMENTS.md         # EARS functional requirements with Fit Criteria
-        ├── USE-CASES.md            # use case index table
-        ├── ARCHITECTURE.md         # C4 diagrams, data model, component inventory, ADRs
-        └── use-cases/
-            ├── UC-XXXX.md          # use case with scenario blocks
-            └── UC-YYYY.md
+├── DOMAINS.md                      # domain registry (name, type, description)
+└── domains/
+    ├── global/                     # spec-only — cross-cutting concerns, never targeted directly
+    │   └── features/
+    │       └── FEAT-XXXX/
+    │           ├── REQUIREMENTS.md # baseline requirements (all domains inherit)
+    │           ├── ARCHITECTURE.md # shared architectural decisions
+    │           ├── USE-CASES.md
+    │           └── use-cases/
+    ├── {domain}/                   # real domain (app, service, concern)
+    │   └── features/
+    │       └── FEAT-YYYY/
+    │           ├── REQUIREMENTS.md # may include refs: [FEAT-XXXX] for global dependencies
+    │           ├── ARCHITECTURE.md
+    │           ├── USE-CASES.md
+    │           └── use-cases/
+    │               ├── UC-XXXX.md
+    │               └── UC-YYYY.md
+    └── ...
 ```
+
+### Domains
+
+`DOMAINS.md` declares the project's bounded contexts:
+
+| Type | Meaning |
+|------|---------|
+| `spec-only` | Global domain — defines baseline requirements, never targeted for plan/build |
+| `app` | A deployable application (patient app, admin console) |
+| `service` | A backend or infrastructure service (API server, smart contracts) |
+| `concern` | A logical separation within one app (billing module, analytics) |
+
+`FEATURES.md` is a single master index with the global section first (cross-cutting baseline), then one section per domain. Domain features can declare `refs: [FEAT-XXXX]` in their REQUIREMENTS.md frontmatter to reference global features they depend on. Global sets defaults; domains inherit and can override with documented reasoning.
+
+When a command receives a global feature ID (e.g., `/m:plan FEAT-XXXX`), it generates a cross-domain plan covering all real domains. Pass specific use case IDs for narrower scope.
+
+### Documents
 
 **REQUIREMENTS.md** uses EARS syntax for every functional requirement:
 
@@ -203,7 +233,7 @@ If review fails, the issues are sent back to the task agent for a fix. The task 
 
 ### 5. Architecture Update
 
-After a task passes review, a dedicated agent updates `ARCHITECTURE.md` to reflect what was built. Then the worktree merges back to the base branch.
+After a task passes review, a dedicated agent updates `ARCHITECTURE.md` to reflect what was built. Then the worktree merges back to the base branch. Architecture updates are skipped for the global domain (spec-only — no implementation to document).
 
 ## Skills Reference
 
@@ -211,11 +241,11 @@ Skills are internal prompt modules that govern how commands behave. They are not
 
 | Skill | Governs |
 |-------|---------|
-| `setup` | Interview rules, codebase detection, templates for initial PRD files |
-| `feature-authoring` | EARS syntax, Fit Criteria, FEAT-XXXX ID assignment, FEATURES.md management |
+| `setup` | Interview rules, codebase detection, domain scaffolding, templates for initial PRD files |
+| `feature-authoring` | EARS syntax, Fit Criteria, FEAT-XXXX ID assignment, domain resolution, global vs domain decision |
 | `usecase-authoring` | UC file structure, flat scenario blocks, UC-XXXX IDs, creation interview |
 | `gherkin` | BDD conventions, feature file generation, step definitions, framework detection |
-| `planning` | Plan file format, task decomposition, context budgets, done signals |
+| `planning` | Plan file format, task decomposition, context budgets, global feature planning, refs loading |
 | `architecture` | ARCHITECTURE.md schema (C4, data model, component inventory, ADRs) |
 | `reverse-engineering` | Research methodology, extraction patterns, reverse command conventions |
 | `dispatch` | Task status lifecycle, retry policy, worktree naming, session management |
@@ -294,8 +324,9 @@ node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js [c
 
 ### Naming
 
-- Directories: lowercase (`prd/features/`, `bdd/steps/`)
+- Directories: lowercase (`prd/domains/patient/`, `bdd/steps/`)
 - PRD spec files: UPPERCASE (`PROJECT.md`, `FEATURES.md`, `REQUIREMENTS.md`)
+- Domain directories: lowercase, directly under `prd/domains/` (`global/`, `patient/`, `server/`)
 - Everything else: lowercase
 
 ### Task Statuses
