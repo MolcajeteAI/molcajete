@@ -55,12 +55,15 @@ Use the project context to inform your extraction and suggestions in the intervi
 
 ## Step 4: Domain Selection
 
-Read `prd/DOMAINS.md` and resolve the target domain following the feature-authoring skill's Domain Resolution rules:
+Read `prd/DOMAINS.md` and resolve the target domain following the feature-authoring skill's full Domain Resolution rules — do not skip any steps:
 
 - If only one domain exists, use it automatically
-- If multiple domains exist, use AskUserQuestion to ask which domain this feature belongs to
+- If multiple domains exist, first ask via AskUserQuestion: "Is this a cross-cutting concern that applies to every domain in the project?" (Yes = `global` domain, No = ask which domain, excluding `global` from the list)
+- Follow the skill's Cross-Cutting Detection Signals to inform the question when applicable
 
 Record the selected domain for all subsequent path operations.
+
+After domain selection, if the selected domain is not `global`, run the Refs Declaration flow from the feature-authoring skill to check for global feature dependencies.
 
 ## Step 5: Research Context
 

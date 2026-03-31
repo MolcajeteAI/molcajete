@@ -92,7 +92,7 @@ Parse the free-form text against the loaded PRD context. Classify each entity th
 
 | Category | Trigger | Action |
 |----------|---------|--------|
-| **New Feature** | Describes capability not covered by any existing feature. If the user describes a cross-cutting concern, assign to `global` domain | Assign target domain, create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add FEATURES.md row |
+| **New Feature** | Describes capability not covered by any existing feature | Run Domain Resolution (feature-authoring skill) to assign target domain, then create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add FEATURES.md row |
 | **New Use Case** | Describes a workflow belonging to an existing feature | Create UC file in existing feature, add row to USE-CASES.md |
 | **Modified Feature** | Adds or changes requirements of an existing feature | Update REQUIREMENTS.md (new FRs, NFRs, acceptance criteria) |
 | **Modified Use Case** | Adds or changes scenarios in an existing UC | Update UC file (new/changed scenarios), increment version, set status to dirty |
@@ -130,6 +130,15 @@ If the user selects "Cancel", stop.
 ## Step 8: Streamlined Interviews
 
 For each entity in the spec plan, present a consolidated review. Unlike the granular commands which go section-by-section, spec presents all sections at once since the user already provided substantial context.
+
+### 7.1 Domain Resolution for New Features
+
+For each new feature in the spec plan, run the feature-authoring skill's Domain Resolution before proceeding to interviews:
+
+1. Follow the full 5-step Domain Resolution from the feature-authoring skill
+2. Ask the cross-cutting question per feature: "Is this a cross-cutting concern that applies to every domain?" — use the Cross-Cutting Detection Signals to inform the question when applicable
+3. For domain features (non-global), run the Refs Declaration flow from the feature-authoring skill to check for global feature dependencies
+4. Include the resolved domain in the Step 7 spec plan presentation so the user sees where each feature will be created
 
 ### 8.1 New Features
 

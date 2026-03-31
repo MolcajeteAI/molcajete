@@ -33,6 +33,20 @@ Before creating or locating a feature, resolve the target domain:
 
 All feature paths use the pattern `prd/domains/{domain}/features/FEAT-XXXX/`.
 
+### Cross-Cutting Detection Signals
+
+When determining whether a capability is cross-cutting, look for these concrete signals:
+
+| Signal | Evidence |
+|--------|----------|
+| Multi-domain imports | Code imported/required by 3+ domain directories |
+| Infrastructure capability | Auth, logging, notifications, shared UI, error handling, config |
+| Identical interface | Same API/interface consumed identically by multiple domains |
+| Shared package location | Code lives in `shared/`, `common/`, `lib/`, `packages/shared-*` |
+| No domain-specific logic | Capability has no conditional behavior per domain |
+
+When 2+ signals match, include the matching evidence in the cross-cutting AskUserQuestion prompt so the user can make an informed decision.
+
 ## Refs Declaration
 
 When creating a domain feature (non-global), after the domain is selected and before the creation interview:

@@ -54,11 +54,27 @@ Read the following files to understand the project and avoid duplicate features:
 
 Use the project context to inform your code analysis and extraction.
 
-## Step 4: Domain Selection
+## Step 4: Domain Selection (Deferred)
 
-Read `prd/DOMAINS.md` and resolve the target domain:
-- If only one domain exists, use it automatically
-- If multiple domains exist, use AskUserQuestion to ask which domain this feature belongs to
+Read `prd/DOMAINS.md` to get the list of registered domains.
+- If only one domain exists, use it automatically and skip to Step 5
+- If multiple domains exist, **defer the full Domain Resolution until after Step 6** (Discovery Scan) when code evidence is available
+
+After Step 6.2 (Scope Confirmation), analyze the discovered files for Cross-Cutting Detection Signals from the feature-authoring skill:
+- Check if the code is imported/required by 3+ domain directories
+- Check if it provides an infrastructure capability (auth, logging, notifications, shared UI, error handling, config)
+- Check if the same interface is consumed identically by multiple domains
+- Check if the code lives in `shared/`, `common/`, `lib/`, or `packages/shared-*`
+- Check if the capability has no conditional behavior per domain
+
+If 2+ signals match, present the evidence via AskUserQuestion:
+- Question: "This code shows signs of being a cross-cutting concern:\n\n{list matching signals with file-level evidence}\n\nIs this a cross-cutting concern that applies to every domain?"
+- Header: "Cross-Cutting Detection"
+- Options: "Yes — create as global feature" / "No — it belongs to a specific domain"
+
+If yes → use `global` domain. If no → present the domain list (excluding `global`) via AskUserQuestion and ask which domain.
+
+If fewer than 2 signals match, follow the feature-authoring skill's standard Domain Resolution (ask cross-cutting question first, then which domain)
 
 ## Step 5: Collect Description
 
