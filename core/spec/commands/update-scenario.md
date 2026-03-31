@@ -68,9 +68,9 @@ Read these files to understand the current state:
 - `prd/PROJECT.md` -- project description
 - `prd/TECH-STACK.md` -- technology choices (if exists)
 - `prd/ACTORS.md` -- known actors (if exists)
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` -- feature requirements
-- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` -- architecture context (if exists)
-- `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- the use case containing this scenario
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` -- feature requirements
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` -- architecture context (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` -- the use case containing this scenario
 
 ## Step 5: Analyze and Propose Changes
 
@@ -93,7 +93,7 @@ If the user wants edits, revise the proposal and present again via AskUserQuesti
 
 Apply the confirmed changes to the scenario within the UC file:
 
-1. Edit `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- modify only the `### SC-XXXX:` block with confirmed changes.
+1. Edit `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` -- modify only the `### SC-XXXX:` block with confirmed changes.
 
 2. Set the scenario heading annotation to `dirty`:
    ```
@@ -104,7 +104,7 @@ Apply the confirmed changes to the scenario within the UC file:
 
 4. Set `status` to `dirty` in the UC file's YAML frontmatter.
 
-5. Update the status column in `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` to `dirty` for this UC row.
+5. Update the status column in `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` to `dirty` for this UC row.
 
 6. Do NOT change the SC-XXXX ID, UC-XXXX ID, or any tags.
 

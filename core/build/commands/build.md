@@ -133,7 +133,7 @@ Build the tasks.json file from the parsed plan data:
       "done_signal": "bdd",
       "done_tags": ["@SC-XXXX", "@SC-YYYY"],
       "depends_on": [],
-      "architecture": "prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md",
+      "architecture": "prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md",
       "retries": 0,
       "commits": [],
       "error": null

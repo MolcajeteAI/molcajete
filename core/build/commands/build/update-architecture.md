@@ -26,7 +26,7 @@ Do not interact with the user — this is a headless command invoked by `dispatc
 
 ## Step 2: Resolve Domain
 
-Glob `prd/domains/*/features/{FEAT_ID}/` to find the feature directory and extract the domain from the path.
+Glob `prd/domains/*/features/{FEAT_ID}-*/` to find the feature directory and extract the domain from the path.
 
 If the resolved domain is `global`, skip architecture update and return immediately. Global features are spec-only — they have no implementation to document.
 
@@ -50,7 +50,7 @@ Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/SKILL.md
 
 ## Step 4: Read Existing ARCHITECTURE.md
 
-Check if `prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md` exists.
+Check if `prd/domains/{domain}/features/{FEAT_ID}-{slug}/ARCHITECTURE.md` exists.
 
 - **If it exists:** Read it and note which sections are already populated.
 - **If it doesn't exist:** Read the template from the architecture skill and scaffold a new file with the feature's frontmatter.
@@ -132,7 +132,7 @@ Update System Context, Container View, Integration Points, and State Transitions
 ## Step 8: Commit
 
 ```bash
-git add prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md
+git add prd/domains/{domain}/features/{FEAT_ID}-{slug}/ARCHITECTURE.md
 git commit -m "Updates ARCHITECTURE.md for {FEAT_ID}"
 ```
 

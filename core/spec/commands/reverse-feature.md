@@ -72,7 +72,14 @@ If 2+ signals match, present the evidence via AskUserQuestion:
 - Header: "Cross-Cutting Detection"
 - Options: "Yes — create as global feature" / "No — it belongs to a specific domain"
 
-If yes → use `global` domain. If no → present the domain list (excluding `global`) via AskUserQuestion and ask which domain.
+If yes → use `global` domain. After confirming global, ask which domains also need this feature via AskUserQuestion:
+- Question: "Which domains need domain-specific features for this cross-cutting concern? Each selected domain will get its own `features/FEAT-XXXX-{slug}/` with domain-specific requirements, use cases, and architecture.\n\n{list non-global domains from DOMAINS.md}"
+- Header: "Domain Features"
+- Options: list non-global domains (multi-select)
+
+Pass both the `global` domain AND the list of target domains to the T1 subagent.
+
+If no → present the domain list (excluding `global`) via AskUserQuestion and ask which domain.
 
 If fewer than 2 signals match, follow the feature-authoring skill's standard Domain Resolution (ask cross-cutting question first, then which domain)
 
@@ -123,20 +130,44 @@ The subagent prompt must include:
 
 4. **The specific task:**
    - Read and analyze all confirmed files following the reverse-engineering skill's research methodology
-   - Extract the feature: name, non-goals, actors, EARS functional requirements with Fit Criteria, non-functional requirements, acceptance criteria
-   - Extract all use cases: name, objective, actor, preconditions, trigger, scenarios (Given/Steps/Outcomes/Side Effects per the usecase-authoring skill)
+   - **If domain is `global` with target domains:** Separate concerns:
+     - Extract shared/baseline requirements → global REQUIREMENTS.md + ARCHITECTURE.md (no USE-CASES.md, no use-cases/ directory)
+     - For each target domain, extract domain-specific requirements and use cases → domain `features/FEAT-XXXX-{slug}/`
+     - Use the **same FEAT-XXXX ID** for global and all domain features
+     - Domain REQUIREMENTS.md gets `refs: [FEAT-XXXX]` in frontmatter
+     - Only domain features get USE-CASES.md and use-cases/ directories
+   - **If domain is NOT `global`:** Extract as a single domain feature:
+     - Extract the feature: name, non-goals, actors, EARS functional requirements with Fit Criteria, non-functional requirements, acceptance criteria
+     - Extract all use cases: name, objective, actor, preconditions, trigger, scenarios (Given/Steps/Outcomes/Side Effects per the usecase-authoring skill)
    - Populate ARCHITECTURE.md with all enrichment sections: Component Inventory, Data Model (with real entities), API Surface, Integration Points, Event Topology, Code Map (linking every UC and SC to implementation files)
    - Compare discovered actors against `prd/ACTORS.md` and add any new ones. Compare discovered technologies against `prd/TECH-STACK.md` and add any new ones. Follow the project-level discovery rules from the reverse-engineering skill.
    - Generate IDs: run `node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js {count}` for all needed IDs (1 FEAT + N UCs + M SCs)
 
 5. **Files to write:**
-   - Create directory: `prd/domains/{domain}/features/FEAT-XXXX/use-cases/`
-   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
-   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
+
+   **If domain is `global` with target domains:**
+   - Create global directory: `prd/domains/global/features/FEAT-XXXX-{slug}/` (no use-cases/ subdirectory)
+   - Global `REQUIREMENTS.md` — shared/baseline requirements using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - Global `ARCHITECTURE.md` — shared architectural decisions using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - Append a global row to `prd/FEATURES.md` under `## global`
+   - For each target domain:
+     - Create directory: `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/`
+     - Domain `REQUIREMENTS.md` with `refs: [FEAT-XXXX]` in frontmatter, domain-specific requirements
+     - Domain `USE-CASES.md` with rows for domain-specific UCs
+     - Domain `ARCHITECTURE.md` scaffold
+     - Domain UC files: `use-cases/UC-XXXX-{slug}.md` for each use case
+     - Append a domain row to `prd/FEATURES.md` under `## {domain}`
+
+   **If domain is NOT `global`:**
+   - Create directory: `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md` (with rows for all extracted UCs)
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
    - In USE-CASES.md rows, set status column to `pending`
-   - Append a row to `prd/FEATURES.md` under the appropriate domain section: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
+   - Append a row to `prd/FEATURES.md` under the appropriate domain section: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX-{slug}/](features/FEAT-XXXX-{slug}/) |`
+
+   **Common to both:**
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -150,7 +181,7 @@ The subagent prompt must include:
 
 After the subagent returns, present the results via AskUserQuestion:
 
-- Question: "**Research + Spec Extraction Complete**\n\n**{FEAT-XXXX}: {name}**\n- REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n- ARCHITECTURE.md: enriched with {sections list}\n- Use Cases:\n  {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n\nPlease review the generated specs in `prd/domains/{domain}/features/FEAT-XXXX/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
+- Question: "**Research + Spec Extraction Complete**\n\n**{FEAT-XXXX}: {name}**\n- REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n- ARCHITECTURE.md: enriched with {sections list}\n- Use Cases:\n  {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n\nPlease review the generated specs in `prd/domains/{domain}/features/FEAT-XXXX-{slug}/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
 - Header: "Specs Ready for Review"
 - Options: "Proceed with Gherkin generation" / "I need to review and edit first — I'll re-run when ready"
 
@@ -168,9 +199,9 @@ The subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` (step stub convention)
 
 2. **Files to read:**
-   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md`
-   - All UC files in `prd/domains/{domain}/features/FEAT-XXXX/use-cases/`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md`
+   - All UC files in `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/`
    - `prd/TECH-STACK.md` (if exists) for language/framework detection
 
 3. **The specific task:**
@@ -196,9 +227,9 @@ The subagent prompt must include:
 Tell the user what was created:
 
 **Specs Created:**
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax, extracted from code)
-- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index
-- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — enriched with implementation research
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` — feature requirements (EARS syntax, extracted from code)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` — use case index
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` — enriched with implementation research
 - UC files with scenario counts
 - Updated `prd/FEATURES.md` with new row
 

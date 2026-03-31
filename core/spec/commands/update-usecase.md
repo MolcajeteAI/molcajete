@@ -49,7 +49,7 @@ If the change description is empty (only a UC ID was provided), use AskUserQuest
 
 ## Step 3: Verify Use Case Exists
 
-1. Glob `prd/domains/*/features/*/use-cases/UC-XXXX.md` (substituting the actual ID) to find the UC file. If not found, tell the user:
+1. Glob `prd/domains/*/features/*/use-cases/UC-XXXX-*.md` (substituting the actual ID) to find the UC file. If not found, tell the user:
 
    "Use case {UC-XXXX} not found. Check the ID and try again."
 
@@ -76,10 +76,10 @@ Read these files to understand the current state:
 - `prd/PROJECT.md` -- project description
 - `prd/TECH-STACK.md` -- technology choices (if exists)
 - `prd/ACTORS.md` -- known actors (if exists)
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` -- feature requirements
-- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` -- architecture context (if exists)
-- `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- the target use case
-- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` -- use case index
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` -- feature requirements
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` -- architecture context (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` -- the target use case
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` -- use case index
 
 ## Step 5: Analyze and Propose Changes
 
@@ -103,13 +103,13 @@ If the user wants edits, revise the proposal and present again via AskUserQuesti
 
 Apply the confirmed changes to the UC file:
 
-1. Edit `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` with the confirmed changes.
+1. Edit `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` with the confirmed changes.
 
 2. Increment the `version` field in the YAML frontmatter.
 
 3. Set `status` to `dirty` in the YAML frontmatter.
 
-4. Update the status column in `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` to `dirty` for this UC row.
+4. Update the status column in `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` to `dirty` for this UC row.
 
 5. Set affected scenario headings to `dirty`. For each scenario that was modified, update its heading annotation:
    ```

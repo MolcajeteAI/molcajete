@@ -16,7 +16,7 @@
 **Use Cases:** {UC-XXXX, UC-YYYY}
 **Feature:** FEAT-XXXX
 **Domain:** {domain}
-**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md}
+**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md}
 **Intent:** {implement | wire-bdd}
 **Status:** pending
 **Estimated context:** ~{N}K tokens
@@ -38,7 +38,7 @@ Files to create/modify:
 **Use Cases:** {UC-XXXX}
 **Feature:** FEAT-XXXX
 **Domain:** {domain}
-**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md}
+**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md}
 **Intent:** {implement | wire-bdd}
 **Status:** pending
 **Estimated context:** ~{N}K tokens
@@ -59,7 +59,7 @@ Files to create/modify:
 **Use Cases:** {all UCs from the plan}
 **Feature:** FEAT-XXXX
 **Domain:** {domain}
-**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md}
+**Architecture:** {prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md}
 **Intent:** {implement | wire-bdd}
 **Status:** pending
 **Estimated context:** ~50K tokens

@@ -61,7 +61,7 @@ If the task's feature resolves to `prd/domains/global/`, also read the global RE
 ### 2c. UC and Gherkin Files
 
 For each UC-XXXX in the task's Use Cases:
-1. Find the UC file: glob `prd/domains/*/features/*/use-cases/{UC-XXXX}.md`
+1. Find the UC file: glob `prd/domains/*/features/*/use-cases/{UC-XXXX}-*.md`
 2. Read the UC file for scenario specifications
 3. Find the Gherkin feature file: grep `bdd/features/` for `@{UC-XXXX}`
 4. Read the feature file to understand what the BDD tests expect

@@ -63,7 +63,18 @@ Read `prd/DOMAINS.md` and resolve the target domain following the feature-author
 
 Record the selected domain for all subsequent path operations.
 
-After domain selection, if the selected domain is not `global`, run the Refs Declaration flow from the feature-authoring skill to check for global feature dependencies.
+**If domain is `global`:**
+1. Inform the user: "Global features contain only baseline requirements and architecture. Use cases will be created in domain features."
+2. After global feature creation (Step 9), ask via AskUserQuestion: "Which domains need this feature? Each selected domain will get its own `features/FEAT-XXXX-{slug}/` directory with domain-specific requirements, use cases, and architecture."
+   - Header: "Domain Features"
+   - Present the domain list from DOMAINS.md (excluding `global`), multi-select
+3. For each selected domain, create `prd/domains/{domain}/features/FEAT-XXXX-{slug}/` with:
+   - `REQUIREMENTS.md` with `refs: [FEAT-XXXX]` in frontmatter, domain-specific scaffold
+   - `USE-CASES.md` (empty table)
+   - `ARCHITECTURE.md` scaffold
+   - A FEATURES.md row under that domain's section
+
+**If domain is NOT `global`:** Run the Refs Declaration flow from the feature-authoring skill to check for global feature dependencies.
 
 ## Step 5: Research Context
 
@@ -130,35 +141,45 @@ Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
 Create the feature directory structure using the selected domain:
 
+**If domain is `global`:**
 ```bash
-mkdir -p prd/domains/{domain}/features/FEAT-XXXX/use-cases
+mkdir -p prd/domains/global/features/FEAT-XXXX-{slug}
+```
+No `use-cases/` directory — global features have no use cases.
+
+**If domain is NOT `global`:**
+```bash
+mkdir -p prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases
 ```
 
-If the user provided image file paths during the interview, also create `prd/domains/{domain}/features/FEAT-XXXX/assets/` and copy the images there.
+If the user provided image file paths during the interview, also create `prd/domains/{domain}/features/FEAT-XXXX-{slug}/assets/` and copy the images there.
 
 Then read each template and generate the documents:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   Write `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` filled with confirmed content. Add `domain: {domain}` to the frontmatter. Follow the section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
+   Write `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` filled with confirmed content. Add `domain: {domain}` to the frontmatter. Follow the section order from the skill: name + objective, Non-Goals, Actors, UI (only if provided), Functional Requirements (EARS + Fit Criteria), Non-Functional Requirements, Acceptance.
 
-2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
-   Write `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` with an empty use case table.
+2. **If domain is NOT `global`:** Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
+   Write `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` with an empty use case table.
+   **Skip for global** — global features have no use cases.
 
 3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   Write `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
+   Write `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` scaffold.
 
 4. Edit `prd/FEATURES.md` — add a new row under the appropriate section:
    ```
-   | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
+   | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX-{slug}/](features/FEAT-XXXX-{slug}/) |
    ```
+
+5. **If domain is `global` and domain features were requested (Step 4):** For each selected domain, create the domain feature with the same FEAT-XXXX ID — see Step 4 for details.
 
 ## Step 10: Report
 
 Tell the user what was created:
 
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax)
-- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index (empty, ready for /m:usecase)
-- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — architecture scaffold
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` — feature requirements (EARS syntax)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` — use case index (empty, ready for /m:usecase)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` — architecture scaffold
 - Updated `prd/FEATURES.md` with new row
 
 Suggest next step: "Use `/m:usecase FEAT-XXXX {description}` to add use cases to this feature."

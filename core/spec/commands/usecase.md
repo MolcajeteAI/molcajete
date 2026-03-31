@@ -49,7 +49,20 @@ Follow the skill's rules for all subsequent steps.
 
    Then stop.
 
-3. Glob `prd/domains/*/features/FEAT-XXXX/` to find the feature directory and extract the domain from the path. If not found, tell the user:
+3. Glob `prd/domains/*/features/FEAT-XXXX-*/` to find the feature directory and extract the domain from the path.
+
+   **If the glob finds the feature in `global` domain only** (path is `prd/domains/global/features/FEAT-XXXX-*/`), tell the user:
+
+   "FEAT-XXXX is a global feature (baseline requirements only). Use cases belong in domain features. Run `/m:usecase FEAT-XXXX` after creating the domain feature, or run `/m:feature` with the same FEAT-XXXX ID targeting a specific domain."
+
+   Then stop.
+
+   **If the glob finds the feature in multiple domains**, filter out `global` and ask via AskUserQuestion which domain's feature to add the use case to:
+   - Question: "FEAT-XXXX exists in multiple domains:\n\n{list non-global domains}\n\nWhich domain's feature should this use case be added to?"
+   - Header: "Select Domain"
+   - Options: list non-global domains
+
+   **If not found at all**, tell the user:
 
    "Feature {FEAT-XXXX} not found. Check the ID and try again."
 
@@ -61,7 +74,7 @@ Follow the skill's rules for all subsequent steps.
 
    Then stop.
 
-5. Check that the feature's `USE-CASES.md` exists at `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`. If missing, tell the user:
+5. Check that the feature's `USE-CASES.md` exists at `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md`. If missing, tell the user:
 
    "USE-CASES.md is missing for {FEAT-XXXX}. Run `/m:feature` to create the feature structure first."
 
@@ -73,8 +86,8 @@ Read these files to understand the project and feature:
 - `prd/PROJECT.md` -- what this project is
 - `prd/TECH-STACK.md` -- technology context (if exists)
 - `prd/ACTORS.md` -- known actors (if exists)
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` -- feature requirements for context
-- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` -- existing UCs
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` -- feature requirements for context
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` -- existing UCs
 
 ## Step 4: Research Context
 
@@ -255,16 +268,16 @@ Prepend `SC-` to each output line (e.g., `SC-1T4B`, `SC-1T4C`).
 Create the use case directory if it does not exist:
 
 ```bash
-mkdir -p prd/domains/{domain}/features/FEAT-XXXX/use-cases
+mkdir -p prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases
 ```
 
-If any scenario has image files, also create `prd/domains/{domain}/features/FEAT-XXXX/use-cases/assets/` and copy images with `{UC-ID}-{descriptive-slug}.{ext}` naming (lowercase, hyphens).
+If any scenario has image files, also create `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/assets/` and copy images with `{UC-ID}-{descriptive-slug}.{ext}` naming (lowercase, hyphens).
 
 Then read the template and generate the UC file:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
 
-2. Write `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` with:
+2. Write `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` with:
    - YAML frontmatter: id (UC-XXXX), name, feature (FEAT-XXXX), status (pending), version (1), actor, tag (@UC-XXXX)
    - Title: `# UC-XXXX: {Use Case Name}`
    - Objective blockquote
@@ -274,16 +287,16 @@ Then read the template and generate the UC file:
    - All confirmed scenarios in flat structure -- each scenario preceded and followed by a `---` horizontal rule (including after the last scenario), each with SC-XXXX ID, Given/Steps/Outcomes/Side Effects. Each scenario heading must include a `pending` status annotation: `### SC-XXXX: {Scenario Name} \`pending\``
    - For scenarios with UI: include inline `**UI:**` blocks within Steps, indented under the confirmed step number. Use fenced code blocks for ASCII art or `![description](assets/{filename})` for images. Omit UI blocks for scenarios where the user said no UI.
 
-3. Add a new row to `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`:
+3. Add a new row to `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md`:
    ```
-   | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
+   | UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX-{slug}.md](use-cases/UC-XXXX-{slug}.md) |
    ```
 
 ## Step 9: Report
 
 Tell the user what was created:
 
-- `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` -- UC file with flat scenario structure
-- `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` -- updated with new row (UC-XXXX, status: pending)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` -- UC file with flat scenario structure
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` -- updated with new row (UC-XXXX, status: pending)
 
 Suggest next step: "Use `/m:scenario UC-XXXX` to generate Gherkin scenarios for this use case."

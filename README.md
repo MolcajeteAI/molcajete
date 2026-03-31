@@ -107,22 +107,28 @@ prd/
 ├── GLOSSARY.md                     # domain vocabulary
 ├── DOMAINS.md                      # domain registry (name, type, description)
 └── domains/
-    ├── global/                     # spec-only — cross-cutting concerns, never targeted directly
+    ├── global/                     # spec-only — baseline requirements only, no use cases
     │   └── features/
-    │       └── FEAT-XXXX/
-    │           ├── REQUIREMENTS.md # baseline requirements (all domains inherit)
-    │           ├── ARCHITECTURE.md # shared architectural decisions
-    │           ├── USE-CASES.md
-    │           └── use-cases/
-    ├── {domain}/                   # real domain (app, service, concern)
+    │       └── FEAT-0S9A-shared-auth/  # cross-cutting feature (same ID used in domains)
+    │           ├── REQUIREMENTS.md     # baseline requirements (all domains inherit)
+    │           └── ARCHITECTURE.md     # shared architectural decisions
+    ├── patient/                    # real domain (app, service, concern)
     │   └── features/
-    │       └── FEAT-YYYY/
-    │           ├── REQUIREMENTS.md # may include refs: [FEAT-XXXX] for global dependencies
+    │       └── FEAT-0S9A-patient-auth/ # same ID — domain implementation of global feature
+    │           ├── REQUIREMENTS.md     # refs: [FEAT-0S9A] links to global baseline
     │           ├── ARCHITECTURE.md
     │           ├── USE-CASES.md
     │           └── use-cases/
-    │               ├── UC-XXXX.md
-    │               └── UC-YYYY.md
+    │               └── UC-1T4B-login-flow.md
+    ├── {domain}/
+    │   └── features/
+    │       └── FEAT-YYYY-{slug}/       # domain-only feature (no global counterpart)
+    │           ├── REQUIREMENTS.md
+    │           ├── ARCHITECTURE.md
+    │           ├── USE-CASES.md
+    │           └── use-cases/
+    │               ├── UC-XXXX-{slug}.md
+    │               └── UC-YYYY-{slug}.md
     └── ...
 ```
 
@@ -137,9 +143,9 @@ prd/
 | `service` | A backend or infrastructure service (API server, smart contracts) |
 | `concern` | A logical separation within one app (billing module, analytics) |
 
-`FEATURES.md` is a single master index with the global section first (cross-cutting baseline), then one section per domain. Domain features can declare `refs: [FEAT-XXXX]` in their REQUIREMENTS.md frontmatter to reference global features they depend on. Global sets defaults; domains inherit and can override with documented reasoning.
+`FEATURES.md` is a single master index with the global section first (cross-cutting baseline), then one section per domain. Cross-cutting features use the **same FEAT-XXXX ID** across global and all implementing domains — the shared ID makes the relationship explicit. Global holds only baseline REQUIREMENTS.md + ARCHITECTURE.md (no use cases). Each domain that implements the feature gets its own `features/FEAT-XXXX-{slug}/` directory with domain-specific requirements, use cases, and architecture. Domain features declare `refs: [FEAT-XXXX]` in their REQUIREMENTS.md frontmatter to link back to the global baseline (plus any other features they depend on).
 
-When a command receives a global feature ID (e.g., `/m:plan FEAT-XXXX`), it generates a cross-domain plan covering all real domains. Pass specific use case IDs for narrower scope.
+When a command receives a global feature ID (e.g., `/m:plan FEAT-XXXX`), it globs `prd/domains/*/features/FEAT-XXXX-*/` to find all domain implementations, then generates a cross-domain plan. Pass specific use case IDs for narrower scope.
 
 ### Documents
 

@@ -98,21 +98,41 @@ For each feature group, the subagent prompt must include:
    - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, `prd/FEATURES.md`
 
 3. **The specific task:**
-   - Read `prd/DOMAINS.md` and assign each extracted feature to the appropriate domain. Apply the Cross-Cutting Detection Signals from the feature-authoring skill: if a feature matches 2+ signals (multi-domain imports, infrastructure capability, identical interface across domains, shared package location, no domain-specific logic), flag it as potentially cross-cutting in the report with the matching evidence
+   - Read `prd/DOMAINS.md` and assign each extracted feature to the appropriate domain. Apply the Cross-Cutting Detection Signals from the feature-authoring skill: if a feature matches 2+ signals (multi-domain imports, infrastructure capability, identical interface across domains, shared package location, no domain-specific logic), create it as a **split: global baseline + domain features with the same FEAT-XXXX ID**
+   - **For cross-cutting features (2+ signals):**
+     - Separate shared/baseline requirements → global `REQUIREMENTS.md` + `ARCHITECTURE.md` (shared constraints, shared architectural decisions). No USE-CASES.md, no use-cases/ directory in global.
+     - For each implementing domain, extract domain-specific requirements and use cases → domain `features/FEAT-XXXX-{slug}/` with full artifacts
+     - Use the same FEAT-XXXX ID for global and all domain features
+     - Domain REQUIREMENTS.md gets `refs: [FEAT-XXXX]` in frontmatter
+   - **For non-cross-cutting features:** Extract as a single domain feature with full artifacts
    - Read and analyze the confirmed files for this feature group
-   - Extract a feature: name, non-goals, actors, EARS functional requirements with Fit Criteria, non-functional requirements, acceptance criteria
+   - Extract: name, non-goals, actors, EARS functional requirements with Fit Criteria, non-functional requirements, acceptance criteria
    - Extract use cases: name, objective, actor, preconditions, trigger, scenarios (Given/Steps/Outcomes/Side Effects)
    - Populate ARCHITECTURE.md: Component Inventory, Data Model, API Surface, Integration Points, Event Topology, Code Map
    - Compare discovered actors against `prd/ACTORS.md` and add any new ones. Compare discovered technologies against `prd/TECH-STACK.md` and add any new ones. Follow the project-level discovery rules from the reverse-engineering skill.
    - Generate IDs: run `node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js {count}` for all needed IDs (FEAT-, UC-, SC-)
+   - The report must clearly separate cross-cutting features: "Global baseline: {shared requirements}" vs "Domain {X}: {domain-specific UCs}"
 
 4. **Files to write:**
-   - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
-   - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
-   - Append rows to `prd/FEATURES.md` (under the appropriate domain section) and `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`
-   - If a feature was flagged as cross-cutting (2+ detection signals matched), assign to `global` domain and include the detection evidence in the report
+
+   **For cross-cutting features:**
+   - Global: `prd/domains/global/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` + `ARCHITECTURE.md` only (no USE-CASES.md, no use-cases/)
+   - Global row in `prd/FEATURES.md` under `## global`
+   - For each implementing domain:
+     - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` with `refs: [FEAT-XXXX]` in frontmatter
+     - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md`
+     - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md`
+     - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` for each domain-specific use case
+     - Domain row in `prd/FEATURES.md` under `## {domain}`
+
+   **For non-cross-cutting features:**
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/REQUIREMENTS-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
+   - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
+   - Append rows to `prd/FEATURES.md` (under the appropriate domain section) and USE-CASES.md
+
+   **Common to both:**
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -128,7 +148,7 @@ After each subagent returns, compile the results into a summary.
 
 Use AskUserQuestion to present all created specs. If any features were assigned to the `global` domain, highlight them with detection evidence so the user can confirm:
 
-- Question: "**Research + Spec Extraction Complete**\n\n{if any global features:\n  **Cross-Cutting Features (assigned to global):**\n  {for each global feature: FEAT-XXXX: {name} — Evidence: {list of matched detection signals}}\n  These were assigned to the global domain based on cross-cutting detection signals. Is this correct, or should any be moved to a specific domain?\n}\n\n{for each feature:\n  **{FEAT-XXXX}: {name}**\n  - REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n  - ARCHITECTURE.md: enriched with {sections list}\n  - Use Cases:\n    {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n}\n\nPlease review the generated specs in `prd/domains/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
+- Question: "**Research + Spec Extraction Complete**\n\n{for each cross-cutting feature:\n  **{FEAT-XXXX}: {name}** (cross-cutting)\n  Global baseline: {N} shared requirements, {M} architectural decisions\n  {for each implementing domain:\n    {domain}: {P} domain-specific requirements, {Q} use cases}\n}\n\n{for each non-cross-cutting feature:\n  **{FEAT-XXXX}: {name}**\n  - REQUIREMENTS.md: {FR count} functional, {NFR count} non-functional requirements\n  - ARCHITECTURE.md: enriched with {sections list}\n  - Use Cases:\n    {for each UC: UC-XXXX: {name} ({scenario count} scenarios)}\n}\n\nPlease review the generated specs in `prd/domains/`. Edit any specs that need adjustment, then continue to generate Gherkin.\n\nReady to proceed with Gherkin generation?"
 - Header: "Specs Ready for Review"
 - Options: "Proceed with Gherkin generation" / "I need to review and edit first — I'll re-run when ready"
 

@@ -21,7 +21,7 @@ Read all domain FEATURES.md files as the primary discovery source. The feature i
 Scan `prd/domains/*/features/` directory names to find feature folders whose slug relates to the argument.
 
 1. Glob `prd/domains/*/features/*/` to list all feature folder names across all domains.
-2. For each folder, extract the slug (the directory name itself, e.g., `FEAT-0A1b`) and the domain from the parent path.
+2. For each folder, extract the slug (the directory name itself, e.g., `FEAT-0A1b-user-auth`) and the domain from the parent path.
 3. Compare each slug against the argument: split both into words (using `_`, `-`, and spaces as delimiters) and check for word overlap. A slug matches if at least one significant word from the argument appears in the slug, or vice versa.
 4. For each matching feature folder, read its spec files and extract:
    - **From REQUIREMENTS.md:** EARS-syntax requirements, fit criteria, non-goals, acceptance checklist

@@ -52,7 +52,7 @@ Parse `$ARGUMENTS` for entity IDs:
 
 If arguments are provided, validate every ID exists in the PRD:
 - `FEAT-XXXX` → must appear in `prd/FEATURES.md`
-- `UC-XXXX` → must exist as `prd/domains/*/features/*/use-cases/UC-XXXX.md`
+- `UC-XXXX` → must exist as `prd/domains/*/features/*/use-cases/UC-XXXX-*.md`
 - `SC-XXXX` → must exist as a scenario heading in some UC file (grep `prd/domains/*/features/*/use-cases/*.md` for `### SC-XXXX`)
 
 If any ID is not found, report which ones are invalid and stop.
@@ -74,30 +74,30 @@ Per-feature files will be loaded in Step 5 based on scope.
 
 Plan work for exactly the provided IDs — **no status filtering**. The user is explicitly telling you what to work on.
 
-- `FEAT-XXXX` → include all UCs under that feature. Glob `prd/domains/*/features/FEAT-XXXX/` to find it, then read `USE-CASES.md` and all UC files in `use-cases/`.
-- `UC-XXXX` → include that specific UC. Glob `prd/domains/*/features/*/use-cases/UC-XXXX.md` to find it.
+- `FEAT-XXXX` → include all UCs under that feature. Glob `prd/domains/*/features/FEAT-XXXX-*/` to find it, then read `USE-CASES.md` and all UC files in `use-cases/`.
+- `UC-XXXX` → include that specific UC. Glob `prd/domains/*/features/*/use-cases/UC-XXXX-*.md` to find it.
 - `SC-XXXX` → include the parent UC. Grep `prd/domains/*/features/*/use-cases/*.md` for `### SC-XXXX` to find the UC file, then include the whole UC (scenarios aren't planned individually).
 
 For each in-scope feature, extract the domain from the path and also read:
-- `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
-- `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` (if exists)
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md`
+- `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md` (if exists)
 
 **Global feature handling:** After resolving the feature's domain from the path:
 
 If the resolved domain is `global`:
-1. Read `prd/DOMAINS.md` and collect all domains where Type != `spec-only`
-2. This is a cross-domain plan. The planner must generate tasks for each real domain.
-3. Load the global feature's REQUIREMENTS.md and ARCHITECTURE.md as baseline.
-4. For each real domain, check if it has a feature with refs pointing to this global FEAT-XXXX.
-   If found, also load that domain feature's REQUIREMENTS.md and ARCHITECTURE.md.
-5. Use AskUserQuestion to confirm: "FEAT-XXXX is a global feature. This will generate a cross-domain plan covering: {list of real domains}. Continue, or specify UC IDs for narrower scope?"
+1. Glob `prd/domains/*/features/FEAT-XXXX-*/` to find all domains that have this feature (exclude `global` from results). The shared FEAT-XXXX ID makes resolution direct — no need to search by refs.
+2. If no domain features found: tell the user "FEAT-XXXX exists only as a global baseline. Create domain features first with `/m:feature` targeting specific domains." Then stop.
+3. If domain features found: this is a cross-domain plan. The planner must generate tasks for each domain that has this feature.
+4. Load the global feature's REQUIREMENTS.md and ARCHITECTURE.md as baseline context.
+5. For each domain feature found, load that domain's REQUIREMENTS.md, ARCHITECTURE.md, and USE-CASES.md + UC files.
+6. Use AskUserQuestion to confirm: "FEAT-XXXX is a global feature. Domain features found in: {list of domains}. This will generate a cross-domain plan. Continue, or specify UC IDs for narrower scope?"
 
 ### Mode B: No Arguments (full scan)
 
 Find everything that needs implementation:
 
 1. Read `prd/FEATURES.md` for all features across all domains. Skip features in the `## global` section during full scan (global features are only planned when explicitly targeted by ID).
-2. For each feature, read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`.
+2. For each feature, read `prd/domains/{domain}/features/FEAT-XXXX-{slug}/USE-CASES.md`.
 3. Collect UCs with status `pending` or `dirty` in the USE-CASES.md table.
 4. Also scan `prd/FEATURES.md` for features with status `dirty`. For each dirty feature, include **all** its UCs from USE-CASES.md — even those with `implemented` status — since a dirty feature means requirements changed and all UCs may need re-planning.
 5. Also include features with status `pending` that have UCs ready.
@@ -176,12 +176,12 @@ Decompose into tasks following the planning skill rules:
    - Use Cases: which UC-XXXX IDs this task advances
    - Feature: parent feature ID (FEAT-XXXX)
    - Domain: the domain the feature belongs to
-   - Architecture: path to the feature's ARCHITECTURE.md (at `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md`)
+   - Architecture: path to the feature's ARCHITECTURE.md (at `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md`)
 
 When generating tasks for a cross-domain plan (global feature):
 - Each task's Domain field must be a real domain, never `global`
 - Group tasks by domain in the plan output
-- Include in each task description: "Global baseline: prd/domains/global/features/FEAT-XXXX/"
+- Include in each task description: "Global baseline: prd/domains/global/features/FEAT-XXXX-{slug}/"
    - Intent: `implement` (forward plan always uses implement)
    - Status: `pending`
    - Estimated context: `~{N}K tokens`

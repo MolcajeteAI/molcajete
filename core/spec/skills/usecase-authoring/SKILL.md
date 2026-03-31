@@ -10,7 +10,7 @@ description: >-
 
 # Use Case Authoring
 
-Rules for creating and maintaining use case files: one file per UC at `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md`. The /m:usecase command references this skill to run the creation interview and generate the UC file.
+Rules for creating and maintaining use case files: one file per UC at `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md`. The /m:usecase command references this skill to run the creation interview and generate the UC file.
 
 ## When to Use
 
@@ -175,7 +175,7 @@ Scenarios that involve screens or visual interactions can include optional `**UI
 
 **Asset management:**
 
-- UC-level images go in `prd/domains/{domain}/features/FEAT-XXXX/use-cases/assets/`
+- UC-level images go in `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/assets/`
 - File naming: `{UC-ID}-{descriptive-slug}.{ext}` (e.g., `UC-A1B2-login-form.png`)
 - Lowercase, hyphens, no spaces
 - Supported formats: PNG, JPG
@@ -260,14 +260,22 @@ Prepend `UC-` to the output (e.g., `UC-0S9A`).
 
 **IDs are permanent.** Once assigned, a UC-XXXX ID is never reused, even if the use case is deprecated.
 
-**Filename format:** `UC-XXXX.md` (e.g., `UC-0S9A.md`)
+## Slug Generation
+
+Use case slugs follow the same rules as feature slugs (defined in the feature-authoring skill): lowercase, hyphens for spaces, strip non-alphanumeric, collapse hyphens, max 40 chars at word boundary. The slug is derived from the confirmed use case name.
+
+**Examples:**
+- "Login Flow" → `login-flow`
+- "Create Feature" → `create-feature`
+
+**Filename format:** `UC-XXXX-{slug}.md` (e.g., `UC-0S9A-login-flow.md`)
 
 ## USE-CASES.md Row Management
 
 When creating a use case, add a new row to the feature's `USE-CASES.md`:
 
 ```
-| UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX.md](use-cases/UC-XXXX.md) |
+| UC-XXXX | {Use Case Name} | {One-sentence description} | pending | [UC-XXXX-{slug}.md](use-cases/UC-XXXX-{slug}.md) |
 ```
 
 **Column rules:**
@@ -275,7 +283,7 @@ When creating a use case, add a new row to the feature's `USE-CASES.md`:
 - **Name:** Verb-noun goal phrase (matches frontmatter `name`)
 - **Description:** One sentence -- enough for an agent to identify this use case
 - **Status:** Always `pending` when first created
-- **File:** Relative Markdown link to `use-cases/UC-XXXX.md`
+- **File:** Relative Markdown link to `use-cases/UC-XXXX-{slug}.md`
 
 **When updating a use case,** do NOT change the ID. Update Status only when the use case advances through its lifecycle.
 
@@ -340,9 +348,9 @@ Repeat the scenario review loop until the user confirms they have no more scenar
 
 After all sections are confirmed:
 1. Generate UC-XXXX ID (4-character timestamp code)
-2. Create `prd/domains/{domain}/features/FEAT-XXXX/use-cases/` directory if it does not exist
-3. If any scenario has image files, create `prd/domains/{domain}/features/FEAT-XXXX/use-cases/assets/` and copy images with `{UC-ID}-{descriptive-slug}.{ext}` naming
-4. Write `UC-XXXX.md` using [UC-template.md](./templates/UC-template.md) -- fill all sections with confirmed content, include inline `**UI:**` blocks within Steps for scenarios that have UI, set frontmatter status to `pending`, version to `1`
+2. Create `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/` directory if it does not exist
+3. If any scenario has image files, create `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/assets/` and copy images with `{UC-ID}-{descriptive-slug}.{ext}` naming
+4. Write `UC-XXXX-{slug}.md` using [UC-template.md](./templates/UC-template.md) -- fill all sections with confirmed content, include inline `**UI:**` blocks within Steps for scenarios that have UI, set frontmatter status to `pending`, version to `1`
 6. Add row to the feature's `USE-CASES.md`
 
 ## Update Mode
