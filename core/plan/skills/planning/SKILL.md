@@ -8,7 +8,7 @@ description: >-
 
 # Planning
 
-Rules for generating implementation plan files in `.molcajete/plans/`. A plan decomposes specified use cases into ordered tasks that the build command will execute.
+Rules for generating implementation plan files in `.molcajete/plans/`. Plans are **JSON files** — never markdown. A plan decomposes specified use cases into ordered tasks that the build command will execute.
 
 ## When to Use
 
@@ -18,7 +18,7 @@ Rules for generating implementation plan files in `.molcajete/plans/`. A plan de
 
 ## Plan File Format
 
-Plan files live at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}.md`. The exact schema is defined by the [plan template](./templates/plan-template.md). Read the template before generating any plan file.
+Plan files live at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}.json`. The exact JSON structure is defined by [plan-schema.json](./templates/plan-schema.json). Read the schema before generating any plan file. The output must be valid JSON written with `JSON.stringify(data, null, 2)` formatting — do not produce markdown plan files.
 
 ## Task Decomposition Rules
 
@@ -171,7 +171,7 @@ Derive the slug from the scope:
 | Multiple features | `mixed` | `mixed` |
 | Full scan | `full-scan` | `full-scan` |
 
-Full plan file name example: `202603261430-user-authentication.md`
+Full plan file name example: `202603261430-user-authentication.json`
 
 ## Documentation Task Rule
 
@@ -187,10 +187,10 @@ Every plan must include a final task that updates directory documentation for al
 
 This task goes through the same build pipeline as any other task — it is tracked, visible, and committed.
 
-## Template
+## Schema
 
-Read the plan template before generating:
+Read the plan schema before generating:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-template.md
+${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-schema.json
 ```

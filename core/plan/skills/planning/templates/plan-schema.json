@@ -1,0 +1,37 @@
+{
+  "title": "string",
+  "generated": "ISO 8601 timestamp",
+  "status": "pending | in_progress | implemented | failed",
+  "scope": ["FEAT-XXXX", "UC-XXXX"],
+  "overview": {
+    "feature_count": 0,
+    "use_case_count": 0,
+    "scenario_count": 0,
+    "estimated_tasks": 0,
+    "total_estimated_context": "~450K tokens"
+  },
+  "base_branch": "main",
+  "bdd_command": "npx cucumber-js | null",
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "string",
+      "use_cases": ["UC-XXXX"],
+      "feature": "FEAT-XXXX",
+      "domain": "string",
+      "architecture": "prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md",
+      "intent": "implement | wire-bdd",
+      "status": "pending",
+      "estimated_context": "~120K tokens",
+      "done_signal": "bdd | validator",
+      "done_tags": ["@SC-XXXX"],
+      "depends_on": [],
+      "description": "string",
+      "files_to_modify": ["path/to/file"],
+      "summary": "null | string (written post-build)",
+      "commits": [],
+      "quality_gates": null,
+      "error": null
+    }
+  ]
+}

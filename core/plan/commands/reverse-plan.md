@@ -15,7 +15,7 @@ allowed-tools:
 
 # Reverse Plan Command
 
-You generate plans for wiring BDD step definitions to existing code. You scan for use cases that need BDD coverage, verify Gherkin exists, and produce a plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute. Every task uses `wire-bdd` intent — the application already works, tasks create step definitions that exercise it.
+You generate plans for wiring BDD step definitions to existing code. You scan for use cases that need BDD coverage, verify Gherkin exists, and produce a **JSON** plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute. The output format is strictly JSON — never markdown. Every task uses `wire-bdd` intent — the application already works, tasks create step definitions that exercise it.
 
 **Scope argument:** $ARGUMENTS
 
@@ -154,12 +154,12 @@ Read all in-scope materials:
 
 If any ARCHITECTURE.md contains a Code Map section with entries, use it to identify the existing implementation files that step definitions need to exercise. Include the ARCHITECTURE.md path in each task's Architecture field so build tasks can load it for context.
 
-Read the plan template:
+Read the plan schema — it defines the exact JSON structure you must produce:
 ```
-${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-template.md
+${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-schema.json
 ```
 
-Decompose into tasks following the planning skill rules:
+Build a JSON object matching this schema. The top-level object has `title`, `generated`, `status`, `scope`, `overview`, `base_branch`, `bdd_command`, and `tasks` (array). Decompose into tasks following the planning skill rules:
 
 1. **BDD-aligned tasks** — each task advances at least one Gherkin scenario. Map scenarios to tasks by examining what step definitions need to be written for those assertions to pass.
 
@@ -167,20 +167,25 @@ Decompose into tasks following the planning skill rules:
 
 3. **Context budget** — estimate each task at ≤ 200K tokens. Consider: source files to read + spec files + Gherkin + step definition work. Split if over budget.
 
-4. **Task fields** — for each task include:
-   - Task ID: `T-001`, `T-002`, etc. (flat sequential)
-   - Title: verb-noun describing what step definitions get written
-   - Use Cases: which UC-XXXX IDs this task advances
-   - Feature: parent feature ID (FEAT-XXXX)
-   - Domain: the domain the feature belongs to
-   - Architecture: path to the feature's ARCHITECTURE.md
-   - Intent: `wire-bdd` (reverse plan always uses wire-bdd)
-   - Status: `pending`
-   - Estimated context: `~{N}K tokens`
-   - Done signal: which `@SC-XXXX` scenarios must pass, or validator check
-   - Depends on: `T-NNN` or `none`
-   - Description: what step definitions to create from scratch, which existing implementation files they exercise, include path to relevant `.feature` file(s), constraints
-   - Files to create/modify: step definition file paths (not application code)
+4. **Task fields** — for each task include all fields from the plan schema:
+   - `id`: `T-001`, `T-002`, etc. (flat sequential)
+   - `title`: verb-noun describing what step definitions get written
+   - `use_cases`: which UC-XXXX IDs this task advances
+   - `feature`: parent feature ID (FEAT-XXXX)
+   - `domain`: the domain the feature belongs to
+   - `architecture`: path to the feature's ARCHITECTURE.md
+   - `intent`: `wire-bdd` (reverse plan always uses wire-bdd)
+   - `status`: `pending`
+   - `estimated_context`: `~{N}K tokens`
+   - `done_signal`: `bdd` or `validator`
+   - `done_tags`: `["@SC-XXXX"]` for BDD gate (empty array for validator)
+   - `depends_on`: `["T-NNN"]` or `[]`
+   - `description`: what step definitions to create from scratch, which existing implementation files they exercise, include path to relevant `.feature` file(s), constraints
+   - `files_to_modify`: step definition file paths (not application code)
+   - `summary`: `null`
+   - `commits`: `[]`
+   - `quality_gates`: `null`
+   - `error`: `null`
 
    When ARCHITECTURE.md has a Code Map, reference the existing implementation files in each task's description so the build agent knows what code the step definitions should exercise.
 
@@ -189,13 +194,17 @@ Decompose into tasks following the planning skill rules:
    - Group tasks by domain in the plan output
    - Include in each task description: "Global baseline: prd/domains/global/features/FEAT-XXXX-{slug}/"
 
-5. **Order by dependency chain** — infrastructure first, shared step helpers before scenario-specific steps, happy-path before error-handling.
+5. **Plan-level fields** — also populate:
+   - `base_branch`: current git branch (run `git branch --show-current`)
+   - `bdd_command`: detect per dispatch skill or read from `.molcajete/settings.json`, `null` if not detectable yet
+
+6. **Order by dependency chain** — infrastructure first, shared step helpers before scenario-specific steps, happy-path before error-handling.
 
 ## Step 10: Plan Preview
 
-Use AskUserQuestion to show the full plan file content:
+Use AskUserQuestion to show the full plan JSON content:
 
-- Question: Show the complete plan markdown content in a code block
+- Question: Show the complete plan JSON in a code block with 2-space indent
 - Header: "Plan Preview"
 - Options: "Looks good" / "Edit" / "Cancel"
 
@@ -207,7 +216,7 @@ If "Cancel": stop.
 1. Generate the filename:
    - Timestamp: current time as `YYYYMMDDHHmm`
    - Slug: derived from scope per the planning skill rules (feature name kebab-case, UC name kebab-case, `mixed`, or `full-scan`)
-   - Full name: `{YYYYMMDDHHmm}-{slug}.md`
+   - Full name: `{YYYYMMDDHHmm}-{slug}.json`
 
 2. Ensure directory exists:
    ```bash
