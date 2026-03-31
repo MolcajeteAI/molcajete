@@ -1,5 +1,5 @@
 ---
-description: Generate Gherkin feature files and step definition stubs from a use case
+description: Generate Gherkin feature files from a use case
 model: claude-opus-4-6
 argument-hint: <UC-XXXX>
 allowed-tools:
@@ -15,7 +15,7 @@ allowed-tools:
 
 # Generate Gherkin Scenarios
 
-You are generating Gherkin feature files and step definition stubs from an existing use case. You will read the UC file, construct `.feature` content using the Gherkin Mapping table, and create step definition stubs.
+You are generating Gherkin feature files from an existing use case. You will read the UC file and construct `.feature` content using the Gherkin Mapping table.
 
 **Use case argument:** $ARGUMENTS
 
@@ -172,29 +172,15 @@ Grep `bdd/features/` for `@FEAT-XXXX` tag. If found, follow the dedup procedure 
 
 Write the `.feature` file to `bdd/features/{domain}/{feature-name}.feature` (kebab-case, describes the feature not a scenario). If appending to an existing file, use the Edit tool to append new scenarios at the end.
 
-## Step 8: Generate Step Definitions
+## Step 8: Update Indexes
 
-Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3c:
+Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3d — update `bdd/features/INDEX.md`.
 
-1. Read `bdd/steps/INDEX.md` for existing reusable patterns.
-2. For each step in the generated feature file: check for existing match → reuse, or create new stub.
-3. New stubs must include:
-   - Docstring (or doc comment) describing what the step does
-   - Parameter descriptions with types
-   - Pending-error stub body per the gherkin skill's Step Definition Rules (e.g. `raise NotImplementedError("TODO: implement step")` for Python)
-4. Place in correct file: `common_steps`, `api_steps`, `db_steps`, or `{domain}_steps` — follow the step file placement table from the gherkin skill.
-5. If the target step file exists → append. If not → create from language-appropriate template in `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/templates/`.
-6. Never mix languages.
-
-## Step 9: Update Indexes
-
-Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3d — update both `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` together. Never leave partial index state.
-
-## Step 10: Splitting Check
+## Step 9: Splitting Check
 
 Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If the scenario count in the target feature file exceeds 15, run the splitting procedure.
 
-## Step 11: Update UC Status and Scenario Headings
+## Step 10: Update UC Status and Scenario Headings
 
 1. For each scenario in the UC file, add a `pending` status annotation to the scenario heading line:
    ```
@@ -206,12 +192,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If t
 
 3. Do not change the USE-CASES.md status column.
 
-## Step 12: Report
+## Step 11: Report
 
 Tell the user what was created:
 
 - Feature file path + scenario count
-- Step definition file(s) + new/reused step counts
 - Updated INDEX.md files
 - Scenario heading annotations set to `pending`
 

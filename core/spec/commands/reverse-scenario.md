@@ -15,7 +15,7 @@ allowed-tools:
 
 # Reverse-Engineer Scenario from Code
 
-You are extracting scenarios from existing code and generating Gherkin feature files with step definition stubs. This is the atomic reverse command — it scans a specific code path within a use case's scope, extracts scenario details, then generates BDD artifacts. It does not cascade to sub-entities.
+You are extracting scenarios from existing code and generating Gherkin feature files. This is the atomic reverse command — it scans a specific code path within a use case's scope, extracts scenario details, then generates BDD artifacts. It does not cascade to sub-entities.
 
 **Input:** $ARGUMENTS
 
@@ -228,29 +228,15 @@ Grep `bdd/features/` for `@FEAT-XXXX` tag. If found, follow the dedup procedure 
 
 Write the `.feature` file to `bdd/features/{domain}/{feature-name}.feature` (kebab-case, describes the feature not a scenario). If appending to an existing file, use the Edit tool to append new scenarios at the end.
 
-## Step 12: Generate Step Definitions
+## Step 12: Update Indexes
 
-Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3c:
+Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3d — update `bdd/features/INDEX.md`.
 
-1. Read `bdd/steps/INDEX.md` for existing reusable patterns.
-2. For each step in the generated feature file: check for existing match → reuse, or create new stub.
-3. New stubs must throw pending/not-implemented errors (per the reverse-engineering skill's step stub convention):
-   - Docstring (or doc comment) describing what the step does
-   - Parameter descriptions with types
-   - Pending-error stub body per the gherkin skill's Step Definition Rules (e.g. `raise NotImplementedError("TODO: implement step")` for Python)
-4. Place in correct file: `common_steps`, `api_steps`, `db_steps`, or `{domain}_steps` — follow the step file placement table from the gherkin skill.
-5. If the target step file exists → append. If not → create from language-appropriate template in `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/templates/`.
-6. Never mix languages.
-
-## Step 13: Update Indexes
-
-Follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md` step 3d — update both `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` together. Never leave partial index state.
-
-## Step 14: Splitting Check
+## Step 13: Splitting Check
 
 Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If the scenario count in the target feature file exceeds 15, run the splitting procedure.
 
-## Step 15: Update Scenario Headings and UC Status
+## Step 14: Update Scenario Headings and UC Status
 
 1. For each new scenario appended to the UC file, add a `pending` annotation to the heading:
    ```
@@ -259,14 +245,13 @@ Read `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/splitting.md`. If t
 2. Do not change the UC's YAML frontmatter `status` — it transitions to `implemented` only after build completes and BDD tests pass.
 3. Only increment the `version` (already done in Step 7).
 
-## Step 16: Report
+## Step 15: Report
 
 Tell the user what was created:
 
 - Scenarios appended to `prd/domains/{domain}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{slug}.md` (list SC-XXXX IDs and names)
 - ARCHITECTURE.md Code Map entries added
 - Feature file path + scenario count
-- Step definition file(s) + new/reused step counts
 - Updated INDEX.md files
 - UC status change (if any)
 

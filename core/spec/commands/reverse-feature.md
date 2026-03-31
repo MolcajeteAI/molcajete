@@ -196,7 +196,6 @@ The subagent prompt must include:
 1. **Skills to load:**
    - `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md`
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md` (Gherkin Mapping table)
-   - `${CLAUDE_PLUGIN_ROOT}/spec/skills/reverse-engineering/SKILL.md` (step stub convention)
 
 2. **Files to read:**
    - `prd/domains/{domain}/features/FEAT-XXXX-{slug}/REQUIREMENTS.md`
@@ -209,16 +208,14 @@ The subagent prompt must include:
    - Infer domain from feature subject area, check existing domains under `bdd/features/`
    - For each UC in this feature:
      - Generate `.feature` file with scenarios using the Gherkin Mapping table
-     - Step stubs must throw pending/not-implemented errors (per reverse-engineering skill convention)
      - Follow dedup procedure for existing feature files
-   - Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md`
+   - Update `bdd/features/INDEX.md`
    - Verify UC statuses are `pending` in both UC files and USE-CASES.md
    - Add `pending` annotation to each scenario heading in UC files: `### SC-XXXX: {Scenario Name} \`pending\``
    - Run splitting check for any feature file exceeding 15 scenarios
 
 4. **Report format:** The subagent must end with a structured report listing:
    - Feature files created (paths, scenario counts)
-   - Step definition files created/updated
    - UC status changes
    - Any splitting performed
 
@@ -235,7 +232,6 @@ Tell the user what was created:
 
 **Gherkin Created:**
 - Feature file paths with scenario counts
-- Step definition stubs (pending/not-implemented)
 - Updated BDD indexes
 
 **Status Changes:**

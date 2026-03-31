@@ -8,7 +8,7 @@ You write the spec. Molcajete plans the work, implements it, reviews it, and com
 
 Molcajete operates in three phases:
 
-**Spec** reads your intent and produces structured specs — features with EARS requirements, use cases with scenario blocks, and Gherkin feature files with step definition stubs. Everything lands in a `prd/` folder that becomes the permanent source of truth.
+**Spec** reads your intent and produces structured specs — features with EARS requirements, use cases with scenario blocks, and Gherkin feature files. Everything lands in a `prd/` folder that becomes the permanent source of truth.
 
 **Plan** decomposes use cases into an implementation plan — ordered tasks with dependencies, context budgets, and done signals.
 
@@ -23,7 +23,7 @@ There is also a **reverse** path: point Molcajete at an existing codebase and it
 /m:setup                  # initialize PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, FEATURES.md
 /m:feature                # create a feature with EARS requirements
 /m:usecase                # create use cases under that feature
-/m:scenario               # generate Gherkin files and step stubs from a use case
+/m:scenario               # generate Gherkin feature files from a use case
 
 # Plan — decompose into tasks
 /m:plan                   # decompose use cases into an implementation plan
@@ -50,7 +50,7 @@ All commands are prefixed with `/m:`.
 |---------|-------------|
 | `feature` | Create a new feature with EARS requirements via creation interview |
 | `usecase` | Create a new use case with flat scenario structure via creation interview |
-| `scenario` | Generate Gherkin feature files and step definition stubs from a use case |
+| `scenario` | Generate Gherkin feature files from a use case |
 | `spec` | Create or update features, use cases, and scenarios from free-form natural language |
 
 ### Updates
@@ -215,11 +215,11 @@ pending → in_progress → implemented
 Each task runs in an isolated git worktree (`.claude/worktrees/{FEAT-ID}-{TASK-ID}/`) with a dedicated Claude agent. The agent receives the task's spec files, Gherkin scenarios, and architecture context.
 
 For **forward plans** (`implement` intent), the agent produces two atomic commits:
-1. Step definitions
-2. Production code
+1. Production code (guided by Gherkin assertions)
+2. Step definitions (created from scratch, referencing real code)
 
 For **reverse plans** (`wire-bdd` intent), the agent produces one commit:
-1. Step definitions only (no production code changes)
+1. Step definitions created from scratch against existing code (no production code changes)
 
 ### 3. Five-Gate Review
 

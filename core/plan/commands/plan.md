@@ -15,7 +15,7 @@ allowed-tools:
 
 # Plan Command
 
-You generate implementation plans from PRD specs. You scan for unimplemented use cases, verify Gherkin and step stubs exist, and produce a plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute.
+You generate implementation plans from PRD specs. You scan for unimplemented use cases, verify Gherkin exists, and produce a plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute.
 
 **Scope argument:** $ARGUMENTS
 
@@ -110,18 +110,16 @@ If nothing plannable is found: tell the user "No unimplemented specs found. All 
 
 For each in-scope domain feature, read its REQUIREMENTS.md frontmatter. If `refs` is non-empty, load each referenced global feature's REQUIREMENTS.md and ARCHITECTURE.md. Pass as additional baseline context to task generation.
 
-## Step 7: Verify Gherkin + Step Stubs
+## Step 7: Verify Gherkin
 
 For each plannable UC:
 
 1. Grep `bdd/features/` for `@UC-XXXX` tag to find the `.feature` file.
 2. Verify the `.feature` file exists and contains at least one `Scenario:` or `Scenario Outline:`.
 3. Read the feature file to count scenarios and extract step patterns.
-4. Grep `bdd/steps/` for step definitions matching the UC's steps.
 
 Report gaps:
 - If Gherkin missing for a UC: "UC-XXXX ({name}) has no Gherkin. Run `/m:scenario UC-XXXX` first."
-- If step stubs missing for a UC: "UC-XXXX ({name}) has Gherkin but is missing step definition stubs."
 
 If **all** UCs are missing Gherkin, stop with the gap report.
 

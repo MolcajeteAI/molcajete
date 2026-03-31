@@ -15,7 +15,7 @@ allowed-tools:
 
 # Reverse Plan Command
 
-You generate plans for wiring BDD step definitions to existing code. You scan for use cases that need BDD coverage, verify Gherkin and step stubs exist, and produce a plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute. Every task uses `wire-bdd` intent — the application already works, tasks implement step definitions that exercise it.
+You generate plans for wiring BDD step definitions to existing code. You scan for use cases that need BDD coverage, verify Gherkin exists, and produce a plan file in `.molcajete/plans/` with a task breakdown that `/m:build` will execute. Every task uses `wire-bdd` intent — the application already works, tasks create step definitions that exercise it.
 
 **Scope argument:** $ARGUMENTS
 
@@ -109,18 +109,16 @@ If nothing plannable is found: tell the user "No use cases need BDD wiring. Use 
 
 For each in-scope domain feature, read its REQUIREMENTS.md frontmatter. If `refs` is non-empty, load each referenced global feature's REQUIREMENTS.md and ARCHITECTURE.md. Pass as additional baseline context to task generation.
 
-## Step 7: Verify Gherkin + Step Stubs
+## Step 7: Verify Gherkin
 
 For each plannable UC:
 
 1. Grep `bdd/features/` for `@UC-XXXX` tag to find the `.feature` file.
 2. Verify the `.feature` file exists and contains at least one `Scenario:` or `Scenario Outline:`.
 3. Read the feature file to count scenarios and extract step patterns.
-4. Grep `bdd/steps/` for step definitions matching the UC's steps.
 
 Report gaps:
 - If Gherkin missing for a UC: "UC-XXXX ({name}) has no Gherkin. Run `/m:scenario UC-XXXX` first."
-- If step stubs missing for a UC: "UC-XXXX ({name}) has Gherkin but is missing step definition stubs."
 
 If **all** UCs are missing Gherkin, stop with the gap report.
 
@@ -181,7 +179,7 @@ Decompose into tasks following the planning skill rules:
    - Estimated context: `~{N}K tokens`
    - Done signal: which `@SC-XXXX` scenarios must pass, or validator check
    - Depends on: `T-NNN` or `none`
-   - Description: what step definitions to implement, which existing implementation files they exercise, constraints
+   - Description: what step definitions to create from scratch, which existing implementation files they exercise, include path to relevant `.feature` file(s), constraints
    - Files to create/modify: step definition file paths (not application code)
 
    When ARCHITECTURE.md has a Code Map, reference the existing implementation files in each task's description so the build agent knows what code the step definitions should exercise.

@@ -122,12 +122,10 @@ Based on the spec changes applied in Step 6, determine what Gherkin changes are 
 - **Steps changed** -- update `When`/`And` clauses
 - **Outcomes changed** -- update `Then`/`And` clauses
 - **Side Effects changed** -- update trailing `And`/`And no` clauses
-- **Step text changed** -- find and update matching step definitions (check `bdd/steps/INDEX.md` or grep step definition files)
-
 ### 7.2 Preview Gherkin Changes
 
 Use AskUserQuestion to preview the Gherkin changes:
-- Question: "The following Gherkin changes are needed to match the updated scenario:\n\n**{feature-file-path}:**\n\n```gherkin\n# Before:\n{current scenario block}\n\n# After:\n{updated scenario block}\n```\n\n{if step definitions changed}\n**Step definitions:**\n{list step text changes}\n{/if}\n\nDoes this look correct?"
+- Question: "The following Gherkin changes are needed to match the updated scenario:\n\n**{feature-file-path}:**\n\n```gherkin\n# Before:\n{current scenario block}\n\n# After:\n{updated scenario block}\n```\n\nDoes this look correct?"
 - Header: "Gherkin Changes"
 - Options: "Yes, apply these changes" / "Edit" (user corrects via Other)
 
@@ -136,9 +134,6 @@ If the user wants edits, revise and present again.
 ### 7.3 Apply Gherkin Changes
 
 1. Edit the `.feature` file -- update only the `@SC-XXXX` scenario block with the confirmed changes.
-2. If step definitions changed, edit the corresponding step definition files.
-3. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
-4. Update `bdd/steps/INDEX.md` if new steps were added.
 
 ## Step 8: Report
 

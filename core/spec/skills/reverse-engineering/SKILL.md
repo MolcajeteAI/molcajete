@@ -218,8 +218,7 @@ Launched as a subagent after user reviews T1 output. Receives:
 - BDD scaffold settings from `.molcajete/settings.json`
 
 Produces:
-- `.feature` files with scenarios (empty step bodies)
-- Step definition stubs (pending/not-implemented)
+- `.feature` files with scenarios
 - Updated BDD indexes
 
 ### Subagent Launch Pattern
@@ -270,6 +269,8 @@ def step_impl(context):
 ```
 
 This ensures that running the BDD suite immediately shows which steps need implementation, and the build dispatcher can use "all scenarios passing" as its done signal. The literal string `"TODO: implement step"` is the canonical marker the build dispatcher greps for.
+
+> **Note:** Reverse commands stop at Gherkin generation. Step definitions are created during the build phase, after production code exists (forward path) or from existing code (reverse path). The stubs above are only relevant if step definitions are created outside the build pipeline.
 
 ## Template Reference
 
