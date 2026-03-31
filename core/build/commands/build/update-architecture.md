@@ -1,6 +1,6 @@
 ---
 description: "[headless] Update ARCHITECTURE.md after task completion"
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 argument-hint: <feature-id>
 allowed-tools:
   - Read
