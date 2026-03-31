@@ -1,5 +1,5 @@
 ---
-description: Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, and master FEATURES.md
+description: Initialize project with foundational docs and tooling detection, or re-run to update tooling only
 model: claude-opus-4-6
 allowed-tools:
   - Read
@@ -33,13 +33,18 @@ Follow the skill's rules for all subsequent steps.
 Check if `prd/PROJECT.md` already exists.
 
 If it exists, use AskUserQuestion:
-- Question: "Foundational documents already exist (PROJECT.md found). Do you want to regenerate them?"
-- Header: "Regenerate"
+- Question: "Foundational documents already exist (PROJECT.md found). What would you like to do?"
+- Header: "Setup Mode"
 - Options:
-  - "Yes, regenerate all" -- proceed with the full interview
-  - "No, keep existing" -- stop without changes
+  - "Regenerate all" -- full interview: regenerate PRD documents and re-detect tooling
+  - "Update tooling only" -- skip PRD interview, re-scan project tooling (Makefiles, package.json scripts, Docker, formatters, linters) and update `.molcajete/settings.json`. Use this after installing new packages or changing how the project runs.
+  - "No changes" -- stop without changes
 
-If it does not exist, proceed to Step 3.
+If "Regenerate all" → proceed to Step 3.
+If "Update tooling only" → read `prd/DOMAINS.md` to get the domain list, then jump to Step 8 (Tooling Detection).
+If "No changes" → stop.
+
+If `prd/PROJECT.md` does not exist, proceed to Step 3.
 
 ## Step 3: Interview -- Project Description
 
@@ -201,17 +206,39 @@ Read all templates from the setup skill and generate the documents:
 6. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
    Write `prd/FEATURES.md` with the status key, a `## global` section first (if global domain exists), then one `## {domain}` section per real domain. All tables start empty.
 
-## Step 8: Report
+## Step 8: Detect Project Tooling
 
-Tell the user what was created:
+Follow the setup skill's Stage 5 (Tooling Detection) rules.
 
+Launch an `Explore` sub-agent to scan the codebase for:
+1. **Environment** — Docker Compose files, services, start/stop commands
+2. **Scripts** — Makefile targets (root + subdirectories), pnpm/npm scripts (root + per-workspace)
+3. **Per-domain tooling** — formatter, linter, and test runner for each domain. Use the domain list from Step 6 (or from `prd/DOMAINS.md` if running in "update tooling only" mode). Map each domain to its code directory and detect available tools.
+4. **Warnings** — missing formatter, linter, or test runner for any domain
+
+After the agent returns, present the detected tooling to the user via AskUserQuestion for confirmation (per the skill's Stage 5e rules).
+
+After confirmation, merge the results into `.molcajete/settings.json`. Create the file and `.molcajete/` directory if they don't exist.
+
+## Step 9: Report
+
+Tell the user what was created or updated.
+
+**If full setup (Steps 3-8):**
 - `prd/PROJECT.md` -- project description
 - `prd/TECH-STACK.md` -- technology choices
 - `prd/ACTORS.md` -- system actors
 - `prd/GLOSSARY.md` -- domain vocabulary with starter terms
 - `prd/DOMAINS.md` -- domain registry
 - `prd/FEATURES.md` -- master feature inventory (sectioned by domain)
+- `.molcajete/settings.json` -- project tooling configuration
 - For each domain:
   - `prd/domains/{domain}/features/` -- directory for feature specs
+
+**If tooling-only update (Step 8 only):**
+- `.molcajete/settings.json` -- updated project tooling configuration
+- List what changed: new tools detected, commands updated, warnings
+
+If there are warnings (missing formatters, linters, etc.), display them prominently.
 
 Explain the structure: "Your specs are organized by domain. All features are registered in `prd/FEATURES.md` under their domain section. Use `/m:feature` to create your first feature."
