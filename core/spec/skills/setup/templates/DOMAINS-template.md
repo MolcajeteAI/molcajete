@@ -9,6 +9,9 @@
 - `app` -- User-facing application (web, mobile, desktop)
 - `service` -- Backend service or API
 - `concern` -- Logical separation within an app (billing, analytics, admin)
+- `spec-only` -- Specification-only domain for cross-cutting concerns (e.g., authentication, shared UI). Never targeted for plan/build — defines requirements that real domains implement.
+
+> When a global domain exists, it is listed first.
 
 ## Domains
 

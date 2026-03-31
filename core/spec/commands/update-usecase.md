@@ -57,13 +57,13 @@ If the change description is empty (only a UC ID was provided), use AskUserQuest
 
 2. Extract the parent `FEAT-XXXX` from the path (the directory name under `features/`) and the domain from the path (the directory name under `prd/domains/`).
 
-3. Verify `prd/domains/{domain}/FEATURES.md` exists. If missing, tell the user:
+3. Verify `prd/FEATURES.md` exists. If missing, tell the user:
 
    "Run `/m:setup` first -- DOMAINS.md and FEATURES.md are required."
 
    Then stop.
 
-4. Verify FEAT-XXXX exists in `prd/domains/{domain}/FEATURES.md`. If not found, tell the user:
+4. Verify FEAT-XXXX exists in `prd/FEATURES.md`. If not found, tell the user:
 
    "Feature {FEAT-XXXX} not found in FEATURES.md. Check the ID and try again."
 

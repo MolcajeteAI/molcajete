@@ -23,10 +23,25 @@ Before creating or locating a feature, resolve the target domain:
 
 1. Read `prd/DOMAINS.md` to get the list of registered domains
 2. If only one domain exists, use it automatically (no user prompt needed)
-3. If multiple domains exist, present them via AskUserQuestion: "Which domain should this feature belong to?\n\n{domain table from DOMAINS.md}"
-4. Use the selected domain for all path operations
+3. If multiple domains exist, first ask via AskUserQuestion:
+   "Is this a cross-cutting concern that applies to every domain in the project?"
+   Options: "Yes — create as global feature" / "No — it belongs to a specific domain"
+   If yes → use `global` domain, skip step 4.
+   If no → proceed to step 4 (which domain?).
+4. If multiple domains exist, present them via AskUserQuestion: "Which domain should this feature belong to?\n\n{domain table from DOMAINS.md}" — filter out `global` from the selection (global is only selected via step 3)
+5. Use the selected domain for all path operations
 
 All feature paths use the pattern `prd/domains/{domain}/features/FEAT-XXXX/`.
+
+## Refs Declaration
+
+When creating a domain feature (non-global), after the domain is selected and before the creation interview:
+
+1. Read `prd/FEATURES.md` and extract features from the `## global` section
+2. If global features exist, ask via AskUserQuestion:
+   "Does this feature depend on any global features?\n\n{global features table}\n\nSelect any that apply, or skip."
+   Options: list each global feature + "None — no global dependencies"
+3. Record selected refs for inclusion in REQUIREMENTS.md frontmatter and FEATURES.md Refs column
 
 ## EARS Syntax
 
@@ -147,8 +162,14 @@ Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
 ## FEATURES.md Row Management
 
-When creating a feature, add a new row to the domain's `prd/domains/{domain}/FEATURES.md`:
+When creating a feature, add a new row to `prd/FEATURES.md` under the appropriate section. Add the row under the `## global` section if domain is `global`, otherwise under the `## {domain}` section.
 
+For domain features:
+```
+| FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | {Refs} | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
+```
+
+For global features (no Refs column):
 ```
 | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
 ```
@@ -159,6 +180,7 @@ When creating a feature, add a new row to the domain's `prd/domains/{domain}/FEA
 - **Description:** One sentence — enough for an agent to decide if this is the right feature
 - **Status:** Always `pending` when first created
 - **Tag:** `@FEAT-XXXX` — used as Gherkin feature tag
+- **Refs** (domain features only)**:** Comma-separated FEAT-XXXX IDs of global features this feature depends on (if refs were declared)
 - **Directory:** Relative Markdown link to `features/FEAT-XXXX/` (relative to the domain's FEATURES.md)
 
 **When updating a feature,** do NOT change the ID or Tag. Update Status only when the feature advances through its lifecycle.
@@ -226,7 +248,7 @@ After all sections are confirmed:
 4. Write `REQUIREMENTS.md` using [REQUIREMENTS-template.md](./templates/REQUIREMENTS-template.md) -- include `## UI` section with confirmed ASCII art and/or image references if UI content was provided; omit `## UI` section entirely if user said no UI. Add `domain: {domain}` to the frontmatter.
 5. Write `USE-CASES.md` using [USE-CASES-template.md](./templates/USE-CASES-template.md) (empty table)
 6. Write `ARCHITECTURE.md` scaffold using the template at `spec/skills/architecture/templates/ARCHITECTURE-template.md`
-7. Add row to `prd/domains/{domain}/FEATURES.md` (format from the Row Management section above)
+7. Add row to `prd/FEATURES.md` under the appropriate section (format from the Row Management section above)
 
 ## Update Mode
 

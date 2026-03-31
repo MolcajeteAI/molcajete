@@ -49,11 +49,11 @@ Read the following files to understand the project and avoid duplicate features:
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
 4. `prd/DOMAINS.md` — domain registry (required)
-5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
+5. `prd/FEATURES.md` — check for duplicates across all domains
 
 Use the project context to inform your extraction and suggestions in the interview.
 
-## Step 3.5: Domain Selection
+## Step 4: Domain Selection
 
 Read `prd/DOMAINS.md` and resolve the target domain following the feature-authoring skill's Domain Resolution rules:
 
@@ -62,7 +62,7 @@ Read `prd/DOMAINS.md` and resolve the target domain following the feature-author
 
 Record the selected domain for all subsequent path operations.
 
-## Step 4: Research Context
+## Step 5: Research Context
 
 Read the headless-research skill:
 
@@ -79,7 +79,7 @@ Follow the skill's workflow (check user reference → scan existing → run agen
 
 Use the resulting context brief to inform subsequent extraction and interview steps (better requirement suggestions, awareness of existing patterns, up-to-date approaches).
 
-## Step 5: Extract from Input
+## Step 6: Extract from Input
 
 If `$ARGUMENTS` is not empty, extract as much as possible from the freeform description:
 
@@ -97,7 +97,7 @@ If `$ARGUMENTS` is empty, use AskUserQuestion to ask:
 
 Then extract from the response.
 
-## Step 6: Creation Interview
+## Step 7: Creation Interview
 
 Present each section for review via AskUserQuestion, following the interview pattern from the skill exactly:
 
@@ -113,7 +113,7 @@ For each section, follow the skill's interview rules:
 - If extracted from input: present and ask "Does this look correct?" with "Yes, looks good" / "Edit" options
 - If not found in input: ask if the user has any, with option to skip where appropriate
 
-## Step 7: Assign Feature ID
+## Step 8: Assign Feature ID
 
 After all sections are confirmed, generate the feature ID:
 
@@ -123,7 +123,7 @@ node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js
 
 Prepend `FEAT-` to the output (e.g., `FEAT-0S9A`).
 
-## Step 8: Generate Documents
+## Step 9: Generate Documents
 
 Create the feature directory structure using the selected domain:
 
@@ -144,18 +144,18 @@ Then read each template and generate the documents:
 3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
-4. Edit `prd/domains/{domain}/FEATURES.md` — add a new row:
+4. Edit `prd/FEATURES.md` — add a new row under the appropriate section:
    ```
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
 
-## Step 9: Report
+## Step 10: Report
 
 Tell the user what was created:
 
 - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` — feature requirements (EARS syntax)
 - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index (empty, ready for /m:usecase)
 - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — architecture scaffold
-- Updated `prd/domains/{domain}/FEATURES.md` with new row
+- Updated `prd/FEATURES.md` with new row
 
 Suggest next step: "Use `/m:usecase FEAT-XXXX {description}` to add use cases to this feature."

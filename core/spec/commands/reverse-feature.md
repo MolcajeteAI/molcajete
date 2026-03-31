@@ -50,17 +50,17 @@ Read the following files to understand the project and avoid duplicate features:
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
 4. `prd/DOMAINS.md` — domain registry (required)
-5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
+5. `prd/FEATURES.md` — check for duplicates across all domains
 
 Use the project context to inform your code analysis and extraction.
 
-## Step 3.5: Domain Selection
+## Step 4: Domain Selection
 
 Read `prd/DOMAINS.md` and resolve the target domain:
 - If only one domain exists, use it automatically
 - If multiple domains exist, use AskUserQuestion to ask which domain this feature belongs to
 
-## Step 4: Collect Description
+## Step 5: Collect Description
 
 If `$ARGUMENTS` is not empty, use it as the description of the existing code capability to extract.
 
@@ -68,18 +68,18 @@ If `$ARGUMENTS` is empty, use AskUserQuestion:
 - Question: "Describe the existing code capability you want to extract into a feature spec. Include any relevant module names, directories, or functionality areas.\n\n**Examples:**\n- \"The authentication system in src/auth/ — handles login, registration, and token refresh\"\n- \"The payment processing pipeline that handles Stripe webhooks and order fulfillment\"\n- \"The notification service that sends emails and push notifications\""
 - Header: "Describe Existing Capability"
 
-## Step 5: Discovery Scan
+## Step 6: Discovery Scan
 
 Use Glob, Grep, and Read to find files matching the described capability.
 
-### 5.1 Discovery
+### 6.1 Discovery
 
 Search for relevant files:
 - Glob for directory structures, module files, and configuration related to the capability
 - Grep for key terms, class names, function names, route definitions, and exports
 - Read key files to understand the implementation
 
-### 5.2 Scope Confirmation
+### 6.2 Scope Confirmation
 
 Present the discovered files via AskUserQuestion before deep analysis:
 
@@ -89,7 +89,7 @@ Present the discovered files via AskUserQuestion before deep analysis:
 
 If the user narrows or expands, adjust the file list accordingly.
 
-## Step 6: Launch T1 — Research + Spec Extraction
+## Step 7: Launch T1 — Research + Spec Extraction
 
 Use the Agent tool to launch a general-purpose subagent for deep analysis and spec extraction.
 
@@ -101,9 +101,9 @@ The subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, all `prd/domains/*/FEATURES.md`
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, `prd/FEATURES.md`
 
-3. **The confirmed file list** from Step 5.2
+3. **The confirmed file list** from Step 6.2
 
 4. **The specific task:**
    - Read and analyze all confirmed files following the reverse-engineering skill's research methodology
@@ -120,7 +120,7 @@ The subagent prompt must include:
    - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md` — set YAML frontmatter `status` to `pending`, and annotate each scenario heading with `pending`: `### SC-XXXX: {Scenario Name} \`pending\``
    - In USE-CASES.md rows, set status column to `pending`
-   - Append a row to `prd/domains/{domain}/FEATURES.md`: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
+   - Append a row to `prd/FEATURES.md` under the appropriate domain section: `| FEAT-XXXX | {name} | {description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |`
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -130,7 +130,7 @@ The subagent prompt must include:
    - ARCHITECTURE.md enrichment summary (which sections populated, file counts in Component Inventory, entity counts in Data Model, route counts in API Surface, Code Map entry counts)
    - Project-level updates: {count} new actors added to ACTORS.md, {count} new tech stack entries added to TECH-STACK.md (list names)
 
-## Step 7: Report T1 Results
+## Step 8: Report T1 Results
 
 After the subagent returns, present the results via AskUserQuestion:
 
@@ -140,7 +140,7 @@ After the subagent returns, present the results via AskUserQuestion:
 
 If the user chooses to review first, stop. They will re-run or continue manually.
 
-## Step 8: Launch T2 — Gherkin Generation
+## Step 9: Launch T2 — Gherkin Generation
 
 Use the Agent tool to launch a general-purpose subagent for Gherkin generation.
 
@@ -175,7 +175,7 @@ The subagent prompt must include:
    - UC status changes
    - Any splitting performed
 
-## Step 9: Report
+## Step 10: Report
 
 Tell the user what was created:
 
@@ -184,7 +184,7 @@ Tell the user what was created:
 - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` — use case index
 - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` — enriched with implementation research
 - UC files with scenario counts
-- Updated `prd/domains/{domain}/FEATURES.md` with new row
+- Updated `prd/FEATURES.md` with new row
 
 **Gherkin Created:**
 - Feature file paths with scenario counts
@@ -196,4 +196,4 @@ Tell the user what was created:
 - UCs set to `pending`
 - Scenario headings annotated with `pending`
 
-Suggest next step: "Review the specs and Gherkin, then run `/m:plan FEAT-XXXX` to plan step implementation."
+Suggest next step: "Review the specs and Gherkin, then run `/m:reverse-plan FEAT-XXXX` to plan BDD wiring."

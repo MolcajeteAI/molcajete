@@ -59,7 +59,7 @@ If the change description is empty (only an SC ID was provided), use AskUserQues
 
 4. Extract the parent `FEAT-XXXX` from the directory path (under `features/`) and the domain from the path (under `prd/domains/`).
 
-5. Verify `prd/domains/{domain}/FEATURES.md` exists and FEAT-XXXX is listed. If either check fails, tell the user and stop.
+5. Verify `prd/FEATURES.md` exists and FEAT-XXXX is listed. If either check fails, tell the user and stop.
 
 ## Step 4: Load Context
 

@@ -24,11 +24,23 @@ Do not interact with the user — this is a headless command invoked by `dispatc
 
 `FEAT_ID` = `$ARGUMENTS` (e.g., `FEAT-0F3y`)
 
-## Step 1.5: Resolve Domain
+## Step 2: Resolve Domain
 
 Glob `prd/domains/*/features/{FEAT_ID}/` to find the feature directory and extract the domain from the path.
 
-## Step 2: Load Architecture Skill
+If the resolved domain is `global`, skip architecture update and return immediately. Global features are spec-only — they have no implementation to document.
+
+Return immediately with:
+```json
+{
+  "status": "done",
+  "commit": null,
+  "sections_updated": [],
+  "error": null
+}
+```
+
+## Step 3: Load Architecture Skill
 
 Read the architecture skill for section definitions and population rules:
 
@@ -36,14 +48,14 @@ Read the architecture skill for section definitions and population rules:
 Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/SKILL.md
 ```
 
-## Step 3: Read Existing ARCHITECTURE.md
+## Step 4: Read Existing ARCHITECTURE.md
 
 Check if `prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md` exists.
 
 - **If it exists:** Read it and note which sections are already populated.
 - **If it doesn't exist:** Read the template from the architecture skill and scaffold a new file with the feature's frontmatter.
 
-## Step 4: Scan Implementation
+## Step 5: Scan Implementation
 
 Discover what was built by this feature's tasks. Use multiple sources:
 
@@ -71,7 +83,7 @@ git diff --name-only {commit}~1..{commit}
 
 Read the key implementation files identified above. Trace the call chain from entry points (routes, handlers, CLI commands) through business logic to the data layer.
 
-## Step 5: Update ARCHITECTURE.md Sections
+## Step 6: Update ARCHITECTURE.md Sections
 
 Follow the architecture skill's population rules (sections are additive — append rows, don't replace).
 
@@ -111,13 +123,13 @@ For non-obvious choices found in task summaries' `key_decisions`:
 
 Update System Context, Container View, Integration Points, and State Transitions only if the implementation introduced new actors, containers, external systems, or stateful entities.
 
-## Step 6: Update Frontmatter
+## Step 7: Update Frontmatter
 
 - Add any new UC-XXXX IDs to the `use_cases` array
 - Add any new SC-XXXX IDs to the `scenarios` array
 - Set `last_update` to today's date
 
-## Step 7: Commit
+## Step 8: Commit
 
 ```bash
 git add prd/domains/{domain}/features/{FEAT_ID}/ARCHITECTURE.md
@@ -129,7 +141,7 @@ Capture the commit SHA:
 git rev-parse HEAD
 ```
 
-## Step 8: Return Result
+## Step 9: Return Result
 
 Output the result as structured JSON:
 

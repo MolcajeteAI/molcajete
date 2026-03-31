@@ -47,6 +47,23 @@ These tasks use the **validator done signal** instead of BDD gate.
 
 Read `prd/DOMAINS.md` as part of project context. When a feature spans domains (tagged with multiple `@{domain}` tags), the first task for that feature absorbs infrastructure cost. Do not create T-000 infrastructure tasks per domain. Tasks slice vertically by scenario — a task's files may span any number of domains' codebases.
 
+### Global Feature Planning
+
+When the target is a global feature (domain is `global`, type is `spec-only`):
+
+1. **Cross-domain task generation:** Generate tasks for each real domain, never for `global` itself. Each task's Domain field must reference a real domain.
+2. **Group by domain:** Organize tasks into domain groups in the plan output.
+3. **Global baseline context:** Each task description must reference the global feature's spec directory: "Global baseline: prd/domains/global/features/FEAT-XXXX/"
+4. **Domain overrides:** When a real domain has a feature with `refs` pointing to the global feature, prefer the domain feature's REQUIREMENTS.md and ARCHITECTURE.md over the global baseline for that domain's tasks.
+
+### Refs Loading
+
+When a domain feature declares `refs` in its REQUIREMENTS.md frontmatter:
+
+1. Load each referenced global feature's REQUIREMENTS.md and ARCHITECTURE.md
+2. Use global specs as baseline context alongside the domain feature's own specs
+3. Global requirements inform task decomposition but domain requirements take precedence where they diverge
+
 ### Using ARCHITECTURE.md Enrichment
 
 When ARCHITECTURE.md contains a Code Map section with entries, use it to:

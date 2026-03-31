@@ -53,6 +53,8 @@ For the task's feature, read (using the domain from the task's Domain field):
 - `prd/domains/{domain}/features/{FEAT-XXXX}/REQUIREMENTS.md` — functional requirements
 - The ARCHITECTURE.md path from the task's Architecture field (if the file exists)
 
+If the task's feature resolves to `prd/domains/global/`, also read the global REQUIREMENTS.md and ARCHITECTURE.md. Then check if the task's Domain has a feature with `refs` pointing to this global feature — if so, load that domain feature's specs too.
+
 ### 2c. UC and Gherkin Files
 
 For each UC-XXXX in the task's Use Cases:

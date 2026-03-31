@@ -14,7 +14,7 @@ Lightweight, silent research that runs automatically inside spec-authoring comma
 
 - Before spec-writing in `/m:feature`, `/m:usecase`, `/m:spec`
 - When a command needs up-to-date context about a topic before generating specs
-- Called from Step 3.5 of spec-authoring commands
+- Called from spec-authoring commands before the creation interview
 
 ## Naming Convention
 

@@ -52,8 +52,8 @@ Read all project-level files, the domain registry, and every existing feature's 
 - `prd/ACTORS.md` — system actors (if exists)
 - `prd/DOMAINS.md` — domain registry (required)
 
-**Per-domain files:** For each domain in DOMAINS.md, read:
-- `prd/domains/{domain}/FEATURES.md` — features in this domain
+**Per-domain files:**
+- `prd/FEATURES.md` — features across all domains
 
 **Per-feature files:** For every feature listed in each domain's FEATURES.md, read:
 - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
@@ -92,7 +92,7 @@ Parse the free-form text against the loaded PRD context. Classify each entity th
 
 | Category | Trigger | Action |
 |----------|---------|--------|
-| **New Feature** | Describes capability not covered by any existing feature | Assign target domain, create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add domain's FEATURES.md row |
+| **New Feature** | Describes capability not covered by any existing feature. If the user describes a cross-cutting concern, assign to `global` domain | Assign target domain, create feature dir + REQUIREMENTS.md + USE-CASES.md + ARCHITECTURE.md, add FEATURES.md row |
 | **New Use Case** | Describes a workflow belonging to an existing feature | Create UC file in existing feature, add row to USE-CASES.md |
 | **Modified Feature** | Adds or changes requirements of an existing feature | Update REQUIREMENTS.md (new FRs, NFRs, acceptance criteria) |
 | **Modified Use Case** | Adds or changes scenarios in an existing UC | Update UC file (new/changed scenarios), increment version, set status to dirty |
@@ -206,7 +206,7 @@ For each new feature:
 4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    Write `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` scaffold.
 
-5. Edit `prd/domains/{domain}/FEATURES.md` — add a new row:
+5. Edit `prd/FEATURES.md` — add a new row:
    ```
    | FEAT-XXXX | {Feature Name} | {One-sentence description} | pending | @FEAT-XXXX | [features/FEAT-XXXX/](features/FEAT-XXXX/) |
    ```
@@ -218,7 +218,7 @@ For each modified feature:
 
 **Dirty Cascade:** If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
 
-1. Set the feature's status to `dirty` in `prd/domains/{domain}/FEATURES.md`.
+1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
 2. Read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
    - Set the UC's status to `dirty` in USE-CASES.md.
    - Edit the UC file's YAML frontmatter: set `status` to `dirty`.

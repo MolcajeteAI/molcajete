@@ -3,14 +3,14 @@ name: setup
 description: >-
   Rules and templates for the /m:setup command. Defines the interview flow
   for generating PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md,
-  DOMAINS.md, and per-domain FEATURES.md. Covers codebase inference for
+  DOMAINS.md, and master FEATURES.md. Covers codebase inference for
   tech stack, actors, and domains, confirmation patterns, and document
   generation sequence.
 ---
 
 # Project Setup
 
-Rules for initializing a project's foundational documents. The /m:setup command references this skill to interview the user and generate the global documents (PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md) and per-domain FEATURES.md that all other commands depend on.
+Rules for initializing a project's foundational documents. The /m:setup command references this skill to interview the user and generate the global documents (PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md) and master FEATURES.md that all other commands depend on.
 
 ## When to Use
 
@@ -83,6 +83,8 @@ For each confirmed domain, assign:
 - **Type:** `app`, `service`, or `concern`
 - **Description:** One sentence explaining what this domain covers
 - **Directory:** `domains/{name}/` (relative path within `prd/`)
+
+After domain confirmation, if more than one domain exists: auto-prepend a `global` domain (ID: 0, Name: global, Type: spec-only, Description: "Cross-cutting concerns that apply to all domains", Directory: domains/global/). For single-domain projects: do NOT add global. The global domain is automatic for multi-domain projects and always listed first.
 
 ## Codebase Detection
 
@@ -157,9 +159,9 @@ After the interview, generate these documents in order. **All global files go di
 | 3 | ACTORS.md | [ACTORS-template.md](./templates/ACTORS-template.md) | `prd/ACTORS.md` |
 | 4 | GLOSSARY.md | [GLOSSARY-template.md](./templates/GLOSSARY-template.md) | `prd/GLOSSARY.md` |
 | 5 | DOMAINS.md | [DOMAINS-template.md](./templates/DOMAINS-template.md) | `prd/DOMAINS.md` |
-| 6 | FEATURES.md (per domain) | [FEATURES-template.md](./templates/FEATURES-template.md) | `prd/domains/{domain}/FEATURES.md` |
+| 6 | FEATURES.md | [FEATURES-template.md](./templates/FEATURES-template.md) | `prd/FEATURES.md` |
 
-After generating all documents, create `prd/domains/{domain}/features/` for each domain.
+After generating all documents, create `prd/domains/{domain}/features/` for each domain (including global).
 
 ### GLOSSARY.md Starter Terms
 
@@ -175,7 +177,7 @@ Add 3-5 additional terms extracted from the project description and tech stack (
 
 ### FEATURES.md Initial State
 
-Generate one FEATURES.md per domain at `prd/domains/{domain}/FEATURES.md` with the status key and an empty features table. No features are populated at setup time -- they are added by /m:feature or /m:spec.
+Generate one master FEATURES.md at `prd/FEATURES.md` with `## global` section first (if global domain exists), then one `## {domain}` section per real domain. All tables start empty. No features are populated at setup time -- they are added by /m:feature or /m:spec.
 
 ## Regeneration
 
@@ -193,4 +195,4 @@ If `prd/PROJECT.md` already exists when /m:setup is run:
 | [ACTORS-template.md](./templates/ACTORS-template.md) | ACTORS.md structure |
 | [GLOSSARY-template.md](./templates/GLOSSARY-template.md) | GLOSSARY.md structure |
 | [DOMAINS-template.md](./templates/DOMAINS-template.md) | DOMAINS.md structure |
-| [FEATURES-template.md](./templates/FEATURES-template.md) | Per-domain FEATURES.md structure |
+| [FEATURES-template.md](./templates/FEATURES-template.md) | Master FEATURES.md structure (sectioned by domain) |

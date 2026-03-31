@@ -65,7 +65,7 @@ If a `FEAT-XXXX` token is found:
 
 If no `FEAT-XXXX` token is found in `$ARGUMENTS`, resolve the feature using the ID resolution rules from the reverse-engineering skill:
 
-1. Read all `prd/domains/*/FEATURES.md` to build a combined feature list
+1. Read `prd/FEATURES.md` to build a combined feature list
 2. Match features by keyword similarity to the freeform description in `$ARGUMENTS`
 3. If 1 match → confirm via AskUserQuestion: "This appears to belong to **{FEAT-XXXX}: {name}**. Is that correct?"
    - Options: "Yes" / "No, it belongs to another feature" (user specifies via Other) / "No matching feature — I need to create one first"
@@ -215,4 +215,4 @@ Tell the user what was created:
 Suggest next steps:
 - "Use `/m:reverse-usecase FEAT-XXXX <description>` to extract more use cases from this feature's code."
 - "Use `/m:reverse-scenario UC-XXXX <description>` to extract additional scenarios."
-- "Use `/m:plan FEAT-XXXX` to plan step implementation."
+- "Use `/m:reverse-plan FEAT-XXXX` to plan BDD wiring."

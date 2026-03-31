@@ -1,5 +1,5 @@
 ---
-description: Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, and per-domain FEATURES.md
+description: Initialize project with PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, and master FEATURES.md
 model: claude-opus-4-6
 allowed-tools:
   - Read
@@ -125,7 +125,7 @@ Use AskUserQuestion:
 
 After gathering the answer, use AskUserQuestion to present the structured actor table for confirmation.
 
-## Step 5.5: Interview -- Domains
+## Step 6: Interview -- Domains
 
 Follow the setup skill's Stage 4 (Domains) rules.
 
@@ -160,7 +160,11 @@ If the project appears to be a single application (one framework, one entry poin
 
 After confirmation, record the domain list for document generation.
 
-## Step 6: Generate Documents
+### Global Domain Auto-Creation
+
+If more than one domain is confirmed, automatically prepend a `global` domain (ID: 0, Type: spec-only). Do not ask the user — this is automatic for multi-domain projects.
+
+## Step 7: Generate Documents
 
 **Global project files go directly in `prd/`.** Per-domain files go in `prd/domains/{domain}/`.
 
@@ -194,10 +198,10 @@ Read all templates from the setup skill and generate the documents:
 5. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/DOMAINS-template.md`
    Write `prd/DOMAINS.md` filled with the confirmed domains table.
 
-6. For each domain, read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
-   Write `prd/domains/{domain}/FEATURES.md` with the status key and an empty features table.
+6. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
+   Write `prd/FEATURES.md` with the status key, a `## global` section first (if global domain exists), then one `## {domain}` section per real domain. All tables start empty.
 
-## Step 7: Report
+## Step 8: Report
 
 Tell the user what was created:
 
@@ -206,8 +210,8 @@ Tell the user what was created:
 - `prd/ACTORS.md` -- system actors
 - `prd/GLOSSARY.md` -- domain vocabulary with starter terms
 - `prd/DOMAINS.md` -- domain registry
+- `prd/FEATURES.md` -- master feature inventory (sectioned by domain)
 - For each domain:
-  - `prd/domains/{domain}/FEATURES.md` -- empty feature inventory
   - `prd/domains/{domain}/features/` -- directory for feature specs
 
-Explain the structure: "Your specs are organized by domain. Each domain has its own FEATURES.md and features directory. Use `/m:feature` to create your first feature."
+Explain the structure: "Your specs are organized by domain. All features are registered in `prd/FEATURES.md` under their domain section. Use `/m:feature` to create your first feature."

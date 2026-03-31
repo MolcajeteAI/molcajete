@@ -11,7 +11,12 @@
 - `dirty` -- Spec changed after implementation; code needs to catch up
 - `deprecated` -- No longer active; retained for audit trail
 
-## Features
+## global
 
 | ID | Feature | Description | Status | Tag | Directory |
 |----|---------|-------------|--------|-----|-----------|
+
+## {domain}
+
+| ID | Feature | Description | Status | Tag | Refs | Directory |
+|----|---------|-------------|--------|-----|------|-----------|

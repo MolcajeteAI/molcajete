@@ -51,7 +51,7 @@ Parse `$ARGUMENTS` for a `UC-XXXX` token. If found:
 
    Then stop.
 
-4. Verify FEAT-XXXX exists in `prd/domains/{domain}/FEATURES.md`. If not found:
+4. Verify FEAT-XXXX exists in `prd/FEATURES.md`. If not found:
 
    "Feature {FEAT-XXXX} not found in FEATURES.md. Check the ID and try again."
 
@@ -273,4 +273,4 @@ Tell the user what was created:
 Suggest next steps:
 - "Use `/m:reverse-scenario UC-XXXX <description>` to extract more scenarios from code."
 - "Use `/m:scenario UC-XXXX` to generate Gherkin from manually authored scenarios."
-- "Use `/m:plan UC-XXXX` to generate an implementation plan."
+- "Use `/m:reverse-plan UC-XXXX` to plan BDD wiring."

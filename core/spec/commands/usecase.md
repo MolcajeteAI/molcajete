@@ -55,7 +55,7 @@ Follow the skill's rules for all subsequent steps.
 
    Then stop.
 
-4. Verify the feature exists in `prd/domains/{domain}/FEATURES.md`. If not found, tell the user:
+4. Verify the feature exists in `prd/FEATURES.md`. If not found, tell the user:
 
    "Feature {FEAT-XXXX} not found in FEATURES.md for domain {domain}. Check the ID and try again."
 

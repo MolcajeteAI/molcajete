@@ -8,7 +8,7 @@ Consult all applicable sources in order; do not stop at the first match.
 
 Read all domain FEATURES.md files as the primary discovery source. The feature inventories contain status-tracked lists of all features in the system.
 
-1. Read `prd/DOMAINS.md` to get all domains, then read `prd/domains/*/FEATURES.md` for each domain.
+1. Read `prd/DOMAINS.md` to get all domains, then read `prd/FEATURES.md` (the master feature inventory).
 2. Search for entries where the feature name, description, or slug relates to the argument. Use keyword matching — split the argument into words and look for entries containing those words or close synonyms.
 3. For each matching entry, extract:
    - The feature name, slug, and status

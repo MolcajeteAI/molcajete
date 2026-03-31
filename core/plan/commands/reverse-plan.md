@@ -51,7 +51,7 @@ Parse `$ARGUMENTS` for entity IDs:
 - **With arguments** → parse tokens matching `FEAT-XXXX`, `UC-XXXX`, or `SC-XXXX` patterns; scope the plan to those entities
 
 If arguments are provided, validate every ID exists in the PRD:
-- `FEAT-XXXX` → must appear in some `prd/domains/*/FEATURES.md`
+- `FEAT-XXXX` → must appear in `prd/FEATURES.md`
 - `UC-XXXX` → must exist as `prd/domains/*/features/*/use-cases/UC-XXXX.md`
 - `SC-XXXX` → must exist as a scenario heading in some UC file (grep `prd/domains/*/features/*/use-cases/*.md` for `### SC-XXXX`)
 
@@ -64,7 +64,7 @@ Read project-level files:
 - `prd/TECH-STACK.md` — technology choices (if exists)
 - `prd/ACTORS.md` — system actors (if exists)
 - `prd/DOMAINS.md` — domain registry (required)
-- All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — feature registries
+- `prd/FEATURES.md` — master feature registry
 
 Per-feature files will be loaded in Step 5 based on scope.
 
@@ -82,11 +82,21 @@ For each in-scope feature, extract the domain from the path and also read:
 - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md`
 - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` (if exists)
 
+**Global feature handling:** After resolving the feature's domain from the path:
+
+If the resolved domain is `global`:
+1. Read `prd/DOMAINS.md` and collect all domains where Type != `spec-only`
+2. This is a cross-domain plan. The planner must generate tasks for each real domain.
+3. Load the global feature's REQUIREMENTS.md and ARCHITECTURE.md as baseline.
+4. For each real domain, check if it has a feature with refs pointing to this global FEAT-XXXX.
+   If found, also load that domain feature's REQUIREMENTS.md and ARCHITECTURE.md.
+5. Use AskUserQuestion to confirm: "FEAT-XXXX is a global feature. This will generate a cross-domain plan covering: {list of real domains}. Continue, or specify UC IDs for narrower scope?"
+
 ### Mode B: No Arguments (full scan)
 
 Find everything that needs implementation:
 
-1. Read all `prd/domains/*/FEATURES.md` for all features across all domains.
+1. Read `prd/FEATURES.md` for all features across all domains. Skip features in the `## global` section during full scan (global features are only planned when explicitly targeted by ID).
 2. For each feature, read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`.
 3. Collect UCs with status `pending` or `dirty` in the USE-CASES.md table.
 4. Also include features with status `implemented` that have UCs ready.
@@ -95,7 +105,11 @@ Find everything that needs implementation:
 
 If nothing plannable is found: tell the user "No use cases need BDD wiring. Use `/m:reverse-feature`, `/m:reverse-usecase`, or `/m:reverse-spec` to extract specs from code first." Then stop.
 
-## Step 6: Verify Gherkin + Step Stubs
+## Step 6: Load Global Refs Context
+
+For each in-scope domain feature, read its REQUIREMENTS.md frontmatter. If `refs` is non-empty, load each referenced global feature's REQUIREMENTS.md and ARCHITECTURE.md. Pass as additional baseline context to task generation.
+
+## Step 7: Verify Gherkin + Step Stubs
 
 For each plannable UC:
 
@@ -117,7 +131,7 @@ If **some** UCs have gaps, report the gaps and ask via AskUserQuestion:
 
 If "Cancel", stop. Otherwise, continue with only the verified UCs.
 
-## Step 7: Present Scope Summary
+## Step 8: Present Scope Summary
 
 Use AskUserQuestion to show what will be planned:
 
@@ -132,7 +146,7 @@ Use AskUserQuestion to show what will be planned:
 
 If "Narrow scope": use AskUserQuestion to ask which IDs to exclude, remove them, and re-present. If "Cancel": stop.
 
-## Step 8: Generate Task Breakdown
+## Step 9: Generate Task Breakdown
 
 Read all in-scope materials:
 - UC files with their scenarios
@@ -159,7 +173,8 @@ Decompose into tasks following the planning skill rules:
    - Task ID: `T-001`, `T-002`, etc. (flat sequential)
    - Title: verb-noun describing what step definitions get written
    - Use Cases: which UC-XXXX IDs this task advances
-   - Feature: parent feature slug
+   - Feature: parent feature ID (FEAT-XXXX)
+   - Domain: the domain the feature belongs to
    - Architecture: path to the feature's ARCHITECTURE.md
    - Intent: `wire-bdd` (reverse plan always uses wire-bdd)
    - Status: `pending`
@@ -171,9 +186,14 @@ Decompose into tasks following the planning skill rules:
 
    When ARCHITECTURE.md has a Code Map, reference the existing implementation files in each task's description so the build agent knows what code the step definitions should exercise.
 
+   When generating tasks for a cross-domain plan (global feature):
+   - Each task's Domain field must be a real domain, never `global`
+   - Group tasks by domain in the plan output
+   - Include in each task description: "Global baseline: prd/domains/global/features/FEAT-XXXX/"
+
 5. **Order by dependency chain** — infrastructure first, shared step helpers before scenario-specific steps, happy-path before error-handling.
 
-## Step 9: Plan Preview
+## Step 10: Plan Preview
 
 Use AskUserQuestion to show the full plan file content:
 
@@ -184,7 +204,7 @@ Use AskUserQuestion to show the full plan file content:
 If "Edit": use AskUserQuestion to collect corrections, regenerate affected tasks, and re-preview.
 If "Cancel": stop.
 
-## Step 10: Write Plan File
+## Step 11: Write Plan File
 
 1. Generate the filename:
    - Timestamp: current time as `YYYYMMDDHHmm`
@@ -198,7 +218,7 @@ If "Cancel": stop.
 
 3. Write the plan file to `.molcajete/plans/{filename}`.
 
-## Step 11: Report
+## Step 12: Report
 
 Tell the user:
 

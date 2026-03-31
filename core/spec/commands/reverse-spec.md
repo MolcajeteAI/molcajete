@@ -50,7 +50,7 @@ Read the following files to understand the project:
 2. `prd/TECH-STACK.md` — technology choices (if exists)
 3. `prd/ACTORS.md` — system actors (if exists)
 4. `prd/DOMAINS.md` — domain registry (required)
-5. All domain FEATURES.md files: `prd/domains/*/FEATURES.md` — check for duplicates across all domains
+5. `prd/FEATURES.md` — check for duplicates across all domains
 
 ## Step 4: Collect Description
 
@@ -95,7 +95,7 @@ For each feature group, the subagent prompt must include:
    - `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/SKILL.md`
 
 2. **Project context files to read:**
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, all `prd/domains/*/FEATURES.md`
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md` (if exists), `prd/ACTORS.md` (if exists), `prd/DOMAINS.md`, `prd/FEATURES.md`
 
 3. **The specific task:**
    - Read `prd/DOMAINS.md` and assign each extracted feature to the most appropriate domain based on the code's location and purpose
@@ -111,7 +111,8 @@ For each feature group, the subagent prompt must include:
    - `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/feature-authoring/templates/USE-CASES-template.md`
    - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/architecture/templates/ARCHITECTURE-template.md`
    - `prd/domains/{domain}/features/FEAT-XXXX/use-cases/UC-XXXX.md` for each use case, using template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/usecase-authoring/templates/UC-template.md`
-   - Append rows to `prd/domains/{domain}/FEATURES.md` and `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`
+   - Append rows to `prd/FEATURES.md` (under the appropriate domain section) and `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`
+   - If the extracted feature is a cross-cutting concern used identically across domains, assign to `global` domain
    - Edit `prd/ACTORS.md` — append rows for newly discovered actors (if any)
    - Edit `prd/TECH-STACK.md` — add newly discovered tech stack entries (if any)
 
@@ -186,4 +187,4 @@ Tell the user what was created across all features:
 - UCs set to `pending`
 - Scenario headings annotated with `pending`
 
-Suggest next step: "Review the specs and Gherkin, then run `/m:plan FEAT-XXXX` to plan step implementation for a specific feature."
+Suggest next step: "Review the specs and Gherkin, then run `/m:reverse-plan FEAT-XXXX` to plan BDD wiring for a specific feature."

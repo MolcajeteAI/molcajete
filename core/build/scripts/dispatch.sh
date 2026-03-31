@@ -252,7 +252,16 @@ update_prd_statuses() {
       # All UCs implemented — find the domain's FEATURES.md and update it
       local domain_dir
       domain_dir=$(echo "$use_cases_index" | sed -E 's|/features/.*||')
-      local features_md="${domain_dir}/FEATURES.md"
+      local domain_name
+      domain_name=$(basename "$domain_dir")
+
+      # Skip feature status update for global domain (spec-only)
+      if [ "$domain_name" = "global" ]; then
+        log "Skipping feature status update for global domain (spec-only)"
+        continue
+      fi
+
+      local features_md="${PROJECT_ROOT}/prd/FEATURES.md"
       if [ -f "$features_md" ]; then
         sed -i '' -E "/^\\| *${feat_dir_name} /s/\\| *(pending|dirty) *\\|/| implemented |/" "$features_md"
         log "PRD updated: ${feat_dir_name} → implemented (all UCs done)"

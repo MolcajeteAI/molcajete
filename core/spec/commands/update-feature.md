@@ -68,7 +68,31 @@ If the change description is empty (only a FEAT ID was provided), use AskUserQue
 
    Then stop.
 
-## Step 4: Load Context
+## Step 4: Detect Global Scope
+
+After resolving the feature's domain:
+
+### If the target feature is global (domain is `global`)
+
+This change may affect every real domain. Read `prd/FEATURES.md` and collect all domain features whose `Refs` column includes this FEAT-XXXX. These are the **dependent domain features**.
+
+Use AskUserQuestion:
+- Question: "**{FEAT-XXXX}** is a global feature. Changes here affect all domains that reference it.\n\n**Dependent domain features:**\n{list each dependent feature: FEAT-YYYY ({domain}) — {name}}\n\nHow should this change be scoped?"
+- Header: "Global Scope"
+- Options:
+  - "Apply globally — update the global feature and dirty-cascade all dependent domain features"
+  - "Apply globally but let me review domain impact first"
+  - "Cancel — I meant to update a domain feature instead"
+
+If "Cancel", stop.
+
+Record the dependent domain features for use in Step 8 (Dirty Cascade).
+
+### If the target feature is a domain feature with refs
+
+Read the feature's REQUIREMENTS.md frontmatter. If `refs` is non-empty, load each referenced global feature's REQUIREMENTS.md for context — the domain feature's requirements may build on or override global requirements.
+
+## Step 5: Load Context
 
 Read these files to understand the current state:
 
@@ -78,7 +102,11 @@ Read these files to understand the current state:
 - `prd/domains/{domain}/features/FEAT-XXXX/REQUIREMENTS.md` -- current feature requirements
 - `prd/domains/{domain}/features/FEAT-XXXX/ARCHITECTURE.md` -- current architecture (if exists)
 
-## Step 5: Analyze and Propose Changes
+If the target is a global feature, also load each dependent domain feature's REQUIREMENTS.md to understand how domains currently consume the global baseline.
+
+If the target is a domain feature with refs, also load the referenced global feature's REQUIREMENTS.md for baseline context.
+
+## Step 6: Analyze and Propose Changes
 
 Compare the change description against the current REQUIREMENTS.md (and ARCHITECTURE.md if relevant).
 
@@ -97,7 +125,7 @@ Use AskUserQuestion to present the proposed changes:
 
 If the user wants edits, revise the proposal and present again via AskUserQuestion.
 
-## Step 6: Apply Changes
+## Step 7: Apply Changes
 
 Apply the confirmed changes:
 
@@ -107,11 +135,13 @@ Apply the confirmed changes:
 
 3. Do NOT change the FEAT ID or tag.
 
-## Step 7: Dirty Cascade
+## Step 8: Dirty Cascade
+
+### Standard cascade (domain features)
 
 If the feature's current status in FEATURES.md is `implemented`, cascade `dirty` status:
 
-1. Set the feature's status to `dirty` in `prd/domains/{domain}/FEATURES.md`.
+1. Set the feature's status to `dirty` in `prd/FEATURES.md`.
 
 2. Read `prd/domains/{domain}/features/FEAT-XXXX/USE-CASES.md`. For each UC with status `implemented`:
    - Set the UC's status to `dirty` in USE-CASES.md.
@@ -123,11 +153,26 @@ If the feature's current status in FEATURES.md is `implemented`, cascade `dirty`
 
 If the feature's current status is `pending`, do not cascade — the feature hasn't been implemented yet so there's nothing to mark dirty.
 
-## Step 8: Report
+### Cross-domain cascade (global features)
+
+If the target feature is global and dependent domain features were identified in Step 4:
+
+For each dependent domain feature (FEAT-YYYY in domain {D}):
+
+1. If FEAT-YYYY's status in `prd/FEATURES.md` is `implemented`, set it to `dirty`.
+2. Read `prd/domains/{D}/features/FEAT-YYYY/USE-CASES.md`. For each UC with status `implemented`:
+   - Set the UC's status to `dirty` in USE-CASES.md.
+   - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
+   - Set all scenario heading annotations in the UC file to `dirty`.
+
+This ensures that a change to a global feature propagates dirty status to every domain that consumes it via refs.
+
+## Step 9: Report
 
 Tell the user what changed:
 
 - List each file that was modified
 - Summarize the changes applied
 - If dirty cascade was triggered: list the feature, UCs, and scenarios that were set to `dirty`
+- If cross-domain cascade was triggered: list each affected domain feature and its dirty UCs/scenarios
 - Note: "Use `/m:update-usecase UC-XXXX <description>` to refine individual use cases if needed."
