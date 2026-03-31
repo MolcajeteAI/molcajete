@@ -1,0 +1,7 @@
+{
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "5400000",
+    "BASH_MAX_TIMEOUT_MS": "5400000",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
+  }
+}

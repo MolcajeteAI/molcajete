@@ -135,7 +135,6 @@ Do not generate README.md files for these directories:
 - `vendor/`
 - `.next/`
 - `.git/`
-- `.worktrees/`
 - `.molcajete/`
 - `__tests__/` (document tests from parent directory)
 - `prd/` (PRD has its own documentation structure)

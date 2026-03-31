@@ -1,6 +1,6 @@
 {
   "name": "m",
-  "version": "4.0.0",
+  "version": "3.5.5",
   "description": "Spec-driven development plugin with spec, plan, and build workflows",
   "author": {
     "name": "Ivan Torres",
@@ -9,8 +9,6 @@
   "keywords": ["workflow", "development", "testing", "specs", "bdd"],
   "commands": [
     "./build/commands/build.md",
-    "./build/commands/build/review.md",
-    "./build/commands/build/task.md",
     "./build/commands/build/update-architecture.md",
     "./plan/commands/plan.md",
     "./plan/commands/reverse-plan.md",

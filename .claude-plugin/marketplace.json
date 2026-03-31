@@ -1,0 +1,17 @@
+{
+  "name": "Molcajete.ai",
+  "owner": {
+    "name": "Ivan",
+    "email": "ivantorresedge@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "m",
+      "source": "./core",
+      "description": "Spec-driven development with EARS requirements, BDD scenarios, and automated build dispatch"
+    }
+  ],
+  "enabledPlugins": {
+    "m@Molcajete.ai": true
+  }
+}
