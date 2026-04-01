@@ -473,7 +473,7 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}.json` is the single sou
       "use_cases": ["UC-0F4a", "UC-0F5b"],
       "feature": "FEAT-0F3y",
       "domain": "app",
-      "architecture": "prd/domains/app/features/FEAT-0F3y/ARCHITECTURE.md",
+      "architecture": "prd/domains/app/features/FEAT-0F3y-auth-foundation/ARCHITECTURE.md",
       "intent": "implement",
       "status": "pending",
       "estimated_context": "~120K tokens",

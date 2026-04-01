@@ -72,8 +72,8 @@ git log --oneline -20
 ```
 
 **Feature-level:**
-- Feature's `REQUIREMENTS.md` (from the task's domain/feature path)
-- Feature's `ARCHITECTURE.md` (from the task's architecture field)
+- Feature's `REQUIREMENTS.md`: glob `prd/domains/{domain}/features/{feature}-*/REQUIREMENTS.md` (using the task's `domain` and `feature` fields)
+- Feature's `ARCHITECTURE.md`: read the task's `architecture` field directly (full path with slug, resolved at plan time)
 
 **Use case and Gherkin files:**
 For each UC-XXXX in the task's Use Cases:

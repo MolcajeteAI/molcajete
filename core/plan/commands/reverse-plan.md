@@ -85,12 +85,12 @@ For each in-scope feature, extract the domain from the path and also read:
 **Global feature handling:** After resolving the feature's domain from the path:
 
 If the resolved domain is `global`:
-1. Read `prd/DOMAINS.md` and collect all domains where Type != `spec-only`
-2. This is a cross-domain plan. The planner must generate tasks for each real domain.
-3. Load the global feature's REQUIREMENTS.md and ARCHITECTURE.md as baseline.
-4. For each real domain, check if it has a feature with refs pointing to this global FEAT-XXXX.
-   If found, also load that domain feature's REQUIREMENTS.md and ARCHITECTURE.md.
-5. Use AskUserQuestion to confirm: "FEAT-XXXX is a global feature. This will generate a cross-domain plan covering: {list of real domains}. Continue, or specify UC IDs for narrower scope?"
+1. Glob `prd/domains/*/features/FEAT-XXXX-*/` to find all domains that have this feature (exclude `global` from results).
+2. If no domain features found: tell the user "FEAT-XXXX exists only as a global baseline. Create domain features first with `/m:feature` targeting specific domains." Then stop.
+3. If domain features found: this is a cross-domain plan. Generate tasks for each domain that has this feature.
+4. Load the global feature's REQUIREMENTS.md and ARCHITECTURE.md as baseline context.
+5. For each domain feature found, load that domain's REQUIREMENTS.md, ARCHITECTURE.md, and USE-CASES.md + UC files.
+6. Use AskUserQuestion to confirm: "FEAT-XXXX is a global feature. Domain features found in: {list of domains}. This will generate a cross-domain plan. Continue, or specify UC IDs for narrower scope?"
 
 ### Mode B: No Arguments (full scan)
 
