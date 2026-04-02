@@ -631,13 +631,61 @@ function writeReport(planDir, name, data) {
   log(`Report saved: ${reportPath}`);
 }
 
+// ── Session Stats ──
+
+const buildStats = { totalCostUsd: 0, totalApiMs: 0, totalRealMs: 0, sessions: 0 };
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+function extractSessionStats(rawOutput, realMs) {
+  try {
+    const events = JSON.parse(rawOutput.trim());
+    if (!Array.isArray(events)) return null;
+    const result = events.find((e) => e.type === 'result');
+    if (!result) return null;
+
+    const apiMs = result.duration_api_ms ?? 0;
+    const costUsd = result.total_cost_usd ?? 0;
+
+    return {
+      apiMs,
+      costUsd,
+      apiTime: formatDuration(apiMs),
+      realTime: formatDuration(realMs),
+      realMs,
+      cost: `$${costUsd.toFixed(4)}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function logSessionStats(rawOutput, realMs) {
+  const stats = extractSessionStats(rawOutput, realMs);
+  if (stats) {
+    buildStats.totalCostUsd += stats.costUsd;
+    buildStats.totalApiMs += stats.apiMs;
+    buildStats.totalRealMs += stats.realMs;
+    buildStats.sessions++;
+    log(`Elapsed: ${stats.apiTime} (Real ${stats.realTime}) | Cost: ${stats.cost}`);
+  }
+}
+
 // ── invokeClaude ──
 
 async function invokeClaude(workdir, args) {
   for (let attempt = 0; attempt <= 6; attempt++) {
     const result = await spawnClaude(workdir, args);
 
-    if (result.exitCode === 0) return result;
+    if (result.exitCode === 0) {
+      logSessionStats(result.output, result.realMs);
+      return result;
+    }
 
     if (/rate.limit|429|too many requests/i.test(result.stderr)) {
       const wait = BACKOFF_BASE * 2 ** attempt;
@@ -648,6 +696,7 @@ async function invokeClaude(workdir, args) {
       continue;
     }
 
+    logSessionStats(result.output, result.realMs);
     return result;
   }
 
@@ -657,6 +706,7 @@ async function invokeClaude(workdir, args) {
 
 function spawnClaude(workdir, args) {
   return new Promise((resolveP) => {
+    const startTime = Date.now();
     const fullArgs = [
       '-p',
       '--output-format', 'json',
@@ -708,6 +758,7 @@ function spawnClaude(workdir, args) {
         output: Buffer.concat(chunks).toString(),
         stderr: Buffer.concat(stderrChunks).toString(),
         exitCode: code ?? 1,
+        realMs: Date.now() - startTime,
       });
     });
   });
@@ -2015,6 +2066,11 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
   log(
     `Implemented: ${doneCount} | Failed: ${failedCount} | Total: ${taskCount}`
   );
+  if (buildStats.sessions > 0) {
+    log(
+      `Build totals: ${buildStats.sessions} sessions | Elapsed: ${formatDuration(buildStats.totalApiMs)} (Real ${formatDuration(buildStats.totalRealMs)}) | Cost: $${buildStats.totalCostUsd.toFixed(4)}`
+    );
+  }
 
   process.stdout.write('\nTask Status:\n');
   const finalData = readPlan(planFile);
