@@ -25,20 +25,19 @@ The build pipeline uses purpose-specific sessions orchestrated by `molcajete.mjs
 
 | Session | Needs Claude? | Purpose |
 |---------|---------------|---------|
-| Environment check | Yes | Interpret test output, diagnose service failures |
-| Worktree preparation | Node.js first, Claude on error | Deterministic git commands; Claude fixes stale worktrees, conflicts |
+| Pre-flight | No (hooks) | Health check + BDD tests via `health-check` and `run-tests` hooks |
+| Worktree preparation | Node.js first, hook or Claude on error | Deterministic git commands; optional `create-worktree` hook; Claude fixes stale worktrees |
 | Development | Yes | Write code, unit tests |
 | Commit session | Yes | Stage files and create commits after validation passes (uses git-committing skill) |
-| Validation coordinator | Yes | Spawn parallel read-only sub-agents for all quality gates |
-| Merge + cleanup | Node.js first, Claude on conflict | Deterministic rebase/merge; dev-validate cycle on conflicts |
-| Final tests | Yes | Run and interpret full BDD suite for plan scope |
+| Validation (hooks) | No (hooks) | Format, lint, BDD tests via hooks (sub-second) |
+| Validation (Claude) | Yes | Code review + completeness gates (parallel read-only sub-agents) |
+| Merge + cleanup | Node.js first, hook or Claude on conflict | Deterministic rebase/merge; optional `merge`/`cleanup` hooks; dev-validate cycle on conflicts |
+| Post-flight | No (hooks) | Full BDD suite via `run-tests` hook |
 
 Session commands live in `${CLAUDE_PLUGIN_ROOT}/build/commands/sessions/`:
-- `env-check.md` — pre-flight environment and BDD check
 - `dev-session.md` — development session (implement code + tests, no quality gates, no commits)
-- `validate-session.md` — validation coordinator (parallel read-only gates)
+- `validate-session.md` — validation coordinator (code review + completeness gates only)
 - `commit-session.md` — commit session (stages and commits validated changes using git-committing skill)
-- `final-tests.md` — post-flight BDD suite for all plan features
 - `worktree-fix.md` — diagnose and fix worktree creation failures
 
 ## Dev-Validate Cycle
@@ -119,21 +118,21 @@ Sub-task objects in the plan JSON:
 
 ## Pre-flight / Post-flight
 
-### Pre-flight (Environment Check)
+### Pre-flight (Hook-Based)
 
-Before any task runs, the orchestrator spawns an environment check session that:
+Before any task runs, the orchestrator calls hooks programmatically (no Claude session):
 
-1. Verifies services are running (Docker, databases, etc.)
-2. Runs BDD tests filtered by all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios
-3. **All non-pending, non-dirty tests must pass.** Any failure aborts the build.
+1. `health-check` hook — verifies services are running (Docker, databases, etc.)
+2. `run-tests` hook with `scope: "preflight"` — runs BDD tests filtered by all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios
+3. **All checks must pass.** Any failure aborts the build.
 
 This establishes a green baseline. Any failure in the final tests is then guaranteed to be caused by the plan's changes.
 
-### Post-flight (Final Tests)
+### Post-flight (Hook-Based)
 
 After all tasks are implemented and merged:
 
-1. Run BDD suite for all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios as a safety net (filters out scenarios from in-scope features that no task targeted)
+1. `run-tests` hook with `scope: "final"` — runs BDD suite for all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios
 2. If all green AND `unaddressed` is empty → PRD status propagation + completion report
 3. If all green BUT `unaddressed` is non-empty → report success with warning: list unaddressed scenarios. **Do not propagate `implemented` status** for features/UCs that have unaddressed scenarios. Only propagate status for features/UCs where every scenario was addressed.
 4. If failures → plan-level dev-validate cycle (not bound to any single task, because failures may be caused by interactions between tasks)
@@ -157,63 +156,74 @@ Status updates happen in the plan JSON file. The orchestrator (`molcajete.mjs`) 
 
 ## BDD Command Detection
 
-The dispatcher reads pre-computed BDD commands from `.molcajete/apps.md` → **Testing** → **BDD** subsection. These are populated by `/m:setup` (Stage 5b: Verification Profile).
+The `run-tests` hook in `.molcajete/hooks/` handles all BDD test execution. The orchestrator passes tags as an array — the hook itself joins them with the framework's OR syntax (baked in by `/m:setup` as the `__TAG_JOIN__` placeholder). The orchestrator calls it with different inputs depending on context:
 
-**Command lookup by need:**
+| Need | Input |
+|------|-------|
+| Pre-flight env check | `{ "tags": ["(@FEAT-XXXX or @FEAT-YYYY) and not @pending and not @dirty"], "scope": "preflight" }` |
+| Task validation | `{ "tags": ["@SC-XXXX", "@SC-YYYY"], "scope": "task", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` |
+| Final tests | `{ "tags": ["(@FEAT-XXXX or @FEAT-YYYY) and not @pending and not @dirty"], "scope": "final" }` |
 
-| Need | Scope Row |
-|------|-----------|
-| Pre-flight env check | "By tag expression" with `({scope_tags}) and not @pending and not @dirty` |
-| Task validation | "By scenario" with the task's `done_tags` (no lifecycle filter — `@pending` already removed by dev session) |
-| Final tests | "By tag expression" with `({scope_tags}) and not @pending and not @dirty` |
+The hook has the BDD framework command, tag flag syntax, tag join separator, and output format baked in by `/m:setup`. Users can replace it with any script in any language.
 
-**Fallback** (if apps.md has no Testing → BDD section): detect the BDD framework from the apps.md BDD section, or sniff step file extensions in `bdd/steps/`:
-
-| Extension | Framework | Command |
-|-----------|-----------|---------|
-| `.py` | behave | `behave` |
-| `.ts` | cucumber-js | `npx cucumber-js` |
-| `.js` | cucumber-js | `npx cucumber-js` |
-| `.go` | godog | `godog` |
-| `.rb` | cucumber-ruby | `bundle exec cucumber` |
+**Fallback** (if `run-tests` hook is missing): the orchestrator aborts with a mandatory hook error. Run `/m:setup` to generate hooks.
 
 ## Project Configuration
 
-All project configuration lives in a single file: `.molcajete/apps.md`. It is populated by `/m:setup` (tooling detection stage) and can be re-detected with `/m:setup` → "Update tooling only".
+Project configuration is defined by executable hook scripts in `.molcajete/hooks/`. Each hook handles one checkpoint. Generated by `/m:setup` (Stage 5: Hook Generation), re-generable with `/m:setup` → "Update hooks only".
 
-### apps.md Sections
+### Hook Protocol
 
-| Section | What it contains |
-|---------|-----------------|
-| **Runtime** | How the environment runs (docker-compose, local, etc.) with start/stop commands |
-| **Services** | Databases, caches, queues with ports and health check commands |
-| **Applications** | Web apps, APIs, and runnable targets with ports and run commands |
-| **Modules** | Project modules with directories and languages |
-| **BDD** | Framework, language, and format (e.g., behave / python / gherkin) |
-| **Tooling** | Per-domain format and lint commands table |
-| **Testing** | Pre-computed BDD + unit test commands with `{placeholder}` tokens |
-| **Pre-commit Hooks** | Hook tooling and configuration |
-| **Scripts** | Wrapper scripts (reference only — build agent uses Tooling and Testing sections) |
-| **Warnings** | Gaps detected during setup |
-| **Notes** | Freeform user notes |
+- **Location:** `.molcajete/hooks/{hook-name}.{ext}` (e.g., `health-check.mjs`, `lint.sh`)
+- **Discovery:** The orchestrator scans `.molcajete/hooks/` and matches files by name without extension
+- **Format:** Executable files with shebangs (default: `#!/usr/bin/env node` for `.mjs`, any language works)
+- **Input:** JSON payload via stdin
+- **Output:** JSON to stdout
+- **Exit codes:** 0 = success (read stdout JSON), non-zero = failure (stderr has details)
 
-The **Tooling** table has a `bdd` row that holds format and lint commands for BDD step definition files (`bdd/`). It is always present when BDD is configured.
+### Mandatory Hooks
 
-The **Testing** section holds pre-computed execution commands for BDD and unit test runners at every filtering level. Populated by `/m:setup` Stage 5b.
+| Hook | Purpose | Input | Output |
+|------|---------|-------|--------|
+| `health-check` | Verify dev environment services | `{ "services": [...] }` (optional filter) | `{ "status": "ready"\|"failed", "services": { "postgres": "ready", "redis": "failed" } }` |
+| `run-tests` | Run BDD tests with tag filtering | `{ "tags": ["@SC-001", "@SC-002"], "scope": "task"\|"preflight"\|"final", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail"\|"error", "failures": [], "summary": "" }` |
+| `format` | Run formatter in check mode | `{ "files": [...], "services": ["server", "bdd"], "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail", "issues": [] }` |
+| `lint` | Run linter in report mode | `{ "files": [...], "services": ["server", "bdd"], "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail", "issues": [] }` |
 
-### How Sessions Use apps.md
+If a mandatory hook is missing, the orchestrator aborts: `"Missing mandatory hook: {name}. Run /m:setup or provide it manually."`
 
-**Tooling lookup by intent:**
+### Optional Hooks
 
-- **`wire-bdd` intent:** Use the `bdd` row from the Tooling table for formatting and linting (step definitions only, no production code).
-- **`implement` intent:** Use the `{domain}` row from the Tooling table for production code, PLUS the `bdd` row for step definitions.
+**Generated by setup but not mandatory for build.** Setup creates `start`, `stop`, and `logs` hooks alongside the 4 mandatory hooks (7 total generated by default). The orchestrator calls `start` via `tryHook` in pre-flight — if the user deletes it, manual start is fine. The build does not abort for missing optional hooks.
 
-**Other settings:**
-- **BDD tests:** Read Testing → BDD subsection for pre-computed runner commands at each filtering level. Fall back to the BDD section's framework if the Testing section is missing.
-- **Environment awareness:** Read Runtime section to understand whether services run in Docker. Parse the Services table for per-service health check commands.
-- **Verification commands:** Testing → BDD and Testing → Unit Tests subsections provide pre-computed test execution commands for every filtering level — no scanning or guessing needed.
+| Hook | Purpose | Input | Default (without hook) |
+|------|---------|-------|------------------------|
+| `start` | Start dev environment (generated by setup) | `{ }` | No default (user starts manually) |
+| `stop` | Stop dev environment (generated by setup) | `{ }` | No default (user stops manually) |
+| `logs` | Retrieve environment logs (generated by setup) | `{ "service": "...", "lines": 100, "since": "5m" }` | No default (manual inspection) |
+| `restart` | Stop then start dev environment | `{ }` | No default |
+| `create-worktree` | Create a git worktree | `{ "path": "...", "branch": "...", "base_branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
+| `cleanup` | Remove worktree and branch | `{ "path": "...", "branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
+| `merge` | Merge task branch to base | `{ "worktree_path": "...", "branch": "...", "base_branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
+| `before-task` / `after-task` | Task lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", ... }` | No-op (skipped) |
+| `before-validate` / `after-validate` | Validation lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", "services": [...], ... }` | No-op (skipped) |
+| `before-commit` / `after-commit` | Commit lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", "files": [...], "base_branch": "...", "working_branch": "...", ... }` | No-op (skipped) |
 
-**Never skip format/lint as "not detected"** when Tooling entries exist in apps.md. Only skip if apps.md has no Tooling section AND no config files are found in the project.
+### How the Orchestrator Uses Hooks
+
+**Mechanical gates** (format, lint, BDD tests) run as hook calls — sub-second, no Claude session needed:
+- `format` hook runs in check mode (never writes files)
+- `lint` hook runs in report mode (never auto-fixes)
+- `run-tests` hook runs BDD tests with tag filtering
+- The orchestrator runs format then lint sequentially (both may affect the same files), then BDD
+
+**Claude gates** (code review, completeness) still run as Claude sessions — these require judgment.
+
+**Service filtering by intent:**
+- **`wire-bdd` intent:** hooks receive `{ "services": ["bdd"], "files": [...] }`
+- **`implement` intent:** hooks receive `{ "services": ["{service}", "bdd"], "files": [...] }`
+
+When `files` are available (from the dev session's `files_modified` output), they are passed to format/lint hooks for file-aware routing. When not available, the hooks fall back to checking the full service directory.
 
 ## Worktree Management
 
@@ -337,44 +347,40 @@ Reverse path — BDD wiring for existing code.
 
 ## Quality Gates
 
-Quality gates are run by the validation coordinator session as parallel, read-only sub-agents. The coordinator reports issues — it does not fix them.
+Quality gates run in two phases: **hook gates** (mechanical, sub-second) then **Claude gates** (judgment, Claude session).
 
-### 5 Gates (All Parallel, Read-Only)
+### Phase 1: Hook Gates (Orchestrator, No Claude)
+
+The orchestrator calls these hooks programmatically — no Claude session needed:
+
+| Gate | Hook | Mode | When |
+|------|------|------|------|
+| Formatting | `format` | Check/dry-run (no writes) | Always |
+| Linting | `lint` | Report only (no --fix) | Always |
+| BDD Tests | `run-tests` | Run tests | Task-level only (skipped for sub-tasks) |
+
+Format and lint run **sequentially** (both may affect the same files). BDD runs after both.
+
+The orchestrator passes service and file information based on intent:
+- **`wire-bdd` intent:** `{ "services": ["bdd"], "files": [...] }`
+- **`implement` intent:** `{ "services": ["{service}", "bdd"], "files": [...] }`
+
+### Phase 2: Claude Gates (Validation Session)
+
+The validation coordinator session spawns parallel sub-agents for gates that require Claude judgment:
 
 | Gate | What it checks | Mode |
 |------|---------------|------|
-| Formatting | Changed files pass formatter | Check/dry-run (no writes) |
-| Linting | Changed files pass linter | Report only (no --fix) |
-| BDD Tests | Task's tagged scenarios pass | Run tests |
 | Code Review | Step defs match specs, code meets requirements | Read + analysis |
 | Completeness | All requirements traced to code, no stubs/TODOs | Read + Grep |
 
-All five gates spawn as parallel sub-agents. Formatting uses `--check`/`--diff` flags (never `--write`). Linting omits `--fix`. Everything is read-only.
-
-### Formatting + Linting Tooling
-
-**Read tooling commands from `.molcajete/apps.md` Tooling section** based on the task's intent:
-
-- **`wire-bdd` intent:** Use the `bdd` row's Format and Lint columns
-- **`implement` intent:** Use both the `{domain}` row and the `bdd` row
-
-**Fallback:** If apps.md has no Tooling section at all, fall back to scanning for config files. But if the Tooling table exists, use it — do not scan.
-
-**Never skip** format or lint when a tooling entry exists in apps.md.
-
-### BDD Tests
+### BDD Tests (via `run-tests` Hook)
 
 **MANDATORY at task level — skipped for sub-tasks.**
 
-If `done_tags` is non-empty, run with tag filter:
-```bash
-{bdd_command} --tags="@SC-XXXX or @SC-YYYY"
-```
-
-If `done_tags` is empty, run the full suite unfiltered:
-```bash
-{bdd_command}
-```
+The orchestrator calls the `run-tests` hook:
+- If `done_tags` is non-empty: `{ "tags": ["@SC-XXXX"], "scope": "task" }` (always one tag)
+- If `done_tags` is empty: BDD hook is not called
 
 #### Setup Errors vs Test Failures — HARD STOP RULE
 
@@ -402,7 +408,7 @@ If `done_tags` is empty, run the full suite unfiltered:
 
 ### Gate Results Format
 
-The validation coordinator outputs:
+The orchestrator collects results from both hook gates and Claude gates into a unified structure:
 
 ```json
 {
@@ -413,6 +419,9 @@ The validation coordinator outputs:
   "completeness": []
 }
 ```
+
+- `formatting`, `linting`, `bdd_tests` — populated by hooks (sub-second)
+- `code_review`, `completeness` — populated by Claude session
 
 Empty array = gate passed. Non-empty = issues for that gate. The orchestrator checks: if all arrays empty → pass. Otherwise → feed all issues to the next dev session.
 
@@ -426,7 +435,7 @@ Empty array = gate passed. Non-empty = issues for that gate. The orchestrator ch
 
 ### Empty `done_tags` Behavior
 
-When a task has `done_tags: []`, the BDD gate runs the **full suite unfiltered**. BDD tests are never skipped — empty tags means "test everything."
+When a task has `done_tags: []`, the BDD gate is **skipped**. Only format, lint, code review, and completeness gates run. Empty `done_tags` is only valid for sub-tasks and chores tasks (documentation).
 
 ## Docs Update (Pre-Commit)
 
@@ -539,7 +548,7 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
 | `tasks[].intent` | string | `"implement"` or `"wire-bdd"` |
 | `tasks[].status` | string | Current status from lifecycle |
 | `tasks[].estimated_context` | string | Estimated context budget for this task |
-| `tasks[].done_tags` | string[] | `@SC-XXXX` tags for filtered BDD gate; empty array runs full suite |
+| `tasks[].done_tags` | string[] | Exactly one `@SC-XXXX` tag for regular tasks; empty array for chores tasks (BDD skipped) |
 | `tasks[].depends_on` | string[] | Task IDs that must be `implemented` first |
 | `tasks[].description` | string | What to implement, why, constraints |
 | `tasks[].files_to_modify` | string[] | Expected file paths to create or modify |
