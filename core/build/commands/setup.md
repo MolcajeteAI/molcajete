@@ -23,12 +23,17 @@ You are initializing a project's foundational documents. These documents are req
 Read the setup skill for interview rules, codebase detection patterns, confirmation rules, and template references:
 
 ```
-Read: ${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/SKILL.md
+Read: ${CLAUDE_PLUGIN_ROOT}/build/skills/setup/SKILL.md
 ```
 
 Follow the skill's rules for all subsequent steps.
 
-## Step 2: Check for Existing Documents
+## Step 2: Check for Existing Documents and Parse Flags
+
+Check for flags passed after `/m:setup`:
+- `--no-overwrite`: Only generate hooks that don't already exist in `.molcajete/hooks/`. Existing hooks are preserved.
+- `--all`: Generate all hooks (7 default + 10 optional lifecycle). Default generates only the 7 default hooks.
+- Combinable: `/m:setup --all --no-overwrite` generates all hooks but skips existing ones.
 
 Check if `prd/PROJECT.md` already exists.
 
@@ -37,11 +42,11 @@ If it exists, use AskUserQuestion:
 - Header: "Setup Mode"
 - Options:
   - "Regenerate all" -- full interview: regenerate PRD documents and re-detect tooling
-  - "Update tooling only" -- skip PRD interview, re-scan project tooling (Makefiles, package.json scripts, Docker, formatters, linters) and update `.molcajete/apps.md`. Use this after installing new packages or changing how the project runs.
+  - "Update hooks only" -- skip PRD interview, re-scan project tooling (Docker, formatters, linters, BDD frameworks) and regenerate `.molcajete/hooks/`. Use this after installing new packages or changing how the project runs.
   - "No changes" -- stop without changes
 
 If "Regenerate all" → proceed to Step 3.
-If "Update tooling only" → read `prd/DOMAINS.md` to get the domain list, then jump to Step 8 (Tooling Detection).
+If "Update hooks only" → read `prd/DOMAINS.md` to get the domain list, then jump to Step 8 (Hook Generation).
 If "No changes" → stop.
 
 If `prd/PROJECT.md` does not exist, proceed to Step 3.
@@ -186,39 +191,60 @@ mkdir -p prd/domains/{domain}/features
 
 Read all templates from the setup skill and generate the documents:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/PROJECT-template.md`
+1. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/PROJECT-template.md`
    Write `prd/PROJECT.md` filled with the confirmed project description.
 
-2. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/TECH-STACK-template.md`
+2. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/TECH-STACK-template.md`
    Write `prd/TECH-STACK.md` filled with the confirmed tech stack.
 
-3. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/ACTORS-template.md`
+3. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/ACTORS-template.md`
    Write `prd/ACTORS.md` filled with the confirmed actors.
 
-4. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/GLOSSARY-template.md`
+4. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/GLOSSARY-template.md`
    Write `prd/GLOSSARY.md` with starter terms:
    - 5 standard terms: Domain, Feature, Use Case, Actor, Side Effect (adapted to this project's domain)
    - 3-5 additional terms extracted from the project description and tech stack (e.g., the database name, the primary framework, domain-specific terms)
 
-5. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/DOMAINS-template.md`
+5. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/DOMAINS-template.md`
    Write `prd/DOMAINS.md` filled with the confirmed domains table.
 
-6. Read `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/FEATURES-template.md`
+6. Read `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/FEATURES-template.md`
    Write `prd/FEATURES.md` with the status key, a `## global` section first (if global domain exists), then one `## {domain}` section per real domain. All tables start empty.
 
-## Step 8: Detect Project Tooling
+## Step 8: Generate Hooks
 
-Follow the setup skill's Stage 5 (Tooling Detection) rules.
+Follow the setup skill's Stage 5 (Hook Generation) rules.
 
-Launch an `Explore` sub-agent to scan the codebase for:
-1. **Environment** — Docker Compose files, services, start/stop commands
-2. **Scripts** — Makefile targets (root + subdirectories), pnpm/npm scripts (root + per-workspace)
-3. **Per-domain tooling** — formatter, linter, and test runner for each domain. Use the domain list from Step 6 (or from `prd/DOMAINS.md` if running in "update tooling only" mode). Map each domain to its code directory and detect available tools.
-4. **Warnings** — missing formatter, linter, or test runner for any domain
+**Default hooks** (always generated):
+- `start.mjs` — start the dev environment
+- `stop.mjs` — stop the dev environment
+- `health-check.mjs` — verify services are running
+- `run-tests.mjs` — run BDD tests with tag filtering
+- `format.mjs` — run formatter in check mode
+- `lint.mjs` — run linter in report mode
+- `logs.mjs` — retrieve environment logs
 
-After the agent returns, present the detected tooling to the user via AskUserQuestion for confirmation (per the skill's Stage 5e rules).
+**Optional hooks** (generated only with `--all` flag):
+- `restart.mjs`, `create-worktree.mjs`, `cleanup.mjs`, `merge.mjs`
+- `before-task.mjs`, `after-task.mjs`, `before-validate.mjs`, `after-validate.mjs`, `before-commit.mjs`, `after-commit.mjs`
 
-After confirmation, write the results to `.molcajete/apps.md`. Create the `.molcajete/` directory if it doesn't exist.
+Launch an `Explore` sub-agent to **understand the project's technology stack and derive direct tool commands** for each hook. The agent reads project manifests — not wrapper scripts — to determine what tools exist and how they're configured:
+
+1. **Environment** — Read `docker-compose.yml`, `.env.example`, `Dockerfile`, and `Makefile` to understand what services the project depends on (databases, caches, app servers) and how they're composed. From Docker Compose: derive `start` = `docker compose up -d`, `stop` = `docker compose down`, per-service health checks from port mappings (using `process.env` references, not hardcoded values), and `logs` = `docker compose logs`. If no Docker Compose, check `package.json` scripts to discover the underlying dev server command (e.g., `"dev": "next dev -p 3000"` → `npx next dev -p 3000`), and derive log commands from the runtime (e.g., `tail -n` for file-based logs).
+2. **BDD framework** — Read dependency manifests (`requirements.txt`, `pyproject.toml`, `package.json`, `go.mod`) to identify the BDD framework, then derive the exact test command with Molcajete-optimal flags and the tag join separator. Example: found `behave` in `bdd/requirements.txt` → command is `behave bdd/`, tags flag: `--tags`, format flags: `--format json --no-capture`, tag join: `' or '`. Also confirm step files and feature file directories exist.
+3. **Per-domain tooling** — For each domain (from Step 6 or `prd/DOMAINS.md`), read config files (`biome.json`, `.prettierrc`, `.golangci.yml`, `go.mod`) and dependency manifests to detect formatter and linter tools. Build file-aware entries with `{ service, glob, command, fallback }` format — the `glob` pattern matches changed files to the right tool, `command` uses `{files}` placeholder, and `fallback` runs on the full directory when no files are passed. Read Makefiles and package.json scripts **only to discover which tools are installed**. Construct direct tool commands — never `make`, `npm run`, or `pnpm --filter`.
+4. **Warnings** — missing formatter, linter, or no development environment detected
+
+After the agent returns, present the detected hooks to the user via AskUserQuestion using the Stage 5e flat table format — every hook shows its exact command so the user sees precisely what will execute.
+
+After confirmation, for each hook in the list:
+1. If `--no-overwrite` is set and `.molcajete/hooks/{hook-name}.*` exists, skip it
+2. Otherwise:
+   a. Create `.molcajete/hooks/` directory if it doesn't exist
+   b. Read the hook template from `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/hooks/`
+   c. Replace placeholders with detected values
+   d. Write hook to `.molcajete/hooks/` and make it executable (`chmod +x`)
+3. Write BDD settings to `.molcajete/settings.json` (framework, language, format) for the gherkin skill cache
 
 ## Step 9: Report
 
@@ -231,12 +257,12 @@ Tell the user what was created or updated.
 - `prd/GLOSSARY.md` -- domain vocabulary with starter terms
 - `prd/DOMAINS.md` -- domain registry
 - `prd/FEATURES.md` -- master feature inventory (sectioned by domain)
-- `.molcajete/apps.md` -- project environment and tooling configuration
+- `.molcajete/hooks/` -- executable hook scripts (start, stop, health-check, run-tests, format, lint, logs)
 - For each domain:
   - `prd/domains/{domain}/features/` -- directory for feature specs
 
-**If tooling-only update (Step 8 only):**
-- `.molcajete/apps.md` -- updated project environment and tooling configuration
+**If hooks-only update (Step 8 only):**
+- `.molcajete/hooks/` -- regenerated hook scripts
 - List what changed: new tools detected, commands updated, warnings
 
 If there are warnings (missing formatters, linters, etc.), display them prominently.
