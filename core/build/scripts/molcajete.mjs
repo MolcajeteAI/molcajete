@@ -816,6 +816,14 @@ async function prepareWorktree(hooks, projectRoot, feature, taskId, baseBranch, 
   const wtPath = worktreePath(projectRoot, feature, taskId);
   const branch = worktreeBranch(feature, taskId);
 
+  // Lifecycle hook: before-worktree-created
+  await tryHook(hooks, 'before-worktree-created', {
+    path: wtPath,
+    branch,
+    base_branch: baseBranch,
+    ...taskContext,
+  });
+
   // Try optional create-worktree hook first
   const hookResult = await tryHook(hooks, 'create-worktree', {
     path: wtPath,
@@ -826,6 +834,13 @@ async function prepareWorktree(hooks, projectRoot, feature, taskId, baseBranch, 
   if (hookResult) {
     if (hookResult.ok && hookResult.data.status === 'ok') {
       log(`Worktree ready (hook): ${hookResult.data.path || wtPath}`);
+      // Lifecycle hook: after-worktree-created
+      await tryHook(hooks, 'after-worktree-created', {
+        path: hookResult.data.path || wtPath,
+        branch,
+        base_branch: baseBranch,
+        ...taskContext,
+      });
       return { ok: true, path: hookResult.data.path || wtPath };
     }
     if (hookResult.ok && hookResult.data.status === 'failed') {
@@ -865,6 +880,13 @@ async function prepareWorktree(hooks, projectRoot, feature, taskId, baseBranch, 
       { cwd: projectRoot, encoding: 'utf8', stdio: 'pipe' }
     );
     log(`Worktree ready: ${wtPath}`);
+    // Lifecycle hook: after-worktree-created
+    await tryHook(hooks, 'after-worktree-created', {
+      path: wtPath,
+      branch,
+      base_branch: baseBranch,
+      ...taskContext,
+    });
     return { ok: true, path: wtPath };
   } catch (err) {
     log(`Worktree creation failed — launching fix session`);
@@ -1423,6 +1445,14 @@ async function mergeWorktree(hooks, projectRoot, planFile, feature, taskId, base
   const data = readPlan(planFile);
   const mergeContext = buildTaskContext(data, taskId);
 
+  // Lifecycle hook: before-worktree-merged
+  await tryHook(hooks, 'before-worktree-merged', {
+    worktree_path: wtPath,
+    branch,
+    base_branch: baseBranch,
+    ...mergeContext,
+  });
+
   // Try optional merge hook first
   const hookResult = await tryHook(hooks, 'merge', {
     worktree_path: wtPath,
@@ -1445,6 +1475,13 @@ async function mergeWorktree(hooks, projectRoot, planFile, feature, taskId, base
           log(`Warning: plan commit for ${taskId} failed — plan file may be out of sync`);
         }
       }
+      // Lifecycle hook: after-worktree-merged
+      await tryHook(hooks, 'after-worktree-merged', {
+        worktree_path: wtPath,
+        branch,
+        base_branch: baseBranch,
+        ...mergeContext,
+      });
       await cleanupWorktree(hooks, projectRoot, feature, taskId, mergeContext);
       log(`Merged and cleaned up (hook): ${taskId}`);
       return { ok: true };
@@ -1511,6 +1548,14 @@ async function mergeWorktree(hooks, projectRoot, planFile, feature, taskId, base
       log(`Warning: plan commit for ${taskId} failed — plan file may be out of sync`);
     }
   }
+
+  // Lifecycle hook: after-worktree-merged
+  await tryHook(hooks, 'after-worktree-merged', {
+    worktree_path: wtPath,
+    branch,
+    base_branch: baseBranch,
+    ...mergeContext,
+  });
 
   // Step 4: Cleanup
   await cleanupWorktree(hooks, projectRoot, feature, taskId, mergeContext);

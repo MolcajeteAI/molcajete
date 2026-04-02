@@ -394,6 +394,10 @@ If `prd/PROJECT.md` already exists when /m:setup is run:
 | [hooks/create-worktree.mjs.template](./templates/hooks/create-worktree.mjs.template) | Git worktree creation (optional, user reference) |
 | [hooks/cleanup.mjs.template](./templates/hooks/cleanup.mjs.template) | Worktree + branch removal (optional, user reference) |
 | [hooks/merge.mjs.template](./templates/hooks/merge.mjs.template) | Merge branch to base (optional, user reference) |
+| [hooks/before-worktree-created.mjs.template](./templates/hooks/before-worktree-created.mjs.template) | Pre-worktree-creation lifecycle event (optional, user reference) |
+| [hooks/after-worktree-created.mjs.template](./templates/hooks/after-worktree-created.mjs.template) | Post-worktree-creation lifecycle event (optional, user reference) |
+| [hooks/before-worktree-merged.mjs.template](./templates/hooks/before-worktree-merged.mjs.template) | Pre-merge lifecycle event (optional, user reference) |
+| [hooks/after-worktree-merged.mjs.template](./templates/hooks/after-worktree-merged.mjs.template) | Post-merge lifecycle event (optional, user reference) |
 | [hooks/before-task.mjs.template](./templates/hooks/before-task.mjs.template) | Pre-task lifecycle event (optional, user reference) |
 | [hooks/after-task.mjs.template](./templates/hooks/after-task.mjs.template) | Post-task lifecycle event (optional, user reference) |
 | [hooks/before-validate.mjs.template](./templates/hooks/before-validate.mjs.template) | Pre-validation lifecycle event (optional, user reference) |
