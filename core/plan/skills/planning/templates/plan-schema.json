@@ -23,15 +23,35 @@
       "intent": "implement | wire-bdd",
       "status": "pending",
       "estimated_context": "~120K tokens",
-      "done_signal": "bdd | validator",
       "done_tags": ["@SC-XXXX"],
       "depends_on": [],
       "description": "string",
       "files_to_modify": ["path/to/file"],
+      "sub_tasks": null,
       "summary": "null | string (written post-build)",
       "commits": [],
       "quality_gates": null,
       "error": null
     }
-  ]
+  ],
+  "sub_task_schema": {
+    "_comment": "When sub_tasks is not null, each element follows this shape:",
+    "id": "T-NNN-M (parent ID + dash + integer)",
+    "title": "string",
+    "status": "pending | in_progress | implemented | failed",
+    "estimated_context": "~100K tokens",
+    "depends_on": ["T-NNN-M (sibling IDs only)"],
+    "description": "string",
+    "files_to_modify": ["path/to/file"],
+    "summary": null,
+    "commits": [],
+    "quality_gates": null,
+    "error": null
+  },
+  "sub_task_rules": {
+    "null_when_no_sub_tasks": true,
+    "inherit_from_parent": ["use_cases", "feature", "domain", "architecture", "intent", "done_tags"],
+    "depends_on_scope": "sibling sub-task IDs only",
+    "shared_worktree": "all sub-tasks share the parent task worktree"
+  }
 }

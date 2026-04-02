@@ -2,13 +2,13 @@
 name: planning
 description: >-
   Rules for generating implementation plans from PRD specs. Defines plan file
-  format, task decomposition rules, context budgets, done signals, task status
+  format, task decomposition rules, context budgets, done tags, task status
   lifecycle, naming conventions, and slug generation. Used by /m:plan.
 ---
 
 # Planning
 
-Rules for generating implementation plan files in `.molcajete/plans/`. Plans are **JSON files** — never markdown. A plan decomposes specified use cases into ordered tasks that the build command will execute.
+Rules for generating implementation plan files in `.molcajete/plans/`. Plans are **JSON files** inside directories — never markdown. A plan decomposes specified use cases into ordered tasks that the build command will execute.
 
 ## When to Use
 
@@ -18,7 +18,19 @@ Rules for generating implementation plan files in `.molcajete/plans/`. Plans are
 
 ## Plan File Format
 
-Plan files live at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}.json`. The exact JSON structure is defined by [plan-schema.json](./templates/plan-schema.json). Read the schema before generating any plan file. The output must be valid JSON written with `JSON.stringify(data, null, 2)` formatting — do not produce markdown plan files.
+Plan files live at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json`. Each plan gets its own directory so BDD reports and validation artifacts can live alongside the plan. The exact JSON structure is defined by [plan-schema.json](./templates/plan-schema.json). Read the schema before generating any plan file. The output must be valid JSON written with `JSON.stringify(data, null, 2)` formatting — do not produce markdown plan files.
+
+### Plan Directory Structure
+
+```
+.molcajete/plans/{YYYYMMDDHHmm}-{slug}/
+  plan.json
+  reports/
+    T-001-validate-1.json
+    T-001-validate-2.json
+    T-002-validate-1.json
+    final-test.json
+```
 
 ## Task Decomposition Rules
 
@@ -41,7 +53,7 @@ Infrastructure tasks that don't map to any scenario are allowed when they are pr
 - Test harness configuration
 - Shared middleware that multiple scenarios depend on
 
-These tasks use the **validator done signal** instead of BDD gate.
+These tasks have empty `done_tags` (`done_tags: []`) and run the full BDD suite as their gate.
 
 ### Cross-Domain Awareness
 
@@ -91,7 +103,36 @@ Each task must fit within an estimated **200K token context budget**. This budge
 - Reading relevant Gherkin files
 - The implementation work itself
 
-If a task would exceed the budget, split it into smaller tasks that each stay under 200K.
+If a task would exceed the budget, split it into **sub-tasks** within the same task (see Sub-Task Decomposition below). Do not create separate top-level tasks for what is logically one unit of work.
+
+### Sub-Task Decomposition
+
+Sub-tasks break a large task into sequential steps that share a single worktree and branch. Use sub-tasks when a task is too large for one context window but logically belongs together.
+
+#### When to Use Sub-Tasks
+
+| Condition | Sub-tasks? |
+|-----------|-----------|
+| Under 200K estimated context, no new infra needed | No |
+| Over 200K estimated context | Yes |
+| New infrastructure needed that other parts depend on | Yes |
+
+#### Sub-Task Rules
+
+- **ID format:** `T-NNN-M` — parent task ID + dash + integer (e.g., `T-003-1`, `T-003-2`). Never use decimal IDs.
+- **`sub_tasks` field:** `null` when the task has no sub-tasks. An array of sub-task objects when decomposed.
+- **Inheritance:** Sub-tasks inherit `use_cases`, `feature`, `domain`, `architecture`, `intent`, and `done_tags` from the parent task. These fields are not repeated in the sub-task object.
+- **Dependencies:** `depends_on` in a sub-task references **sibling sub-task IDs only** (e.g., `T-003-1`), never top-level task IDs.
+- **Shared worktree:** All sub-tasks run in the parent task's worktree — no separate branches.
+- **Validation split:** Sub-tasks get formatting + linting + code review + completeness checks (no BDD). BDD tests run only at the parent task level after all sub-tasks complete.
+- **Sizing:** Each sub-task should fit within 200K tokens. The parent task's `estimated_context` reflects the total across all sub-tasks.
+
+#### Sub-Task Object Shape
+
+See the `sub_task_schema` section in [plan-schema.json](./templates/plan-schema.json) for the exact fields. Key differences from top-level tasks:
+- No `use_cases`, `feature`, `domain`, `architecture`, `intent`, or `done_tags` (inherited from parent)
+- `depends_on` scoped to sibling IDs
+- `summary`, `commits`, `quality_gates`, `error` work the same as top-level tasks
 
 ### Task Ordering
 
@@ -107,19 +148,17 @@ Express dependencies explicitly with the `Depends on` field.
 
 Every task must have a done signal that determines when it is complete.
 
-### BDD Gate (Primary)
+### BDD Gate
 
-The task is done when its mapped Gherkin scenarios pass. The done signal lists the specific `@SC-XXXX` tags that must pass.
+The task is done when its BDD tests pass. The `done_tags` field controls filtering:
 
-Example: `Scenarios @SC-0A1b and @SC-0A2c pass`
+- **Non-empty `done_tags`:** Run BDD with `--tags` filter for the listed `@SC-XXXX` tags. The task is done when those scenarios pass.
+- **Empty `done_tags` (`[]`):** Run the full BDD suite unfiltered. Used for infrastructure tasks with no mapped scenarios.
 
-### Validator Gate (Fallback)
+Example (filtered): `done_tags: ["@SC-0A1b", "@SC-0A2c"]` → runs only those scenarios
+Example (full suite): `done_tags: []` → runs all scenarios
 
-For infrastructure tasks with no mapped scenarios, the done signal describes a validation check.
-
-Example: `Database migrations run successfully and schema matches expected state`
-
-Use validator gates sparingly — most tasks should have BDD gates.
+BDD tests are never skipped. Every task runs the BDD gate.
 
 ## Task Status Lifecycle
 
@@ -171,7 +210,7 @@ Derive the slug from the scope:
 | Multiple features | `mixed` | `mixed` |
 | Full scan | `full-scan` | `full-scan` |
 
-Full plan file name example: `202603261430-user-authentication.json`
+Full plan directory example: `202603261430-user-authentication/plan.json`
 
 ## Documentation Task Rule
 
@@ -179,7 +218,7 @@ Every plan must include a final task that updates directory documentation for al
 
 - Is always the **last task** in the plan (highest T-NNN number)
 - **Depends on** all other tasks in the plan
-- Uses the **validator done signal**: "README.md files exist and are current for all directories containing modified files"
+- Has `done_tags: []` (runs full BDD suite as its gate)
 - **Intent** matches the plan's intent (`implement` or `wire-bdd`)
 - References the code-documentation skill so the build agent knows the conventions
 - Lists `{directory}/README.md` for every directory that appears in preceding tasks' "Files to create/modify" lists

@@ -164,7 +164,7 @@ Build a JSON object matching this schema. The top-level object has `title`, `gen
 
 1. **BDD-aligned tasks** — each task advances at least one Gherkin scenario. Map scenarios to tasks by examining what code needs to exist for those assertions to pass.
 
-2. **Infrastructure tasks** — only when necessary as prerequisites (database setup, test harness, shared middleware). Use validator done signals.
+2. **Infrastructure tasks** — only when necessary as prerequisites (database setup, test harness, shared middleware). These tasks have empty `done_tags` and run the full BDD suite as their gate.
 
 3. **Context budget** — estimate each task at ≤ 200K tokens. Consider: source files to read + spec files + Gherkin + implementation work. Split if over budget.
 
@@ -178,8 +178,7 @@ Build a JSON object matching this schema. The top-level object has `title`, `gen
    - `intent`: `implement` (forward plan always uses implement)
    - `status`: `pending`
    - `estimated_context`: `~{N}K tokens`
-   - `done_signal`: `bdd` or `validator`
-   - `done_tags`: `["@SC-XXXX"]` for BDD gate (empty array for validator)
+   - `done_tags`: `["@SC-XXXX"]` for filtered BDD gate; empty array runs full suite
    - `depends_on`: `["T-NNN"]` or `[]`
    - `description`: what to implement, why, constraints
    - `files_to_modify`: expected file paths
@@ -195,7 +194,7 @@ Build a JSON object matching this schema. The top-level object has `title`, `gen
 
 5. **Plan-level fields** — also populate:
    - `base_branch`: current git branch (run `git branch --show-current`)
-   - `bdd_command`: detect per dispatch skill or read from `.molcajete/settings.json`, `null` if not detectable yet
+   - `bdd_command`: detect per dispatch skill or read from `.molcajete/apps.md` Testing → BDD section, `null` if not detectable yet
 
 6. **Order by dependency chain** — infrastructure first, data models before APIs, core logic before edge cases, happy-path before error-handling.
 
@@ -212,17 +211,17 @@ If "Cancel": stop.
 
 ## Step 11: Write Plan File
 
-1. Generate the filename:
+1. Generate the directory name:
    - Timestamp: current time as `YYYYMMDDHHmm`
    - Slug: derived from scope per the planning skill rules (feature name kebab-case, UC name kebab-case, `mixed`, or `full-scan`)
-   - Full name: `{YYYYMMDDHHmm}-{slug}.json`
+   - Directory: `{YYYYMMDDHHmm}-{slug}`
 
-2. Ensure directory exists:
+2. Create the plan directory:
    ```bash
-   mkdir -p .molcajete/plans
+   mkdir -p .molcajete/plans/{YYYYMMDDHHmm}-{slug}
    ```
 
-3. Write the plan file to `.molcajete/plans/{filename}`.
+3. Write the plan file to `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json`.
 
 ## Step 12: Report
 
