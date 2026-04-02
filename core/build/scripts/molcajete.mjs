@@ -77,6 +77,16 @@ const COMMIT_SESSION_SCHEMA = {
   required: ['status', 'commits'],
 };
 
+const DOC_SESSION_SCHEMA = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['done', 'failed'] },
+    files_modified: { type: 'array', items: { type: 'string' } },
+    error: { type: ['string', 'null'] },
+  },
+  required: ['status', 'files_modified'],
+};
+
 // ── Hook Constants ──
 
 const MANDATORY_HOOKS = ['health-check', 'run-tests', 'format', 'lint'];
@@ -210,10 +220,10 @@ function validateMandatoryHooks(hooks) {
  * @param {object} [opts] - Options: timeout (ms)
  * @returns {Promise<{ ok: boolean, data: object, stderr: string }>}
  */
-async function runHook(hookPath, input, { timeout = HOOK_TIMEOUT } = {}) {
+async function runHook(hookPath, input, { timeout = HOOK_TIMEOUT, cwd } = {}) {
   return new Promise((resolveP) => {
     const child = spawn(hookPath, [], {
-      cwd: process.cwd(),
+      cwd: cwd || process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -275,6 +285,72 @@ async function tryHook(hooks, name, input, opts) {
   return runHook(hooks[name], input, opts);
 }
 
+/**
+ * Poll health-check hook every 10s until all services report ready or timeout.
+ * Prints per-service status each cycle so the user sees progress.
+ */
+async function pollHealthCheck(hooks, timeoutMs, { cwd } = {}) {
+  const intervalMs = 10_000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await runHook(hooks['health-check'], {}, { cwd });
+
+    if (result.ok && result.data.status === 'ready') {
+      if (result.data.services) {
+        for (const [name, status] of Object.entries(result.data.services)) {
+          log(`  ${name}: ${status}`);
+        }
+      }
+      log('All services ready');
+      return { ok: true };
+    }
+
+    // Print current status so user sees progress
+    if (result.ok && result.data.services) {
+      for (const [name, status] of Object.entries(result.data.services)) {
+        log(`  ${name}: ${status}`);
+      }
+    } else if (!result.ok) {
+      log(`  health-check: hook error (${result.stderr.slice(0, 100)})`);
+    }
+
+    const remaining = Math.ceil((deadline - Date.now()) / 1000);
+    log(`Services not ready — retrying in 10s (${remaining}s remaining)`);
+    await sleep(intervalMs);
+  }
+
+  return { ok: false, error: `Health check timed out after ${Math.round(timeoutMs / 1000)}s` };
+}
+
+/**
+ * Start environment via start hook (optional) then poll health-check.
+ */
+async function startEnvironment(hooks, settings, { cwd } = {}) {
+  log('Starting environment...');
+  const startResult = await tryHook(hooks, 'start', {}, { cwd });
+  if (startResult && !startResult.ok) {
+    return { ok: false, error: `Start hook failed: ${startResult.stderr}` };
+  }
+  if (startResult && startResult.data.status === 'failed') {
+    return { ok: false, error: startResult.data.summary || 'Start hook reported failure' };
+  }
+
+  log('Waiting for services...');
+  return pollHealthCheck(hooks, settings.startTimeout, { cwd });
+}
+
+/**
+ * Stop environment via stop hook (optional).
+ */
+async function stopEnvironment(hooks, { cwd } = {}) {
+  log('Stopping environment...');
+  const result = await tryHook(hooks, 'stop', {}, { cwd });
+  if (result && !result.ok) {
+    log(`Warning: stop hook failed: ${result.stderr}`);
+  }
+}
+
 // ── Plan JSON Helpers ──
 
 function readPlan(planPath) {
@@ -291,6 +367,20 @@ function updatePlanJson(planPath, mutator) {
   const data = readPlan(planPath);
   mutator(data);
   writePlan(planPath, data);
+}
+
+function readSettings(projectRoot) {
+  const settingsPath = join(projectRoot, '.molcajete', 'settings.json');
+  const defaults = { useWorktrees: true, allowParallelTasks: false, startTimeout: 120000 };
+  if (!existsSync(settingsPath)) return defaults;
+  try {
+    const raw = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    return {
+      useWorktrees: raw.useWorktrees ?? defaults.useWorktrees,
+      allowParallelTasks: raw.allowParallelTasks ?? defaults.allowParallelTasks,
+      startTimeout: raw.startTimeout ?? defaults.startTimeout,
+    };
+  } catch { return defaults; }
 }
 
 function findTask(data, taskId) {
@@ -390,8 +480,8 @@ function updatePrdStatuses(projectRoot, planFile) {
   const implementedUcs = new Set();
   for (const task of data.tasks) {
     if (task.status === 'implemented') {
-      for (const tag of task.done_tags || []) doneTags.add(tag);
-      for (const uc of task.use_cases || []) implementedUcs.add(uc);
+      if (task.scenario) doneTags.add('@' + task.scenario);
+      if (task.use_case) implementedUcs.add(task.use_case);
     }
   }
 
@@ -770,36 +860,9 @@ async function cleanupWorktree(hooks, projectRoot, feature, taskId, taskContext 
  * @returns {{ ok: boolean, failures: string[], summary: string }}
  */
 async function runPreFlight(hooks, planFile) {
-  log('Phase 1: Pre-flight environment check');
+  log('Pre-flight: running baseline BDD tests');
   const failures = [];
 
-  // Start dev environment (optional — if user deleted the hook, manual start is fine)
-  const startResult = await tryHook(hooks, 'start', {});
-  if (startResult && !startResult.ok) {
-    failures.push(`Start hook failed: ${startResult.stderr}`);
-  } else if (startResult && startResult.data.status === 'failed') {
-    failures.push(startResult.data.summary || 'Start hook reported failure');
-  }
-
-  if (failures.length > 0) {
-    log(`Pre-flight FAILED: ${failures.join('; ')}`);
-    return { ok: false, failures, summary: 'Dev environment failed to start' };
-  }
-
-  // Health check
-  const healthResult = await runHook(hooks['health-check'], {});
-  if (!healthResult.ok) {
-    failures.push(`Health check hook failed: ${healthResult.stderr}`);
-  } else if (healthResult.data.status === 'failed') {
-    failures.push(...(healthResult.data.failures || ['Health check failed']));
-  }
-
-  if (failures.length > 0) {
-    log(`Pre-flight FAILED: ${failures.join('; ')}`);
-    return { ok: false, failures, summary: 'Environment health check failed' };
-  }
-
-  // Run BDD tests for plan scope (preflight)
   const data = readPlan(planFile);
   const scopeTags = (data.scope || []).map((s) => `@${s}`);
   const tags = scopeTags.length > 0
@@ -846,7 +909,7 @@ async function runDevSession(projectRoot, planFile, taskId, wtPath, priorSummari
   });
 
   const result = await invokeClaude(wtPath, [
-    '--model', 'sonnet',
+    '--model', 'opus',
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash',
     '--max-turns', MAX_TURNS_AGENT,
     '--max-budget-usd', BUDGET_AGENT,
@@ -895,7 +958,7 @@ async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath
 
   // ── Hook gates: format then lint (sequential — both modify files) ──
 
-  const fmtResult = await runHook(hooks['format'], { files: filesModified, services, ...taskContext }, { timeout: 60000 });
+  const fmtResult = await runHook(hooks['format'], { files: filesModified, services, ...taskContext }, { timeout: 60000, cwd: wtPath });
   if (!fmtResult.ok) {
     allIssues.push(`Format hook failed: ${fmtResult.stderr}`);
     structured.formatting.push(`Format hook failed: ${fmtResult.stderr}`);
@@ -904,7 +967,7 @@ async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath
     allIssues.push(...structured.formatting);
   }
 
-  const lintResult = await runHook(hooks['lint'], { files: filesModified, services, ...taskContext }, { timeout: 120000 });
+  const lintResult = await runHook(hooks['lint'], { files: filesModified, services, ...taskContext }, { timeout: 120000, cwd: wtPath });
   if (!lintResult.ok) {
     allIssues.push(`Lint hook failed: ${lintResult.stderr}`);
     structured.linting.push(`Lint hook failed: ${lintResult.stderr}`);
@@ -913,22 +976,23 @@ async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath
     allIssues.push(...structured.linting);
   }
 
-  // ── BDD hook (task-level only, skipped for sub-tasks and empty done_tags) ──
+  // ── BDD hook (task-level only, skipped for sub-tasks and null scenario) ──
 
-  const doneTags = task?.done_tags || [];
+  const scenarioTag = task?.scenario ? ['@' + task.scenario] : [];
 
-  if (!isSubTask && doneTags.length > 0) {
+  if (!isSubTask && scenarioTag.length > 0) {
 
     const bddResult = await runHook(hooks['run-tests'], {
-      tags: doneTags,
+      tags: scenarioTag,
       scope: 'task',
       ...taskContext,
-    }, { timeout: 300000 });
+    }, { timeout: 300000, cwd: wtPath });
 
     if (!bddResult.ok) {
       allIssues.push(`Run-tests hook failed: ${bddResult.stderr}`);
       structured.bdd_tests.push(`Run-tests hook failed: ${bddResult.stderr}`);
     } else if (bddResult.data.status === 'error') {
+      // HARD STOP — test infrastructure is broken, no point running Claude gates
       structured.bdd_tests = bddResult.data.failures || ['Test infrastructure error'];
       allIssues.push(...structured.bdd_tests);
 
@@ -938,6 +1002,9 @@ async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath
         const logSnippet = logsResult.data.logs.slice(0, 2000);
         allIssues.push(`Environment logs:\n${logSnippet}`);
       }
+
+      log(`Validation ${taskId}: BDD setup error — hard stop (skipping Claude gates)`);
+      return { ok: false, issues: allIssues, structured, hardStop: true };
     } else if (bddResult.data.status === 'fail') {
       structured.bdd_tests = bddResult.data.failures || [];
       allIssues.push(...structured.bdd_tests);
@@ -1089,6 +1156,77 @@ async function runCommitSession(projectRoot, planFile, taskId, wtPath, devSummar
   return { ok: false, structured: out };
 }
 
+/**
+ * Run a doc session for a task. Non-blocking — failures are warnings.
+ */
+async function runDocSession(projectRoot, planFile, task, wtPath, devSummary, filesModified) {
+  const taskId = task.id;
+  const sessionLabel = `doc-${taskId}`;
+  log(`Doc session: ${taskId}`);
+
+  const payload = JSON.stringify({
+    plan_path: planFile,
+    task_id: taskId,
+    worktree_path: wtPath,
+    intent: task.intent,
+    files_modified: filesModified,
+    dev_summary: devSummary,
+  });
+
+  const result = await invokeClaude(wtPath, [
+    '--model', 'claude-haiku-4-5',
+    '--max-turns', '30',
+    '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash,Agent',
+    '--json-schema', JSON.stringify(DOC_SESSION_SCHEMA),
+    '--name', sessionLabel,
+    `/m:sessions/doc-session ${payload}`,
+  ]);
+
+  const out = extractStructuredOutput(result.output);
+
+  if (result.exitCode === 0 && out.status === 'done') {
+    log(`Doc session ${taskId}: ${(out.files_modified || []).length} file(s) updated`);
+    return { ok: true, structured: out };
+  }
+
+  const error = out.error || 'Doc session failed';
+  log(`Doc session ${taskId}: warning — ${error}`);
+  return { ok: false, structured: out };
+}
+
+/**
+ * Commit documentation changes after a doc session.
+ */
+async function commitDocChanges(wtPath, taskId, docFiles) {
+  if (!docFiles || docFiles.length === 0) return { ok: true };
+
+  try {
+    for (const f of docFiles) {
+      execSync(`git add "${f}"`, { cwd: wtPath, stdio: 'pipe' });
+    }
+
+    // Check if there are staged changes
+    try {
+      execSync('git diff --cached --quiet', { cwd: wtPath, stdio: 'pipe' });
+      // No staged changes — nothing to commit
+      log(`Doc commit ${taskId}: no changes to commit`);
+      return { ok: true };
+    } catch {
+      // There are staged changes — proceed with commit
+    }
+
+    execSync(
+      `git commit -m "docs: update documentation for ${taskId}"`,
+      { cwd: wtPath, stdio: 'pipe' },
+    );
+    log(`Doc commit ${taskId}: committed`);
+    return { ok: true };
+  } catch (err) {
+    log(`Doc commit ${taskId}: warning — ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+}
+
 // ── Dev-Validate Cycle ──
 
 /**
@@ -1106,11 +1244,8 @@ function buildTaskContext(data, taskId) {
 
   const ctx = {};
   if (task.feature) ctx.feature_id = task.feature;
-  if (task.use_cases?.length > 0) ctx.usecase_id = task.use_cases[0];
-  if (task.done_tags?.length > 0) {
-    const scTag = task.done_tags.find((t) => t.startsWith('@SC-'));
-    if (scTag) ctx.scenario_id = scTag.replace(/^@/, '');
-  }
+  if (task.use_case) ctx.usecase_id = task.use_case;
+  if (task.scenario) ctx.scenario_id = task.scenario;
   return ctx;
 }
 
@@ -1167,6 +1302,17 @@ async function runDevValidateCycle(hooks, projectRoot, planFile, taskId, wtPath,
     }
 
     if (!val.ok) {
+      // Hard stop on infrastructure errors — no point retrying code changes
+      if (val.hardStop) {
+        log(`Cycle ${cycle}: BDD setup error — stopping task (infrastructure is broken)`);
+        return {
+          ok: false,
+          devResult: dev.structured,
+          validateResult: val.structured,
+          error: `Setup error: ${val.issues.join('; ').slice(0, 500)}`,
+        };
+      }
+
       // Feed issues to next dev session
       issues = val.issues;
       log(`Cycle ${cycle} failed with ${issues.length} issues — ${cycle < MAX_DEV_VALIDATE_CYCLES ? 'retrying' : 'exhausted'}`);
@@ -1327,9 +1473,8 @@ async function mergeWorktree(hooks, projectRoot, planFile, feature, taskId, base
 /**
  * Run a simple task (no sub-tasks): dev-validate cycle then merge.
  */
-async function runSimpleTask(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
+async function runSimpleTask(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir, wtPath) {
   const taskId = task.id;
-  const wtPath = worktreePath(projectRoot, task.feature, taskId);
 
   const data = readPlan(planFile);
   const taskContext = buildTaskContext(data, taskId);
@@ -1348,13 +1493,29 @@ async function runSimpleTask(hooks, projectRoot, planFile, task, baseBranch, pri
     return { ok: false, error: result.error, devResult: result.devResult };
   }
 
-  // Merge
-  const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, priorSummaries, planDir);
-  if (!merge.ok) {
-    await tryHook(hooks, 'after-task', {
-      task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
-    });
-    return { ok: false, error: merge.error, devResult: result.devResult };
+  // Doc session + merge only in worktree mode (wtPath !== projectRoot)
+  if (wtPath !== projectRoot) {
+    // Doc session (non-blocking)
+    const filesModified = result.devResult?.files_modified || [];
+    const devSummary = result.devResult?.summary || '';
+    const doc = await runDocSession(projectRoot, planFile, task, wtPath, devSummary, filesModified);
+    if (doc.ok && doc.structured?.files_modified?.length > 0) {
+      const docCommit = await commitDocChanges(wtPath, taskId, doc.structured.files_modified);
+      if (!docCommit.ok) {
+        log(`Warning: doc commit failed for ${taskId} — proceeding to merge`);
+      }
+    } else if (!doc.ok) {
+      log(`Warning: doc session failed for ${taskId} — proceeding to merge`);
+    }
+
+    // Merge
+    const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, priorSummaries, planDir);
+    if (!merge.ok) {
+      await tryHook(hooks, 'after-task', {
+        task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
+      });
+      return { ok: false, error: merge.error, devResult: result.devResult };
+    }
   }
 
   // Lifecycle hook: after-task
@@ -1368,11 +1529,11 @@ async function runSimpleTask(hooks, projectRoot, planFile, task, baseBranch, pri
 /**
  * Run a task with sub-tasks: iterate sub-tasks, then task-level validation.
  */
-async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
+async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir, wtPath) {
   const taskId = task.id;
-  const wtPath = worktreePath(projectRoot, task.feature, taskId);
   const subTasks = task.sub_tasks;
   const subSummaries = [...priorSummaries];
+  const allFilesModified = [];
 
   const data = readPlan(planFile);
   const taskContext = buildTaskContext(data, taskId);
@@ -1414,17 +1575,16 @@ async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranc
     const result = await runDevValidateCycle(hooks, projectRoot, planFile, stId, wtPath, subSummaries, planDir);
 
     if (!result.ok) {
-      updateSubTaskStatus(planFile, stId, 'failed', { error: result.error });
+      updateSubTaskStatus(planFile, stId, 'failed', { errors: [result.error] });
       return { ok: false, error: `Sub-task ${stId} failed: ${result.error}` };
     }
 
     // Update sub-task as implemented
     updateSubTaskStatus(planFile, stId, 'implemented', {
       summary: result.devResult?.summary || null,
-      commits: result.devResult?.commits || [],
-      quality_gates: result.validateResult || null,
     });
 
+    if (result.devResult?.files_modified) allFilesModified.push(...result.devResult.files_modified);
     if (result.devResult?.summary) subSummaries.push(result.devResult.summary);
     log(`Sub-task ${stId}: implemented`);
   }
@@ -1437,6 +1597,12 @@ async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranc
   if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, taskVal.structured);
 
   if (!taskVal.ok) {
+    // Hard stop on infrastructure errors — no dev fix can help
+    if (taskVal.hardStop) {
+      log(`Task-level validation: BDD setup error — stopping task (infrastructure is broken)`);
+      return { ok: false, error: `Setup error: ${taskVal.issues.join('; ').slice(0, 500)}` };
+    }
+
     // Task-level validation failed — dev session gets full task scope
     log(`Task-level validation failed for ${taskId} — launching fix cycle`);
     let fixIssues = taskVal.issues;
@@ -1454,6 +1620,12 @@ async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranc
       if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, reVal.structured);
 
       if (!reVal.ok) {
+        // Hard stop on infrastructure errors in retry cycles too
+        if (reVal.hardStop) {
+          log(`Task-level fix cycle ${cycle}: BDD setup error — stopping task`);
+          return { ok: false, error: `Setup error: ${reVal.issues.join('; ').slice(0, 500)}` };
+        }
+
         if (cycle === MAX_DEV_VALIDATE_CYCLES) {
           return { ok: false, error: `Task-level validation exhausted after ${MAX_DEV_VALIDATE_CYCLES} fix cycles` };
         }
@@ -1477,13 +1649,28 @@ async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranc
     }
   }
 
-  // Merge
-  const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, subSummaries, planDir);
-  if (!merge.ok) {
-    await tryHook(hooks, 'after-task', {
-      task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
-    });
-    return { ok: false, error: merge.error };
+  // Doc session + merge only in worktree mode (wtPath !== projectRoot)
+  if (wtPath !== projectRoot) {
+    // Doc session (non-blocking)
+    const devSummary = subSummaries.join('\n');
+    const doc = await runDocSession(projectRoot, planFile, task, wtPath, devSummary, allFilesModified);
+    if (doc.ok && doc.structured?.files_modified?.length > 0) {
+      const docCommit = await commitDocChanges(wtPath, taskId, doc.structured.files_modified);
+      if (!docCommit.ok) {
+        log(`Warning: doc commit failed for ${taskId} — proceeding to merge`);
+      }
+    } else if (!doc.ok) {
+      log(`Warning: doc session failed for ${taskId} — proceeding to merge`);
+    }
+
+    // Merge
+    const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, subSummaries, planDir);
+    if (!merge.ok) {
+      await tryHook(hooks, 'after-task', {
+        task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
+      });
+      return { ok: false, error: merge.error };
+    }
   }
 
   // Lifecycle hook: after-task
@@ -1560,19 +1747,22 @@ The plan name can be:
 async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) {
   log(`Starting build: all pending tasks from ${planName}`);
 
+  const settings = readSettings(projectRoot);
+  log(`Mode: ${settings.useWorktrees ? 'worktree' : 'serial'} | Start timeout: ${Math.round(settings.startTimeout / 1000)}s`);
+
   // Reset failed tasks back to pending so they are retried
   updatePlanJson(planFile, (d) => {
     for (const t of d.tasks) {
       if (t.status === 'failed') {
         t.status = 'pending';
-        t.error = null;
+        t.errors = [];
       }
       // Also reset failed sub-tasks
       if (t.sub_tasks) {
         for (const st of t.sub_tasks) {
           if (st.status === 'failed') {
             st.status = 'pending';
-            st.error = null;
+            st.errors = [];
           }
         }
       }
@@ -1583,14 +1773,29 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
   const data = readPlan(planFile);
   const baseBranch = data.base_branch || 'main';
 
+  // ── Environment startup for pre-flight ──
+
+  const envStart = await startEnvironment(hooks, settings, { cwd: projectRoot });
+  if (!envStart.ok) {
+    log(`BUILD ABORTED: environment startup failed — ${envStart.error}`);
+    updatePlanJson(planFile, (d) => { d.status = 'failed'; });
+    process.exit(1);
+  }
+
   // ── Phase 1: Pre-flight ──
 
   const envCheck = await runPreFlight(hooks, planFile);
   if (!envCheck.ok) {
-    log('BUILD ABORTED: pre-flight environment check failed');
+    log('BUILD ABORTED: pre-flight BDD baseline failed');
     for (const f of envCheck.failures) log(`  - ${f}`);
+    await stopEnvironment(hooks, { cwd: projectRoot });
     updatePlanJson(planFile, (d) => { d.status = 'failed'; });
     process.exit(1);
+  }
+
+  // In worktree mode, stop environment after pre-flight (will restart per-task)
+  if (settings.useWorktrees) {
+    await stopEnvironment(hooks, { cwd: projectRoot });
   }
 
   // ── Phase 2: Task Loop ──
@@ -1628,7 +1833,7 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         t.status = 'failed';
-        t.error = 'Dependency failed';
+        t.errors = ['Dependency failed'];
       });
       failedCount++;
       continue;
@@ -1647,18 +1852,40 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
     // Build task context for hook calls
     const freshTaskContext = buildTaskContext(freshData, taskId);
 
-    // Prepare worktree
-    const wt = await prepareWorktree(hooks, projectRoot, freshTask.feature, taskId, baseBranch, freshTaskContext);
-    if (!wt.ok) {
-      log(`Task ${taskId}: worktree preparation failed`);
-      updatePlanJson(planFile, (d) => {
-        const t = findTask(d, taskId);
-        t.status = 'failed';
-        t.error = wt.error || 'Worktree preparation failed';
-      });
-      failedCount++;
-      log(`Task ${taskId}: failed — stopping build`);
-      break;
+    let wtPath;
+
+    if (settings.useWorktrees) {
+      // ── Worktree mode: prepare worktree, start environment per-task ──
+      const wt = await prepareWorktree(hooks, projectRoot, freshTask.feature, taskId, baseBranch, freshTaskContext);
+      if (!wt.ok) {
+        log(`Task ${taskId}: worktree preparation failed`);
+        updatePlanJson(planFile, (d) => {
+          const t = findTask(d, taskId);
+          t.status = 'failed';
+          t.errors = [wt.error || 'Worktree preparation failed'];
+        });
+        failedCount++;
+        log(`Task ${taskId}: failed — stopping build`);
+        break;
+      }
+      wtPath = wt.path;
+
+      const taskEnv = await startEnvironment(hooks, settings, { cwd: wtPath });
+      if (!taskEnv.ok) {
+        log(`Task ${taskId}: environment startup failed — ${taskEnv.error}`);
+        updatePlanJson(planFile, (d) => {
+          const t = findTask(d, taskId);
+          t.status = 'failed';
+          t.errors = [taskEnv.error || 'Environment startup failed'];
+        });
+        await cleanupWorktree(hooks, projectRoot, freshTask.feature, taskId, freshTaskContext);
+        failedCount++;
+        log(`Task ${taskId}: failed — stopping build`);
+        break;
+      }
+    } else {
+      // ── Serial mode: no worktree, use project root ──
+      wtPath = projectRoot;
     }
 
     // Collect prior summaries
@@ -1672,9 +1899,9 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
     // Run task (simple or with sub-tasks)
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir, wtPath);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir, wtPath);
     }
 
     if (result.ok) {
@@ -1682,9 +1909,8 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         t.status = 'implemented';
-        t.error = null;
+        t.errors = [];
         if (result.devResult?.summary) t.summary = result.devResult.summary;
-        if (result.devResult?.commits) t.commits = result.devResult.commits;
       });
       doneCount++;
       log(`Task ${taskId}: implemented`);
@@ -1692,68 +1918,93 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         t.status = 'failed';
-        t.error = result.error || 'Task failed';
+        t.errors = [result.error || 'Task failed'];
       });
-      // Clean up worktree on failure
-      await cleanupWorktree(hooks, projectRoot, freshTask.feature, taskId, freshTaskContext);
+      if (settings.useWorktrees) {
+        await cleanupWorktree(hooks, projectRoot, freshTask.feature, taskId, freshTaskContext);
+      }
       failedCount++;
       log(`Task ${taskId}: failed — stopping build`);
+      // Stop per-task environment before breaking
+      if (settings.useWorktrees) {
+        await stopEnvironment(hooks, { cwd: wtPath });
+      }
       break;
+    }
+
+    // Stop per-task environment in worktree mode
+    if (settings.useWorktrees) {
+      await stopEnvironment(hooks, { cwd: wtPath });
     }
   }
 
   // ── Phase 3: Post-flight ──
 
   if (failedCount === 0 && doneCount === taskCount) {
-    const finalResult = await runFinalTests(hooks, planFile);
-
-    // Save final tests report
-    writeReport(planDir, 'final-test', { failures: finalResult.failures });
-
-    if (!finalResult.ok) {
-      log('Final tests failures detected — launching plan-level fix cycle');
-
-      // Plan-level dev-validate cycle (not bound to a single task)
-      let planFixOk = false;
-      let planIssues = finalResult.failures;
-
-      for (let cycle = 1; cycle <= MAX_DEV_VALIDATE_CYCLES; cycle++) {
-        log(`Plan-level fix cycle ${cycle}/${MAX_DEV_VALIDATE_CYCLES}`);
-
-        // Dev session at project root (plan scope, not task scope)
-        const dev = await runDevSession(
-          projectRoot, planFile, 'plan-level', projectRoot,
-          [], planIssues
-        );
-
-        if (!dev.ok) {
-          log('Plan-level dev session failed');
-          break;
-        }
-
-        // Re-run final tests
-        const reCheck = await runFinalTests(hooks, planFile);
-        if (reCheck.ok) {
-          planFixOk = true;
-          break;
-        }
-
-        planIssues = reCheck.failures;
-        log(`Plan-level fix cycle ${cycle}: ${planIssues.length} failures remain`);
-      }
-
-      if (!planFixOk) {
-        log('Plan-level fix cycles exhausted — marking plan as failed');
+    // Start environment for post-flight (worktree mode stopped it per-task)
+    if (settings.useWorktrees) {
+      const postEnv = await startEnvironment(hooks, settings, { cwd: projectRoot });
+      if (!postEnv.ok) {
+        log(`Post-flight environment startup failed — ${postEnv.error}`);
         updatePlanJson(planFile, (d) => { d.status = 'failed'; });
         failedCount++;
       }
     }
 
-    // PRD status propagation
     if (failedCount === 0) {
-      updatePrdStatuses(projectRoot, planFile);
+      const finalResult = await runFinalTests(hooks, planFile);
+
+      // Save final tests report
+      writeReport(planDir, 'final-test', { failures: finalResult.failures });
+
+      if (!finalResult.ok) {
+        log('Final tests failures detected — launching plan-level fix cycle');
+
+        // Plan-level dev-validate cycle (not bound to a single task)
+        let planFixOk = false;
+        let planIssues = finalResult.failures;
+
+        for (let cycle = 1; cycle <= MAX_DEV_VALIDATE_CYCLES; cycle++) {
+          log(`Plan-level fix cycle ${cycle}/${MAX_DEV_VALIDATE_CYCLES}`);
+
+          // Dev session at project root (plan scope, not task scope)
+          const dev = await runDevSession(
+            projectRoot, planFile, 'plan-level', projectRoot,
+            [], planIssues
+          );
+
+          if (!dev.ok) {
+            log('Plan-level dev session failed');
+            break;
+          }
+
+          // Re-run final tests
+          const reCheck = await runFinalTests(hooks, planFile);
+          if (reCheck.ok) {
+            planFixOk = true;
+            break;
+          }
+
+          planIssues = reCheck.failures;
+          log(`Plan-level fix cycle ${cycle}: ${planIssues.length} failures remain`);
+        }
+
+        if (!planFixOk) {
+          log('Plan-level fix cycles exhausted — marking plan as failed');
+          updatePlanJson(planFile, (d) => { d.status = 'failed'; });
+          failedCount++;
+        }
+      }
+
+      // PRD status propagation
+      if (failedCount === 0) {
+        updatePrdStatuses(projectRoot, planFile);
+      }
     }
   }
+
+  // Stop environment (serial mode ran it the whole time; worktree mode started it for post-flight)
+  await stopEnvironment(hooks, { cwd: projectRoot });
 
   // Update plan-level status
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
@@ -1769,14 +2020,14 @@ async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) 
   const finalData = readPlan(planFile);
   for (const task of finalData.tasks) {
     const status = task.status.padEnd(12);
-    const error = task.error ? ` (${task.error})` : '';
+    const error = task.errors?.length ? ` (${task.errors.join('; ')})` : '';
     process.stdout.write(`  ${task.id.padEnd(8)}  ${status} ${task.title}${error}\n`);
 
     // Print sub-task statuses
     if (task.sub_tasks) {
       for (const st of task.sub_tasks) {
         const stStatus = st.status.padEnd(12);
-        const stError = st.error ? ` (${st.error})` : '';
+        const stError = st.errors?.length ? ` (${st.errors.join('; ')})` : '';
         process.stdout.write(`    ${st.id.padEnd(10)}  ${stStatus} ${st.title}${stError}\n`);
       }
     }
