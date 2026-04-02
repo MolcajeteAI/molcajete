@@ -153,7 +153,7 @@ Also confirm by checking that step files exist (in `bdd/steps/` or framework-con
 
 Read the template at [run-tests.mjs.template](./templates/hooks/run-tests.mjs.template) and replace the `__BDD_COMMAND__`, `__TAGS_FLAG__`, `__FORMAT_FLAGS__`, and `__TAG_JOIN__` placeholders. The `__TAG_JOIN__` value must be a quoted string (e.g., `' or '`) — the hook joins the tags array with this separator before passing to the BDD runner. Write to `.molcajete/hooks/run-tests.mjs` and make it executable.
 
-Also write BDD settings (framework, language, format) to `.molcajete/settings.json` for other commands that need BDD metadata (gherkin skill cache).
+Also write BDD settings (framework, language, format) to `.molcajete/settings.json` for other commands that need BDD metadata (gherkin skill cache). The same file supports build settings (`useWorktrees`, `allowParallelTasks`, `startTimeout`) — these are read with defaults and do not need to be written by setup.
 
 #### 5c: Per-Domain Tooling → `format` and `lint` Hooks
 
@@ -203,7 +203,9 @@ For each domain, detect:
 
 Never store `make`, `make -C`, `npm run`, or `pnpm --filter` commands. Hooks must contain the exact tool binary invocation.
 
-**File-aware routing:** Each formatter/linter entry includes a `service` name, a `glob` pattern (e.g., `server/**/*.go`), a `command` with `{files}` placeholder (e.g., `cd server && gofmt -l {files}`), and a `fallback` command for when no files are passed (e.g., `cd server && gofmt -l .`). The glob is derived from the service's root directory and the language's file extensions.
+**File-aware routing:** Each formatter/linter entry includes a `service` name, a `glob` pattern (e.g., `server/**/*.go`), a `command` with `{files}` placeholder (e.g., `cd server && gofmt -l {files}`), and a `fallback` command for when no files are passed (e.g., `cd server && gofmt -l .`). The glob is derived from the service's root directory and the language's file extensions. The template auto-strips the service prefix from file paths when the command starts with `cd {dir} &&` — e.g., input path `bdd/features/steps/foo.py` becomes `features/steps/foo.py` after `cd bdd`.
+
+**Worktree awareness:** Hooks inherit their working directory from the orchestrator. During validation, the orchestrator sets `cwd` to the worktree path so hooks operate on the correct files. Hooks must NOT use `process.chdir()` to override the working directory — doing so breaks worktree builds by pointing at the main repo instead of the worktree where new files exist. However, hooks SHOULD compute `repoRoot` from `__dirname` (since hooks live in the main repo at `.molcajete/hooks/`) to resolve tool binary paths — virtual environments (`.venv/bin/`) and `node_modules/.bin/` only exist in the main repo, not in worktrees. The templates include a `.venv/bin/` resolver that replaces relative tool paths with absolute paths from `repoRoot`.
 
 Read the templates at [format.mjs.template](./templates/hooks/format.mjs.template) and [lint.mjs.template](./templates/hooks/lint.mjs.template). Replace the `__FORMAT_CONFIG_PLACEHOLDER__` / `__LINT_CONFIG_PLACEHOLDER__` comments with the detected entries array using the `{ service, glob, command, fallback }` format. Write to `.molcajete/hooks/format.mjs` and `.molcajete/hooks/lint.mjs` and make them executable.
 

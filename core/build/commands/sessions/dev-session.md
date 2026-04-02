@@ -1,6 +1,6 @@
 ---
 description: Development session — implement code for a task or sub-task, write unit tests
-model: claude-sonnet-4-6
+model: claude-opus-4-6
 argument-hint: "<json-payload>"
 allowed-tools:
   - Read
@@ -38,7 +38,7 @@ Read skills that govern this session:
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
-3. For sub-tasks: the parent task provides `use_cases`, `feature`, `domain`, `architecture`, `intent`, `done_tags`
+3. For sub-tasks: the parent task provides `use_case`, `feature`, `domain`, `architecture`, `intent`, `scenario`
 4. Read project context files (in the worktree):
    - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/DOMAINS.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
@@ -52,9 +52,9 @@ Read skills that govern this session:
 
 ### 3.0 Activate task scenarios
 
-Before implementing, remove lifecycle tags (`@pending`, `@dirty`) from all scenarios matching this task's `done_tags` in `.feature` files:
+Before implementing, remove lifecycle tags (`@pending`, `@dirty`) from all scenarios matching this task's `scenario` in `.feature` files:
 
-1. For each `@SC-XXXX` in the task's `done_tags`:
+1. If the task's `scenario` is non-null, derive the tag `@SC-XXXX` by prepending `@`:
    - Grep `bdd/features/` for `@SC-XXXX`
    - If found, edit the tag line to remove `@pending` and/or `@dirty`
 2. This makes the scenarios "active" for the validation session's BDD gate
@@ -66,8 +66,8 @@ Include the modified `.feature` files in the `files_modified` output.
 
 Follow the dispatch skill's implementation procedure based on the task's intent:
 
-- **`implement` intent:** Phase A (production code + unit tests) then Phase B (step definitions + docs)
-- **`wire-bdd` intent:** Single phase (step definitions + docs, no production code changes)
+- **`implement` intent:** Phase A (production code + unit tests) then Phase B (step definitions)
+- **`wire-bdd` intent:** Single phase (step definitions, no production code changes)
 
 **On retry (issues list is non-empty):** Focus on fixing the reported issues. Read the specific files and lines mentioned. Fix all issues.
 

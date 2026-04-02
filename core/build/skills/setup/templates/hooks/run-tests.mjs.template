@@ -7,6 +7,13 @@
 // Output (stdout): { "status": "pass"|"fail"|"error", "failures": [], "summary": "" }
 
 import { execSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Resolve repo root for tool paths (venvs, node_modules live in main repo, not worktrees).
+// NOTE: Do NOT process.chdir — cwd comes from the orchestrator (may be a worktree).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, '..', '..');
 
 const SCHEMA = {
   input: {
@@ -61,30 +68,72 @@ try {
   // Distinguish setup errors from test failures
   const setupPatterns = [
     /connection refused/i,
+    /connection timed out/i,
     /command not found/i,
     /no such file or directory/i,
     /module not found/i,
     /cannot find module/i,
     /not installed/i,
+    /ECONNREFUSED/,
+    /ECONNRESET/,
+    /ETIMEDOUT/,
+    /502 server error/i,
+    /503 service unavailable/i,
+    /504 gateway timeout/i,
+    /bad gateway/i,
+    /service unavailable/i,
   ];
 
   const isSetupError = setupPatterns.some((p) => p.test(stderr) || p.test(stdout));
 
   if (isSetupError) {
+    // Extract the most relevant error line instead of dumping raw output
+    const combined = (stderr || stdout).trim();
+    const errorLine = combined.split('\n').find((l) =>
+      setupPatterns.some((p) => p.test(l))
+    ) || combined.slice(0, 500);
+
     process.stdout.write(
       JSON.stringify({
         status: 'error',
-        failures: [`Setup error: ${(stderr || stdout).trim().slice(0, 500)}`],
+        failures: [`Setup error: ${errorLine.trim().slice(0, 500)}`],
         summary: 'Test infrastructure is broken — cannot run tests',
       }) + '\n',
     );
   } else {
-    // Parse test output for individual failures
+    // Parse test output for individual failures.
+    // When the runner outputs JSON (e.g., behave --format json), extract
+    // scenario-level errors instead of dumping raw JSON lines.
     const combined = stdout + '\n' + stderr;
-    const failureLines = combined
-      .split('\n')
-      .filter((l) => /fail|error|assert/i.test(l))
-      .slice(0, 50);
+    let failureLines;
+
+    try {
+      const parsed = JSON.parse(stdout);
+      if (Array.isArray(parsed)) {
+        // Behave/Cucumber JSON: array of features → elements → steps
+        failureLines = [];
+        for (const feature of parsed) {
+          for (const el of feature.elements || []) {
+            for (const step of el.steps || []) {
+              if (step.result?.status === 'failed' || step.result?.status === 'error') {
+                const loc = `${feature.location || ''}`;
+                const msg = step.result?.error_message?.split('\n')[0] || `${step.keyword}${step.name}`;
+                failureLines.push(`[${loc}] ${el.name}: ${msg}`);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // Not JSON — fall through to line-based parsing
+    }
+
+    if (!failureLines || failureLines.length === 0) {
+      failureLines = combined
+        .split('\n')
+        .filter((l) => l.trim() && /fail|error|assert/i.test(l) && !l.trim().startsWith('{') && !l.trim().startsWith('['))
+        .slice(0, 50);
+    }
 
     process.stdout.write(
       JSON.stringify({

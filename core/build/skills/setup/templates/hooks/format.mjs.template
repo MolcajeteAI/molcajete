@@ -7,6 +7,13 @@
 // Output (stdout): { "status": "pass"|"fail", "issues": ["src/foo.ts: not formatted"] }
 
 import { execSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Resolve repo root for tool paths (venvs, node_modules live in main repo, not worktrees).
+// NOTE: Do NOT process.chdir — cwd comes from the orchestrator (may be a worktree).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(__dirname, '..', '..');
 
 const SCHEMA = {
   input: {
@@ -62,11 +69,23 @@ for (const fmt of formatters) {
 
   let cmd;
   if (requestedFiles.length > 0) {
-    const matched = requestedFiles.filter((f) => matchGlob(f, fmt.glob));
+    let matched = requestedFiles.filter((f) => matchGlob(f, fmt.glob));
     if (matched.length === 0) continue;
+    // Strip service prefix when command uses cd {dir} (avoids double-prefix)
+    const cdMatch = fmt.command.match(/^cd\s+(\S+)\s+&&/);
+    if (cdMatch) {
+      const prefix = cdMatch[1] + '/';
+      matched = matched.map((f) => (f.startsWith(prefix) ? f.slice(prefix.length) : f));
+    }
     cmd = fmt.command.replace('{files}', matched.join(' '));
   } else {
     cmd = fmt.fallback;
+  }
+
+  // Resolve local tool paths (.venv/bin/, node_modules/.bin/) to main repo
+  const cdDir = cmd.match(/^cd\s+(\S+)\s+&&/);
+  if (cdDir) {
+    cmd = cmd.replace(/\.venv\/bin\//g, `${repoRoot}/${cdDir[1]}/.venv/bin/`);
   }
 
   try {
