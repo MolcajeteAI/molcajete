@@ -305,7 +305,7 @@ Run the scaffold procedure from `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/ref
 - Check for existing scaffold, create if missing
 - Detect domains, language, format
 - Create INDEX.md files and world module
-- Persist BDD settings to `.molcajete/settings.json`
+- Persist BDD settings to `.molcajete/apps.md`
 - Validate existing indexes, rebuild if drift detected
 
 ### 11.2 Domain Selection
@@ -322,7 +322,7 @@ Use a single AskUserQuestion for all features at once:
 For each UC with scenarios, follow `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/references/generation.md`:
 
 1. **Dedup** — Grep `bdd/features/` for `@FEAT-XXXX` tag. Skip exact duplicate scenarios, warn on near-duplicates.
-2. **Construct** — Build .feature file content using the Gherkin Mapping table from the usecase-authoring skill.
+2. **Construct** — Build .feature file content using the Gherkin Mapping table from the usecase-authoring skill. All newly generated scenarios must include `@pending` in their tag line, after `@SC-XXXX` and before classification tags.
 3. **Write** — Write to `bdd/features/{domain}/{feature-name}.feature` (kebab-case). If appending to an existing file, use Edit to append new scenarios.
 
 ### 11.4 Generate Step Stubs
@@ -356,7 +356,7 @@ For each use case that received Gherkin generation:
    ```
    ### SC-XXXX: {Scenario Name} `pending`
    ```
-   Gherkin files stay clean — no status tags in `.feature` files.
+   Gherkin files carry `@pending` lifecycle tags — these are added during generation (Step 11.3) and removed by the dev session during build.
 2. The UC file's YAML frontmatter `status` stays as-is (`pending`). Do not change it.
 3. Do not change the USE-CASES.md status column.
 
@@ -392,9 +392,11 @@ If the user wants edits, revise and present again.
 #### 11.8.3 Apply Gherkin Changes
 
 1. Edit the `.feature` file with the confirmed changes.
-2. If step definitions changed, edit the corresponding step definition files.
-3. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
-4. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
+2. For modified scenarios: add `@dirty` to the scenario's tag line if not already present. Remove `@pending` if present (the scenario was implemented before the spec change).
+3. For newly added scenarios within the modified UC: add `@pending` to the scenario's tag line.
+4. If step definitions changed, edit the corresponding step definition files.
+5. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
+6. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
 
 ## Step 12: Report
 

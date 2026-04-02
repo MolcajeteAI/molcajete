@@ -215,7 +215,7 @@ Produces:
 Launched as a subagent after user reviews T1 output. Receives:
 - All PRD spec files created by T1
 - ARCHITECTURE.md for code context
-- BDD scaffold settings from `.molcajete/settings.json`
+- BDD scaffold settings from `.molcajete/apps.md`
 
 Produces:
 - `.feature` files with scenarios

@@ -37,7 +37,7 @@ If it exists, use AskUserQuestion:
 - Header: "Setup Mode"
 - Options:
   - "Regenerate all" -- full interview: regenerate PRD documents and re-detect tooling
-  - "Update tooling only" -- skip PRD interview, re-scan project tooling (Makefiles, package.json scripts, Docker, formatters, linters) and update `.molcajete/settings.json`. Use this after installing new packages or changing how the project runs.
+  - "Update tooling only" -- skip PRD interview, re-scan project tooling (Makefiles, package.json scripts, Docker, formatters, linters) and update `.molcajete/apps.md`. Use this after installing new packages or changing how the project runs.
   - "No changes" -- stop without changes
 
 If "Regenerate all" → proceed to Step 3.
@@ -218,7 +218,7 @@ Launch an `Explore` sub-agent to scan the codebase for:
 
 After the agent returns, present the detected tooling to the user via AskUserQuestion for confirmation (per the skill's Stage 5e rules).
 
-After confirmation, merge the results into `.molcajete/settings.json`. Create the file and `.molcajete/` directory if they don't exist.
+After confirmation, write the results to `.molcajete/apps.md`. Create the `.molcajete/` directory if it doesn't exist.
 
 ## Step 9: Report
 
@@ -231,12 +231,12 @@ Tell the user what was created or updated.
 - `prd/GLOSSARY.md` -- domain vocabulary with starter terms
 - `prd/DOMAINS.md` -- domain registry
 - `prd/FEATURES.md` -- master feature inventory (sectioned by domain)
-- `.molcajete/settings.json` -- project tooling configuration
+- `.molcajete/apps.md` -- project environment and tooling configuration
 - For each domain:
   - `prd/domains/{domain}/features/` -- directory for feature specs
 
 **If tooling-only update (Step 8 only):**
-- `.molcajete/settings.json` -- updated project tooling configuration
+- `.molcajete/apps.md` -- updated project environment and tooling configuration
 - List what changed: new tools detected, commands updated, warnings
 
 If there are warnings (missing formatters, linters, etc.), display them prominently.

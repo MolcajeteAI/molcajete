@@ -134,6 +134,7 @@ If the user wants edits, revise and present again.
 ### 7.3 Apply Gherkin Changes
 
 1. Edit the `.feature` file -- update only the `@SC-XXXX` scenario block with the confirmed changes.
+2. Add `@dirty` to the scenario's tag line if not already present. If `@pending` is present, remove it (the scenario was previously implemented, `@dirty` replaces it as the lifecycle state).
 
 ## Step 8: Report
 

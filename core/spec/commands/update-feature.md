@@ -150,6 +150,7 @@ If the feature's current status in FEATURES.md is `implemented`, cascade `dirty`
      ```
      ### SC-XXXX: {Scenario Name} `dirty`
      ```
+   - Propagate `@dirty` to Gherkin files: For each scenario heading set to `dirty`, grep `bdd/features/` for `@SC-XXXX`. If found, add `@dirty` to the scenario's tag line in the `.feature` file. Remove `@pending` if present.
 
 If the feature's current status is `pending`, do not cascade — the feature hasn't been implemented yet so there's nothing to mark dirty.
 
@@ -164,6 +165,7 @@ For each dependent domain feature (FEAT-YYYY in domain {D}):
    - Set the UC's status to `dirty` in USE-CASES.md.
    - Edit the UC file's YAML frontmatter: set `status` to `dirty`.
    - Set all scenario heading annotations in the UC file to `dirty`.
+   - Propagate `@dirty` to Gherkin files: For each scenario heading set to `dirty`, grep `bdd/features/` for `@SC-XXXX`. If found, add `@dirty` to the scenario's tag line in the `.feature` file. Remove `@pending` if present.
 
 This ensures that a change to a global feature propagates dirty status to every domain that consumes it via refs.
 

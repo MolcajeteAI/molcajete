@@ -88,7 +88,7 @@ After domain confirmation, if more than one domain exists: auto-prepend a `globa
 
 ### Stage 5: Tooling Detection
 
-Scans the codebase for project tooling and runtime configuration. Results are stored in `.molcajete/settings.json` so the build agent knows exactly how to format, lint, test, and run the project. This stage is re-runnable -- it merges with existing settings, never overwrites unrelated keys.
+Scans the codebase for project tooling and runtime configuration. Results are stored in `.molcajete/apps.md` so the build agent knows exactly how to format, lint, test, and run the project. This stage is re-runnable — it overwrites the entire apps.md file with freshly detected values.
 
 **This stage requires a codebase.** If no codebase exists, skip and tell the user: "Tooling detection requires a codebase. Run `/m:setup` again after you have code."
 
@@ -96,60 +96,71 @@ Launch an `Explore` sub-agent to scan for all tooling, then build the settings. 
 
 #### 5a: Environment Detection
 
-Scan for how the project runs:
-- `docker-compose.yml` or `docker-compose*.yml` -- extract service names, ports, volume mounts
-- `Dockerfile` or `Dockerfile.*` -- check if containerized
-- Check if dev and test environments are separate (e.g., `server-dev` vs `server-test` services)
+Scan for how the project runs and populate the Runtime, Services, Applications, Modules, Pre-commit Hooks, and Scripts sections of `.molcajete/apps.md` using the [apps-template.md](./templates/apps-template.md) template. All configuration lives in this single human-readable markdown file.
 
-Produce an `environment` block:
+**What to scan:**
+- `docker-compose.yml` or `docker-compose*.yml` — extract service names, port mappings, volume mounts
+- `Dockerfile` or `Dockerfile.*` — check if containerized
+- Pre-commit hooks: husky (`package.json` → `prepare` script, `.husky/`), lefthook (`lefthook.yml`), `.pre-commit-config.yaml`, `.git/hooks/pre-commit`
+- Available scripts: `package.json` → `scripts`, Makefile targets, or other task runners
+- Project modules: `apps/`, `packages/`, `services/`, `cmd/` directories (reuse module discovery from Stage 2)
 
-```json
-{
-  "environment": {
-    "runtime": "docker-compose",
-    "compose_file": "docker-compose.yml",
-    "services": ["nginx", "server-dev", "server-test", "postgres", "redis"],
-    "start": "make dev-d",
-    "stop": "make dev-down",
-    "detected_at": "2026-03-31T10:00:00Z"
-  }
-}
-```
+For each service found in `docker-compose.yml`, read the port mappings and infer a health check by service type:
 
-If Docker is not detected, check for other patterns (bare `npm run dev`, `go run .`, etc.) and set `runtime` to `"local"`.
+| Service Type | Health Check |
+|-------------|-------------|
+| postgres | `pg_isready -h localhost -p {port}` |
+| redis | `redis-cli -p {port} ping` |
+| HTTP services (with exposed port) | `curl -sf http://localhost:{port}/health` |
+| Other / unknown | leave blank |
 
-#### 5b: Script and Target Discovery
+Fill in each section of the template with detected values:
+- **Runtime:** docker-compose or local, with start/stop commands
+- **Services:** infrastructure services (databases, caches, queues) with ports and health checks
+- **Applications:** web apps, APIs, and other runnable targets with ports and run commands
+- **Modules:** detected project modules with directories and languages
+- **Pre-commit Hooks:** detected hook tooling and what it runs
+- **Scripts:** available wrapper scripts from package.json, Makefile, etc. (reference only)
 
-**Makefiles:** Read all Makefiles (`Makefile`, `*/Makefile`) and extract target names. For each target, record the target name and its containing Makefile path.
+If Docker is not detected, check for other patterns (bare `npm run dev`, `go run .`, etc.) and set Runtime type to `local`.
 
-**pnpm / npm scripts:** Read root `package.json` and per-workspace `package.json` files. Extract script names from the `scripts` field. Group by workspace.
+#### 5b: Verification Profile
 
-Produce a `scripts` block:
+Detect the BDD framework and unit test runners, then pre-compute exact execution commands for every filtering level the dispatcher needs. Write the results to the **Testing** section of `apps.md`.
 
-```json
-{
-  "scripts": {
-    "make_targets": {
-      "root": ["dev", "dev-d", "dev-down", "bdd", "bdd-up", "init", "verify-dual-env"],
-      "server": ["build", "run", "test", "fmt", "lint", "generate-patient", "generate-doctor", "generate-console", "migrate-up", "migrate-down", "migrate-create"]
-    },
-    "pnpm_scripts": {
-      "root": ["dev", "build", "lint", "lint:fix", "format", "test", "validate", "i18n:extract", "i18n:compile"],
-      "patient": ["dev", "build", "lint", "lint:fix", "format", "test", "validate"],
-      "doctor": ["dev", "build", "lint", "lint:fix", "format", "test", "validate"],
-      "console": ["dev", "build", "lint", "lint:fix", "format", "test", "validate"]
-    }
-  }
-}
-```
+**BDD detection:** Identify the BDD framework from step file extensions in `bdd/steps/` and config files (same indicators as 5c BDD tooling detection). Then use knowledge of the framework to fill in command templates.
+
+**Unit test detection:** For each domain with a test runner (detected in 5c), pre-compute commands for each filtering level the framework supports.
+
+Write the **Testing** section of `apps.md` with two subsections:
+
+**BDD subsection** — a metadata list (Framework, Output format, Non-strict flag) followed by a table of scope/command pairs with `{placeholder}` tokens:
+
+| Scope | Command |
+|-------|---------|
+| Full suite | `behave bdd/ --format json --no-capture` |
+| By feature | `behave bdd/features/{feature_id}.feature --format json --no-capture` |
+| By scenario | `behave bdd/ --format json --no-capture --tags @{scenario_tag}` |
+| By tag expression | `behave bdd/ --format json --no-capture --tags "{tag_expression}"` |
+
+**Unit Tests subsection** — a table per domain with columns: Domain, Framework, Full Suite, By Name, By File/Package.
+
+| Step Extension | Framework | Command Templates |
+|---------------|-----------|-------------------|
+| `.py` | behave | `behave bdd/` with `--tags`, `--format json`, `--no-capture` |
+| `.ts` / `.js` | cucumber-js | `npx cucumber-js` with `--tags`, `--format json` |
+| `.go` | godog | `godog` with `--tags`, `--format json` |
+| `.rb` | cucumber-ruby | `bundle exec cucumber` with `--tags`, `--format json` |
 
 #### 5c: Per-Domain Tooling + BDD Tooling
 
 **BDD tooling (always detect first):**
 
-The `tooling.bdd` entry is mandatory when BDD is configured. It holds format and lint commands for step definition files in `bdd/`. The build agent uses this entry for all `wire-bdd` tasks and for the step definition phase of `implement` tasks.
+The `bdd` row in the Tooling table is mandatory when BDD is configured. It holds format and lint commands for step definition files in `bdd/`. The build agent uses this entry for all `wire-bdd` tasks and for the step definition phase of `implement` tasks.
 
-Detect BDD step definition language from `.molcajete/settings.json` → `bdd.language` (or from step file extensions). Then detect format/lint tools for that language in the `bdd/` directory:
+Also write the BDD framework, language, and format to the **BDD** section of `apps.md`.
+
+Detect BDD step definition language from the apps.md BDD section (or from step file extensions). Then detect format/lint tools for that language in the `bdd/` directory:
 
 | Language | Formatter Detection | Linter Detection |
 |----------|-------------------|-----------------|
@@ -170,59 +181,46 @@ For each domain, detect:
 **Formatter:**
 | Config File | Tool | Command Pattern |
 |------------|------|----------------|
-| `biome.json` or `biome.jsonc` (root or module) | Biome | `pnpm biome format --write .` or `npx biome format --write .` |
-| `.prettierrc*` | Prettier | `pnpm prettier --write .` or `npx prettier --write .` |
-| Go module (`go.mod`) | gofmt | `gofmt -w .` or `make fmt` (if Makefile has `fmt` target) |
-| `rustfmt.toml` | rustfmt | `cargo fmt` |
+| `biome.json` or `biome.jsonc` (root or module) | Biome | `cd {root} && npx biome format --write .` |
+| `.prettierrc*` | Prettier | `cd {root} && npx prettier --write .` |
+| Go module (`go.mod`) | gofmt | `cd {root} && gofmt -w .` |
+| `rustfmt.toml` | rustfmt | `cd {root} && cargo fmt` |
 
 **Linter:**
 | Config File | Tool | Command Pattern |
 |------------|------|----------------|
-| `biome.json` (with linter enabled) | Biome | `pnpm biome check .` or `pnpm biome lint .` |
-| `.eslintrc*` or `eslint.config.*` | ESLint | `pnpm eslint .` or `npx eslint .` |
-| `.golangci.yml` or `.golangci.yaml` | golangci-lint | `golangci-lint run` or `make lint` |
-| `clippy` in Cargo.toml | Clippy | `cargo clippy` |
+| `biome.json` (with linter enabled) | Biome | `cd {root} && npx biome lint .` |
+| `.eslintrc*` or `eslint.config.*` | ESLint | `cd {root} && npx eslint .` |
+| `.golangci.yml` or `.golangci.yaml` | golangci-lint | `cd {root} && golangci-lint run ./...` |
+| `clippy` in Cargo.toml | Clippy | `cd {root} && cargo clippy` |
 
 **Test runner:**
 | Config File | Tool | Command Pattern |
 |------------|------|----------------|
-| `vitest.config.*` or vitest in package.json | Vitest | `pnpm vitest run` or `npx vitest run` |
-| `jest.config.*` or jest in package.json | Jest | `pnpm jest` or `npx jest` |
-| `go.mod` (Go module) | go test | `go test ./...` or `make test` |
-| `pytest.ini` or `pyproject.toml` with pytest | pytest | `pytest` |
+| `vitest.config.*` or vitest in package.json | Vitest | `cd {root} && npx vitest run` |
+| `jest.config.*` or jest in package.json | Jest | `cd {root} && npx jest` |
+| `go.mod` (Go module) | go test | `cd {root} && go test ./...` |
+| `pytest.ini` or `pyproject.toml` with pytest | pytest | `cd {root} && pytest` |
 
-**Prefer Makefile targets** when they exist. If `server/Makefile` has `fmt` and `lint` targets, use `make -C server fmt` and `make -C server lint` rather than the raw tool commands. Makefiles are the project's chosen orchestration layer and may include flags, paths, or setup that raw commands miss.
+**Command Resolution — always store direct tool commands, never wrappers:**
 
-**Prefer pnpm filter commands** for monorepo workspaces when the script exists in the workspace's package.json. Use `pnpm --filter {package-name} {script}` rather than `cd apps/foo && npx biome ...`.
+1. **Detect the tool** from config files (unchanged — use the tables above)
+2. **Inspect wrappers** if a Makefile target or pnpm script exists for that tool:
+   - Read the Makefile rule or `package.json` script entry
+   - Extract the underlying binary being invoked (e.g., `gofmt`, `golangci-lint`, `biome`, `vitest`)
+   - Extract any flags, paths, or environment variables the wrapper adds
+3. **Compose a direct command** using the tool binary + extracted flags, scoped with `cd {domain_root} &&` when the tool must run from the domain's directory
+4. **Fallback:** If the wrapper is too complex or dynamic to parse (e.g., multi-line shell scripts, conditional logic), fall back to the raw tool command with standard flags based on the tool's documentation
 
-Produce a `tooling` block:
+Never store `make`, `make -C`, or `pnpm --filter` commands in the Tooling table. The table must contain the exact tool binary invocation so the build agent is not coupled to wrapper scripts that may change.
 
-```json
-{
-  "tooling": {
-    "bdd": {
-      "root": "bdd/",
-      "language": "python",
-      "format": { "command": "ruff format bdd/", "tool": "ruff" },
-      "lint": { "command": "ruff check bdd/", "tool": "ruff" }
-    },
-    "server": {
-      "root": "server/",
-      "language": "go",
-      "format": { "command": "make -C server fmt", "tool": "gofmt" },
-      "lint": { "command": "make -C server lint", "tool": "golangci-lint" },
-      "test": { "command": "make -C server test", "tool": "go test" }
-    },
-    "patient": {
-      "root": "apps/patient/",
-      "language": "typescript",
-      "format": { "command": "pnpm --filter patient format", "tool": "biome" },
-      "lint": { "command": "pnpm --filter patient lint", "tool": "biome" },
-      "test": { "command": "pnpm --filter patient test", "tool": "vitest" }
-    }
-  }
-}
-```
+Write the results to the **Tooling** section of `apps.md` as a table:
+
+| Domain | Root | Language | Format | Lint |
+|--------|------|----------|--------|------|
+| bdd | `bdd/` | python | `ruff format bdd/` | `ruff check bdd/` |
+| server | `server/` | go | `cd server && gofmt -w .` | `cd server && golangci-lint run ./...` |
+| patient | `apps/patient/` | typescript | `cd apps/patient && npx biome format --write .` | `cd apps/patient && npx biome lint .` |
 
 #### 5d: Warnings
 
@@ -235,14 +233,12 @@ After detection, check for gaps and produce warnings:
 - No Docker or runtime detected → warn: "No development environment detected. The build agent won't know how to start services."
 - BDD framework detected but no BDD make target or run command → warn: "BDD framework detected but no `bdd` or `test:e2e` script found for running tests."
 
-Store warnings in settings:
+Write warnings to the **Warnings** section of `apps.md` as a bulleted list:
 
-```json
-{
-  "warnings": [
-    "No test runner detected for 'ui' domain."
-  ]
-}
+```markdown
+## Warnings
+
+- No test runner detected for 'ui' domain.
 ```
 
 #### 5e: Confirmation and Write
@@ -252,30 +248,40 @@ Present the detected tooling to the user via AskUserQuestion:
 ```
 I detected the following project tooling:
 
-**Environment:** docker-compose (services: nginx, server-dev, postgres, redis)
-  Start: make dev-d | Stop: make dev-down
+**Environment** (will be saved to `.molcajete/apps.md`):
+| Service | Port | Health Check |
+|---------|------|-------------|
+| postgres | 5432 | pg_isready -h localhost -p 5432 |
+| redis | 6379 | redis-cli -p 6379 ping |
+| server-dev | 8080 | curl -sf http://localhost:8080/health |
+| nginx | 80 | — |
+
+  Runtime: docker-compose | Start: docker compose up -d | Stop: docker compose down
 
 **Tooling:**
-| Scope | Format | Lint | Test |
-|-------|--------|------|------|
-| bdd (step defs) | ruff format bdd/ | ruff check bdd/ | — |
-| server | make -C server fmt (gofmt) | make -C server lint (golangci-lint) | make -C server test (go test) |
-| patient | pnpm --filter patient format (biome) | pnpm --filter patient lint (biome) | pnpm --filter patient test (vitest) |
-| ... | ... | ... | ... |
+| Domain | Format | Lint |
+|--------|--------|------|
+| bdd (step defs) | ruff format bdd/ | ruff check bdd/ |
+| server | cd server && gofmt -w . | cd server && golangci-lint run ./... |
+| patient | cd apps/patient && npx biome format --write . | cd apps/patient && npx biome lint . |
+| ... | ... | ... |
+
+**Verification:**
+- BDD: behave (Python) — filter by feature, scenario tag, or tag expression; JSON output
+- Unit (server): go test — filter by name or package; JSON output
+- Unit (patient): vitest — filter by name or file; JSON output
 
 **Warnings:**
 - No test runner detected for 'ui' domain.
-
-**Available scripts:** {count} Make targets, {count} pnpm scripts
 
 Does this look correct? You can adjust specific commands.
 ```
 
 Options:
-- "Yes, save it" -- write to `.molcajete/settings.json`
+- "Yes, save it" -- write apps.md
 - "Needs changes" -- user provides corrections via Other
 
-After confirmation, merge the detected settings into `.molcajete/settings.json`. Create the file if it does not exist. Merge keys -- never overwrite the entire file. Include `detected_at` timestamps on each section.
+After confirmation, write `.molcajete/apps.md` with all detected configuration — Runtime, Services, Applications, Modules, BDD, Tooling, Testing, Pre-commit Hooks, Scripts, Warnings, and Notes sections. Create the `.molcajete/` directory if it does not exist.
 
 ## Codebase Detection
 
@@ -375,7 +381,7 @@ Generate one master FEATURES.md at `prd/FEATURES.md` with `## global` section fi
 If `prd/PROJECT.md` already exists when /m:setup is run:
 1. Ask the user what they want to do. Options:
    - **"Regenerate all"** -- full interview, regenerate PRD documents + tooling detection
-   - **"Update tooling only"** -- skip PRD interview, jump directly to Stage 5 (Tooling Detection). This re-scans Makefiles, package.json scripts, Docker configs, formatter/linter configs, and updates `.molcajete/settings.json` without touching any PRD documents. Use this after installing new packages, adding new tools, or changing how the project runs.
+   - **"Update tooling only"** -- skip PRD interview, jump directly to Stage 5 (Tooling Detection). This re-scans Makefiles, package.json scripts, Docker configs, formatter/linter configs, and updates `.molcajete/apps.md` without touching any PRD documents. Use this after installing new packages, adding new tools, or changing how the project runs.
    - **"No changes"** -- stop without changes
 2. If "Regenerate all", proceed with the full interview (Stages 1-5)
 3. If "Update tooling only", read `prd/DOMAINS.md` to get the domain list, then jump to Stage 5

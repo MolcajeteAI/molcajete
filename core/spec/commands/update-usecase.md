@@ -157,9 +157,11 @@ If the user wants edits, revise and present again.
 ### 7.3 Apply Gherkin Changes
 
 1. Edit the `.feature` file with the confirmed changes.
-2. If step definitions changed, edit the corresponding step definition files.
-3. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
-4. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
+2. For modified scenarios: add `@dirty` to the scenario's tag line if not already present. Remove `@pending` if present.
+3. For newly added scenarios: add `@pending` to the scenario's tag line.
+4. If step definitions changed, edit the corresponding step definition files.
+5. If new step definitions are needed, append them to the appropriate step file following the gherkin skill's step file placement rules.
+6. Update `bdd/features/INDEX.md` and `bdd/steps/INDEX.md` if new scenarios or steps were added.
 
 ## Step 8: Report
 

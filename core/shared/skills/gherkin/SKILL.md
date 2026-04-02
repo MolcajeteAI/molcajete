@@ -35,35 +35,31 @@ Note: `bdd/.claude/rules/` is user-created when needed for custom domain mapping
 
 ## BDD Settings Cache
 
-Detection results (language, framework, format) are persisted in `.molcajete/settings.json` under the `bdd` key so that sniffing only runs once per project:
+Detection results (language, framework, format) are persisted in the **BDD** section of `.molcajete/apps.md` so that sniffing only runs once per project:
 
-```json
-{
-  "bdd": {
-    "language": "python",
-    "framework": "behave",
-    "format": "gherkin",
-    "detected_at": "2026-03-25T10:00:00Z"
-  }
-}
+```markdown
+## BDD
+
+- **Framework:** behave
+- **Language:** python
+- **Format:** gherkin
 ```
 
 | Field | Values |
 |-------|--------|
-| `language` | `"python"` \| `"go"` \| `"typescript"` |
-| `framework` | `"behave"` \| `"godog"` \| `"cucumber-js"` |
-| `format` | `"gherkin"` \| `"mdg"` |
-| `detected_at` | ISO 8601 timestamp of when detection ran |
+| `Framework` | `behave` \| `godog` \| `cucumber-js` |
+| `Language` | `python` \| `go` \| `typescript` |
+| `Format` | `gherkin` \| `mdg` |
 
-**Read behavior:** Before running language or format detection, check `.molcajete/settings.json`. If `bdd.language` and `bdd.format` exist, use those values and skip detection entirely.
+**Read behavior:** Before running language or format detection, check `.molcajete/apps.md` for the `## BDD` section. If Framework, Language, and Format values exist, use them and skip detection entirely.
 
-**Write behavior:** After the first successful detection (during scaffold setup), write the results to `.molcajete/settings.json`. If the file already exists, merge — do not overwrite other keys.
+**Write behavior:** After the first successful detection (during scaffold setup), write the results to the BDD section of `.molcajete/apps.md`. If apps.md exists, update just the BDD section via Edit. If apps.md does not exist, create a minimal file with just the BDD section.
 
-**Re-detection:** To force re-detection, delete the `bdd` key from `.molcajete/settings.json` (or delete the file). The next command run will re-scan and persist new results.
+**Re-detection:** To force re-detection, remove the `## BDD` section from `.molcajete/apps.md`. The next command run will re-scan and persist new results.
 
 ## Language Detection Rules
 
-**First**, check `.molcajete/settings.json` for cached `bdd.language` and `bdd.framework`. If present, use them and skip the steps below.
+**First**, check `.molcajete/apps.md` for a cached BDD section with Framework and Language values. If present, use them and skip the steps below.
 
 **Otherwise**, scan existing step files to determine the language:
 
@@ -83,7 +79,7 @@ Detection results (language, framework, format) are persisted in `.molcajete/set
 
 ## Format Detection Rules
 
-**First**, check `.molcajete/settings.json` for cached `bdd.format`. If present, use it and skip the steps below.
+**First**, check `.molcajete/apps.md` for a cached BDD section with a Format value. If present, use it and skip the steps below.
 
 **Otherwise**, detect from existing files:
 
@@ -130,11 +126,11 @@ Each scenario carries both its use case and scenario IDs. Example:
 @FEAT-0F3y @auth
 Feature: Email login
 
-  @UC-0G2a @SC-0H7k @smoke
+  @UC-0G2a @SC-0H7k @pending @smoke
   Scenario: Successful login with valid credentials
     ...
 
-  @UC-0G2a @SC-0H8m @regression
+  @UC-0G2a @SC-0H8m @pending @regression
   Scenario: Failed login with wrong password
     ...
 ```
@@ -152,7 +148,22 @@ In addition to spec traceability tags, choose from:
 | `@fullstack` | Scenarios requiring UI + backend interaction |
 | `@{domain}` | Domain-specific tag matching the folder name (e.g., `@auth`, `@billing`) |
 
-Feature-level tags: `@FEAT-{tag}`, `@{domain}` (from DOMAINS.md or BDD domain folder), and one priority tag (`@smoke`, `@regression`, or `@critical`). Scenario-level tags: `@UC-{tag}`, `@SC-{tag}`, and any additional classification tags.
+Feature-level tags: `@FEAT-{tag}`, `@{domain}` (from DOMAINS.md or BDD domain folder), and one priority tag (`@smoke`, `@regression`, or `@critical`). Scenario-level tags: `@UC-{tag}`, `@SC-{tag}`, optional lifecycle tag (`@pending` or `@dirty`), and any additional classification tags.
+
+### Lifecycle tags
+
+These tags track implementation state in `.feature` files. They are managed automatically by spec and build commands — never add or remove them manually.
+
+| Tag | Meaning | Added by | Removed by |
+|-----|---------|----------|------------|
+| `@pending` | Scenario generated but step definitions are stubs | `/m:scenario`, `/m:spec` | Dev session (before implementing) |
+| `@dirty` | Spec changed after scenario was implemented — implementation is stale | `/m:update-scenario`, `/m:update-usecase`, `/m:update-feature` | Dev session (before re-implementing) |
+
+**Placement:** Lifecycle tags go after `@SC-XXXX` and before classification tags:
+
+    @UC-0G2a @SC-0H7k @pending @smoke
+
+**Exclusion syntax** (all supported frameworks): `not @pending and not @dirty`
 
 ## Step Writing Rules
 

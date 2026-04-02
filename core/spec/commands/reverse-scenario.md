@@ -162,7 +162,7 @@ Run the scaffold procedure from `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/ref
 - Check for existing scaffold, create if missing
 - Detect domains, language, format
 - Create INDEX.md files and world module
-- Persist BDD settings to `.molcajete/settings.json`
+- Persist BDD settings to `.molcajete/apps.md`
 - Validate existing indexes, rebuild if drift detected
 
 ## Step 10: Domain and Tag Selection

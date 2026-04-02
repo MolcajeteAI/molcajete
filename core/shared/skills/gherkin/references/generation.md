@@ -57,6 +57,7 @@ Follow the file naming rules, tagging rules, step writing rules, and Gherkin con
 
 **Feature-level structure:**
 - Add feature-level tags: `@{domain}` and one priority tag (`@smoke`, `@regression`, or `@critical`)
+- Add `@pending` to every scenario tag line, after `@SC-XXXX` and before classification tags. This marks the scenario as not yet implemented.
 - Write a 1-2 sentence description immediately after the `Feature:` line
 - Use `Background:` only if 2+ scenarios share the same preconditions
 
