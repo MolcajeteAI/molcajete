@@ -42,7 +42,6 @@ Read skills that govern this session:
 4. Read project context files (in the worktree):
    - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/DOMAINS.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
-   - `.molcajete/apps.md`
    - Feature's REQUIREMENTS.md and ARCHITECTURE.md
    - Use case files and Gherkin feature files for the task's scenarios
    - `bdd/steps/INDEX.md`
