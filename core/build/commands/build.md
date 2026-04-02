@@ -113,7 +113,7 @@ In interactive mode, you run the gates yourself rather than delegating to the va
 **All gates in parallel (read-only checks):**
 - Formatting: run formatter in check mode
 - Linting: run linter without --fix
-- BDD tests: run with done_tags filter
+- BDD tests: run with scenario tag filter
 - Code review: self-review for intent conformance
 - Completeness: trace requirements to code
 

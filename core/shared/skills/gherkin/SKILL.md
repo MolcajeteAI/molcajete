@@ -35,31 +35,33 @@ Note: `bdd/.claude/rules/` is user-created when needed for custom domain mapping
 
 ## BDD Settings Cache
 
-Detection results (language, framework, format) are persisted in the **BDD** section of `.molcajete/apps.md` so that sniffing only runs once per project:
+Detection results (language, framework, format) are persisted in `.molcajete/settings.json` so that sniffing only runs once per project:
 
-```markdown
-## BDD
-
-- **Framework:** behave
-- **Language:** python
-- **Format:** gherkin
+```json
+{
+  "bdd": {
+    "framework": "behave",
+    "language": "python",
+    "format": "gherkin"
+  }
+}
 ```
 
 | Field | Values |
 |-------|--------|
-| `Framework` | `behave` \| `godog` \| `cucumber-js` |
-| `Language` | `python` \| `go` \| `typescript` |
-| `Format` | `gherkin` \| `mdg` |
+| `framework` | `behave` \| `godog` \| `cucumber-js` |
+| `language` | `python` \| `go` \| `typescript` |
+| `format` | `gherkin` \| `mdg` |
 
-**Read behavior:** Before running language or format detection, check `.molcajete/apps.md` for the `## BDD` section. If Framework, Language, and Format values exist, use them and skip detection entirely.
+**Read behavior:** Before running language or format detection, check `.molcajete/settings.json` for the `bdd` object. If `framework`, `language`, and `format` values exist, use them and skip detection entirely.
 
-**Write behavior:** After the first successful detection (during scaffold setup), write the results to the BDD section of `.molcajete/apps.md`. If apps.md exists, update just the BDD section via Edit. If apps.md does not exist, create a minimal file with just the BDD section.
+**Write behavior:** After the first successful detection (during scaffold setup), write the results to `.molcajete/settings.json`. If the file exists, merge the `bdd` key via read-modify-write. If it does not exist, create it with just the `bdd` object.
 
-**Re-detection:** To force re-detection, remove the `## BDD` section from `.molcajete/apps.md`. The next command run will re-scan and persist new results.
+**Re-detection:** To force re-detection, remove the `bdd` key from `.molcajete/settings.json`. The next command run will re-scan and persist new results.
 
 ## Language Detection Rules
 
-**First**, check `.molcajete/apps.md` for a cached BDD section with Framework and Language values. If present, use them and skip the steps below.
+**First**, check `.molcajete/settings.json` for a cached `bdd` object with `framework` and `language` values. If present, use them and skip the steps below.
 
 **Otherwise**, scan existing step files to determine the language:
 
@@ -79,7 +81,7 @@ Detection results (language, framework, format) are persisted in the **BDD** sec
 
 ## Format Detection Rules
 
-**First**, check `.molcajete/apps.md` for a cached BDD section with a Format value. If present, use it and skip the steps below.
+**First**, check `.molcajete/settings.json` for a cached `bdd` object with a `format` value. If present, use it and skip the steps below.
 
 **Otherwise**, detect from existing files:
 

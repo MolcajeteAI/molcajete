@@ -35,7 +35,7 @@ Read skills that govern this session:
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
-3. Extract task metadata: `feature`, `use_cases`, `done_tags`, `intent`, `title`, `description`
+3. Extract task metadata: `feature`, `use_case`, `scenario`, `intent`, `title`, `description`
 4. Read `dev_summary` and `files_modified` from the payload
 
 ## Step 3: Stage Files
@@ -51,7 +51,7 @@ Follow the git-committing skill for the commit:
 - Detect existing commit style in the repo
 - Assess scope — determine if changes should be one commit or split into logical commits
 - Write commit message(s) per the skill's format rules (imperative verb, 50-char limit, spec refs block)
-- Include spec references from task metadata (`use_cases`, `done_tags`)
+- Include spec references from task metadata (`use_case`, `scenario`)
 - Run the pre-commit checklist from the skill
 - Do NOT add AI attribution
 

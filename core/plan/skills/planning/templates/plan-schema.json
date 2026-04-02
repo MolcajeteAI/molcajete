@@ -2,36 +2,27 @@
   "title": "string",
   "generated": "ISO 8601 timestamp",
   "status": "pending | in_progress | implemented | failed",
-  "scope": ["FEAT-XXXX", "UC-XXXX"],
-  "overview": {
-    "feature_count": 0,
-    "use_case_count": 0,
-    "scenario_count": 0,
-    "estimated_tasks": 0,
-    "total_estimated_context": "~450K tokens"
-  },
+  "scope": ["original IDs passed to the plan command"],
   "base_branch": "main",
   "bdd_command": "npx cucumber-js | null",
   "tasks": [
     {
       "id": "T-001",
       "title": "string",
-      "use_cases": ["UC-XXXX"],
+      "use_case": "UC-XXXX",
       "feature": "FEAT-XXXX",
       "domain": "string",
       "architecture": "prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md",
       "intent": "implement | wire-bdd",
       "status": "pending",
       "estimated_context": "~120K tokens",
-      "done_tags": ["@SC-XXXX"],
+      "scenario": "SC-XXXX | null",
       "depends_on": [],
       "description": "string",
       "files_to_modify": ["path/to/file"],
       "sub_tasks": null,
       "summary": "null | string (written post-build)",
-      "commits": [],
-      "quality_gates": null,
-      "error": null
+      "errors": []
     }
   ],
   "sub_task_schema": {
@@ -44,13 +35,11 @@
     "description": "string",
     "files_to_modify": ["path/to/file"],
     "summary": null,
-    "commits": [],
-    "quality_gates": null,
-    "error": null
+    "errors": []
   },
   "sub_task_rules": {
     "null_when_no_sub_tasks": true,
-    "inherit_from_parent": ["use_cases", "feature", "domain", "architecture", "intent", "done_tags"],
+    "inherit_from_parent": ["use_case", "feature", "domain", "architecture", "intent", "scenario"],
     "depends_on_scope": "sibling sub-task IDs only",
     "shared_worktree": "all sub-tasks share the parent task worktree"
   }

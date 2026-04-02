@@ -2,8 +2,8 @@
 name: planning
 description: >-
   Rules for generating implementation plans from PRD specs. Defines plan file
-  format, task decomposition rules, context budgets, done tags, task status
-  lifecycle, naming conventions, and slug generation. Used by /m:plan.
+  format, task decomposition rules, context budgets, scenario mapping, task
+  status lifecycle, naming conventions, and slug generation. Used by /m:plan.
 ---
 
 # Planning
@@ -34,26 +34,27 @@ Plan files live at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json`. Each plan
 
 ## Task Decomposition Rules
 
-### BDD-Aligned Tasks (Preferred)
+### BDD-Aligned Tasks — 1 Task = 1 Scenario
 
-Each task should advance at least one Gherkin scenario toward passing. Organize tasks by scenario assertions, not by architectural layers.
+Each top-level task maps to exactly **one** Gherkin scenario. The `scenario` field contains the `SC-XXXX` ID (without `@` prefix). No task may own multiple scenarios.
 
 **Good decomposition:**
-- "Implement user registration endpoint (SC-0A1b, SC-0A2c)" — advances specific scenarios
-- "Add password validation logic (SC-0A3d)" — targets a specific assertion
+- "Implement patient registration (SC-QWOO)" — one task, one scenario
+- "Implement duplicate email rejection (SC-QWOP)" — one task, one scenario
 
 **Bad decomposition:**
+- "Implement registration and login (SC-QWOO, SC-QWOP)" — two scenarios in one task
 - "Set up database models" — layer-based, doesn't map to any scenario
 - "Create API routes" — infrastructure without BDD traceability
 
-### When Layer-Based Tasks Are Acceptable
+### Infrastructure Absorption
 
-Infrastructure tasks that don't map to any scenario are allowed when they are prerequisites for BDD-aligned tasks. Examples:
-- Database migration setup
-- Test harness configuration
-- Shared middleware that multiple scenarios depend on
+Infrastructure tasks are **not** standalone top-level tasks. The first scenario task absorbs infrastructure cost — break it into sub-tasks when infrastructure + implementation exceeds 200K context:
 
-These tasks have empty `done_tags` (`done_tags: []`) and run the full BDD suite as their gate.
+- **Sub-task 1:** Builds shared infrastructure (test harness, database migrations, shared middleware)
+- **Sub-task 2:** Implements the scenario's step definitions and production code
+
+The parent task's BDD gate validates both when its single scenario passes. Sub-tasks inherit `scenario` from the parent but BDD is skipped at sub-task level.
 
 ### Cross-Domain Awareness
 
@@ -121,7 +122,7 @@ Sub-tasks break a large task into sequential steps that share a single worktree 
 
 - **ID format:** `T-NNN-M` — parent task ID + dash + integer (e.g., `T-003-1`, `T-003-2`). Never use decimal IDs.
 - **`sub_tasks` field:** `null` when the task has no sub-tasks. An array of sub-task objects when decomposed.
-- **Inheritance:** Sub-tasks inherit `use_cases`, `feature`, `domain`, `architecture`, `intent`, and `done_tags` from the parent task. These fields are not repeated in the sub-task object.
+- **Inheritance:** Sub-tasks inherit `use_case`, `feature`, `domain`, `architecture`, `intent`, and `scenario` from the parent task. These fields are not repeated in the sub-task object.
 - **Dependencies:** `depends_on` in a sub-task references **sibling sub-task IDs only** (e.g., `T-003-1`), never top-level task IDs.
 - **Shared worktree:** All sub-tasks run in the parent task's worktree — no separate branches.
 - **Validation split:** Sub-tasks get formatting + linting + code review + completeness checks (no BDD). BDD tests run only at the parent task level after all sub-tasks complete.
@@ -130,17 +131,16 @@ Sub-tasks break a large task into sequential steps that share a single worktree 
 #### Sub-Task Object Shape
 
 See the `sub_task_schema` section in [plan-schema.json](./templates/plan-schema.json) for the exact fields. Key differences from top-level tasks:
-- No `use_cases`, `feature`, `domain`, `architecture`, `intent`, or `done_tags` (inherited from parent)
+- No `use_case`, `feature`, `domain`, `architecture`, `intent`, or `scenario` (inherited from parent)
 - `depends_on` scoped to sibling IDs
-- `summary`, `commits`, `quality_gates`, `error` work the same as top-level tasks
+- `summary`, `errors` work the same as top-level tasks
 
 ### Task Ordering
 
 Order tasks by dependency chain:
-1. Infrastructure/setup tasks first (if any)
-2. Data model tasks before API tasks
-3. Core logic before edge cases
-4. Happy-path scenarios before error-handling scenarios
+1. Data model tasks before API tasks
+2. Core logic before edge cases
+3. Happy-path scenarios before error-handling scenarios
 
 Express dependencies explicitly with the `Depends on` field.
 
@@ -150,15 +150,14 @@ Every task must have a done signal that determines when it is complete.
 
 ### BDD Gate
 
-The task is done when its BDD tests pass. The `done_tags` field controls filtering:
+The task is done when its BDD tests pass. The `scenario` field controls filtering:
 
-- **Non-empty `done_tags`:** Run BDD with `--tags` filter for the listed `@SC-XXXX` tags. The task is done when those scenarios pass.
-- **Empty `done_tags` (`[]`):** Run the full BDD suite unfiltered. Used for infrastructure tasks with no mapped scenarios.
+- **Non-null `scenario`** (`"SC-XXXX"`): Run BDD with `--tags` filter for `@SC-XXXX` (derived by prepending `@`). The task is done when the scenario passes.
+- **Null `scenario`**: BDD gate is **skipped** — only format, lint, code review, and completeness gates run.
 
-Example (filtered): `done_tags: ["@SC-0A1b", "@SC-0A2c"]` → runs only those scenarios
-Example (full suite): `done_tags: []` → runs all scenarios
+Only sub-tasks and chores tasks (documentation) may have null `scenario`.
 
-BDD tests are never skipped. Every task runs the BDD gate.
+Example: `"scenario": "SC-QWOO"` → runs `@SC-QWOO`
 
 ## Task Status Lifecycle
 
@@ -212,19 +211,15 @@ Derive the slug from the scope:
 
 Full plan directory example: `202603261430-user-authentication/plan.json`
 
-## Documentation Task Rule
+## Scope Field Rules
 
-Every plan must include a final task that updates directory documentation for all modules modified by the preceding tasks. This task:
+The `scope` field in the plan JSON records exactly the IDs the user passed to the plan command — no expansion.
 
-- Is always the **last task** in the plan (highest T-NNN number)
-- **Depends on** all other tasks in the plan
-- Has `done_tags: []` (runs full BDD suite as its gate)
-- **Intent** matches the plan's intent (`implement` or `wire-bdd`)
-- References the code-documentation skill so the build agent knows the conventions
-- Lists `{directory}/README.md` for every directory that appears in preceding tasks' "Files to create/modify" lists
-- Skips directories on the code-documentation skill's skip list
+- If user passes `FEAT-0A1b`, scope is `["FEAT-0A1b"]` — not the feature plus all its UCs
+- If user passes `UC-0A1b UC-0A2c`, scope is `["UC-0A1b", "UC-0A2c"]`
+- If no arguments (full scan mode), scope is `["full-scan"]`
 
-This task goes through the same build pipeline as any other task — it is tracked, visible, and committed.
+The planner still expands internally to discover plannable work (e.g., resolving a feature to its UCs), but the `scope` field only stores the original input.
 
 ## Schema
 

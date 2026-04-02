@@ -160,32 +160,30 @@ Read the plan schema — it defines the exact JSON structure you must produce:
 ${CLAUDE_PLUGIN_ROOT}/plan/skills/planning/templates/plan-schema.json
 ```
 
-Build a JSON object matching this schema. The top-level object has `title`, `generated`, `status`, `scope`, `overview`, `base_branch`, `bdd_command`, and `tasks` (array). Decompose into tasks following the planning skill rules:
+Build a JSON object matching this schema. The top-level object has `title`, `generated`, `status`, `scope`, `base_branch`, `bdd_command`, and `tasks` (array). Decompose into tasks following the planning skill rules:
 
 1. **BDD-aligned tasks** — each task advances at least one Gherkin scenario. Map scenarios to tasks by examining what code needs to exist for those assertions to pass.
 
-2. **Infrastructure tasks** — only when necessary as prerequisites (database setup, test harness, shared middleware). These tasks have empty `done_tags` and run the full BDD suite as their gate.
+2. **Infrastructure tasks** — only when necessary as prerequisites (database setup, test harness, shared middleware). These tasks have null `scenario` (BDD skipped).
 
 3. **Context budget** — estimate each task at ≤ 200K tokens. Consider: source files to read + spec files + Gherkin + implementation work. Split if over budget.
 
 4. **Task fields** — for each task include all fields from the plan schema:
    - `id`: `T-001`, `T-002`, etc. (flat sequential)
    - `title`: verb-noun describing what gets built
-   - `use_cases`: which UC-XXXX IDs this task advances
+   - `use_case`: the UC-XXXX this task advances
    - `feature`: parent feature ID (FEAT-XXXX)
    - `domain`: the domain the feature belongs to
    - `architecture`: path to the feature's ARCHITECTURE.md (at `prd/domains/{domain}/features/FEAT-XXXX-{slug}/ARCHITECTURE.md`)
    - `intent`: `implement` (forward plan always uses implement)
    - `status`: `pending`
    - `estimated_context`: `~{N}K tokens`
-   - `done_tags`: `["@SC-XXXX"]` for filtered BDD gate; empty array runs full suite
+   - `scenario`: `"SC-XXXX"` for filtered BDD gate; null for chores (BDD skipped)
    - `depends_on`: `["T-NNN"]` or `[]`
    - `description`: what to implement, why, constraints
    - `files_to_modify`: expected file paths
    - `summary`: `null`
-   - `commits`: `[]`
-   - `quality_gates`: `null`
-   - `error`: `null`
+   - `errors`: `[]`
 
    When generating tasks for a cross-domain plan (global feature):
    - Each task's Domain field must be a real domain, never `global`
@@ -194,7 +192,7 @@ Build a JSON object matching this schema. The top-level object has `title`, `gen
 
 5. **Plan-level fields** — also populate:
    - `base_branch`: current git branch (run `git branch --show-current`)
-   - `bdd_command`: detect per dispatch skill or read from `.molcajete/apps.md` Testing → BDD section, `null` if not detectable yet
+   - `bdd_command`: detect per dispatch skill's BDD Command Detection rules, `null` if not detectable yet
 
 6. **Order by dependency chain** — infrastructure first, data models before APIs, core logic before edge cases, happy-path before error-handling.
 

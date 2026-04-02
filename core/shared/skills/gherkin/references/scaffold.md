@@ -41,13 +41,13 @@ For each detected domain, create `bdd/features/{domain}/` using kebab-case namin
 
 ## 2d. Detect Language
 
-**Check cache first:** Read `.molcajete/apps.md`. If the BDD section has Framework and Language values, use them and skip to 2e.
+**Check cache first:** Read `.molcajete/settings.json`. If the `bdd` object has `framework` and `language` values, use them and skip to 2e.
 
 **Otherwise**, determine which programming language to use for step definitions. Follow the language detection rules from SKILL.md — scan existing step files, default to Python if none exist.
 
 ## 2e. Detect Format
 
-**Check cache first:** Read `.molcajete/apps.md`. If the BDD section has a Format value, use it and skip to 2f.
+**Check cache first:** Read `.molcajete/settings.json`. If the `bdd` object has a `format` value, use it and skip to 2f.
 
 **Otherwise**, determine the feature file format. Follow the format detection rules from SKILL.md — scan for `.feature.md` vs `.feature` files, default to standard Gherkin.
 
@@ -62,7 +62,7 @@ Do NOT create step definition files during scaffold setup — those are created 
 
 ## 2f-cache. Persist BDD Settings
 
-After scaffold creation, write the detected language, framework, and format to the BDD section of `.molcajete/apps.md`. If apps.md exists, update just the BDD section via Edit. If apps.md does not exist, create a minimal file with just the BDD section. See the "BDD Settings Cache" section in SKILL.md for the format.
+After scaffold creation, write the detected language, framework, and format to `.molcajete/settings.json`. If the file exists, merge the `bdd` key via read-modify-write. If it does not exist, create it with just the `bdd` object. See the "BDD Settings Cache" section in SKILL.md for the format.
 
 ## 2g. Validate Index Files
 

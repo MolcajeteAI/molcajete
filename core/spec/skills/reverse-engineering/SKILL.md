@@ -151,7 +151,7 @@ When code analysis reveals an actor not listed in ACTORS.md — a new user role,
 **Rules:**
 - Only add actors that are genuinely new — check ACTORS.md first
 - Use the naming style already present in ACTORS.md (if it says "End User", don't add "end-user")
-- If ACTORS.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/ACTORS-template.md`
+- If ACTORS.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/ACTORS-template.md`
 
 ### Tech Stack (prd/TECH-STACK.md)
 
@@ -166,7 +166,7 @@ When code analysis reveals a technology not listed in TECH-STACK.md — a databa
 **Rules:**
 - Only add technologies that play a structural role — not every npm package belongs in TECH-STACK.md
 - Match the existing format and section headings
-- If TECH-STACK.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/spec/skills/setup/templates/TECH-STACK-template.md`
+- If TECH-STACK.md doesn't exist, create it using the template at `${CLAUDE_PLUGIN_ROOT}/build/skills/setup/templates/TECH-STACK-template.md`
 
 ### What NOT to Add
 
@@ -215,7 +215,7 @@ Produces:
 Launched as a subagent after user reviews T1 output. Receives:
 - All PRD spec files created by T1
 - ARCHITECTURE.md for code context
-- BDD scaffold settings from `.molcajete/apps.md`
+- BDD scaffold settings from `.molcajete/settings.json`
 
 Produces:
 - `.feature` files with scenarios
