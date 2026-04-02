@@ -50,31 +50,10 @@ const DEV_SESSION_SCHEMA = {
 const VALIDATE_SESSION_SCHEMA = {
   type: 'object',
   properties: {
-    formatting: { type: 'array', items: { type: 'string' } },
-    linting: { type: 'array', items: { type: 'string' } },
-    bdd_tests: { type: 'array', items: { type: 'string' } },
     code_review: { type: 'array', items: { type: 'string' } },
     completeness: { type: 'array', items: { type: 'string' } },
   },
-  required: ['formatting', 'linting', 'code_review', 'completeness'],
-};
-
-const ENV_CHECK_SCHEMA = {
-  type: 'object',
-  properties: {
-    status: { type: 'string', enum: ['ready', 'failed'] },
-    failures: { type: 'array', items: { type: 'string' } },
-    summary: { type: 'string' },
-  },
-  required: ['status', 'failures', 'summary'],
-};
-
-const FINAL_TESTS_SCHEMA = {
-  type: 'object',
-  properties: {
-    failures: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['failures'],
+  required: ['code_review', 'completeness'],
 };
 
 const WORKTREE_FIX_SCHEMA = {
@@ -98,6 +77,11 @@ const COMMIT_SESSION_SCHEMA = {
   required: ['status', 'commits'],
 };
 
+// ── Hook Constants ──
+
+const MANDATORY_HOOKS = ['health-check', 'run-tests', 'format', 'lint'];
+const HOOK_TIMEOUT = parseInt(process.env.MOLCAJETE_HOOK_TIMEOUT ?? '30000', 10);
+
 // ── Subcommands ──
 
 const commands = {
@@ -106,7 +90,12 @@ const commands = {
 
 // ── CLI Router ──
 
-const args = process.argv.slice(2);
+let DEBUG = false;
+
+const args = process.argv.slice(2).filter((a) => {
+  if (a === '--debug') { DEBUG = true; return false; }
+  return true;
+});
 
 if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
   printUsage();
@@ -133,6 +122,7 @@ Commands:
   build <plan-name>    Execute all pending tasks in sequence
 
 Options:
+  --debug       Print spawned claude commands to stderr
   --help, -h    Show this help message
 
 Examples:
@@ -152,6 +142,25 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Shell-quote a single argument (wrap in single quotes if it has special chars). */
+function shellQuote(arg) {
+  if (/^[a-zA-Z0-9_./:=@-]+$/.test(arg)) return arg;
+  return "'" + arg.replace(/'/g, "'\\''") + "'";
+}
+
+/** Wrapper around execSync that logs commands when --debug is active. */
+function run(cmd, opts = {}) {
+  if (DEBUG) {
+    const YELLOW = '\x1b[33m';
+    const RESET = '\x1b[0m';
+    process.stderr.write('\n');
+    log(`${YELLOW}$ ${cmd}${RESET}`);
+    log(`${YELLOW}cwd: ${opts.cwd || process.cwd()}${RESET}`);
+    process.stderr.write('\n');
+  }
+  return execSync(cmd, opts);
+}
+
 /** Check if an ID is a sub-task (T-NNN-M format). */
 function isSubTaskId(id) {
   return /^T-\d{3}-\d+$/.test(id);
@@ -160,6 +169,110 @@ function isSubTaskId(id) {
 /** Extract parent task ID from a sub-task ID. */
 function parentTaskId(subTaskId) {
   return subTaskId.replace(/-\d+$/, '');
+}
+
+// ── Hook System ──
+
+/**
+ * Discover hooks in .molcajete/hooks/.
+ * Returns { name: absolutePath } map, keyed by filename without extension.
+ */
+function discoverHooks(projectRoot) {
+  const hooksDir = join(projectRoot, '.molcajete/hooks');
+  if (!existsSync(hooksDir)) return {};
+
+  const entries = readdirSync(hooksDir, { withFileTypes: true });
+  const hooks = {};
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const name = entry.name.replace(/\.[^.]+$/, ''); // strip extension
+    hooks[name] = join(hooksDir, entry.name);
+  }
+  return hooks;
+}
+
+/**
+ * Validate that all mandatory hooks are present. Abort if any are missing.
+ */
+function validateMandatoryHooks(hooks) {
+  const missing = MANDATORY_HOOKS.filter((h) => !hooks[h]);
+  if (missing.length > 0) {
+    process.stderr.write(`Error: Missing mandatory hooks: ${missing.join(', ')}\n`);
+    process.stderr.write('Run /m:setup or provide them manually in .molcajete/hooks/\n');
+    process.exit(1);
+  }
+}
+
+/**
+ * Execute a hook script. Pipes JSON input via stdin, parses JSON output from stdout.
+ * @param {string} hookPath - Absolute path to the hook script
+ * @param {object} input - JSON payload to send via stdin
+ * @param {object} [opts] - Options: timeout (ms)
+ * @returns {Promise<{ ok: boolean, data: object, stderr: string }>}
+ */
+async function runHook(hookPath, input, { timeout = HOOK_TIMEOUT } = {}) {
+  return new Promise((resolveP) => {
+    const child = spawn(hookPath, [], {
+      cwd: process.cwd(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    const inputJson = JSON.stringify(input);
+    child.stdin.write(inputJson);
+    child.stdin.end();
+
+    if (DEBUG) {
+      const YELLOW = '\x1b[33m';
+      const RESET = '\x1b[0m';
+      process.stderr.write('\n');
+      log(`${YELLOW}$ hook: ${basename(hookPath)}${RESET}`);
+      log(`${YELLOW}input: ${inputJson}${RESET}`);
+      process.stderr.write('\n');
+    }
+
+    const stdoutChunks = [];
+    const stderrChunks = [];
+
+    child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
+    child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+    }, timeout);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      const stdout = Buffer.concat(stdoutChunks).toString().trim();
+      const stderr = Buffer.concat(stderrChunks).toString().trim();
+
+      if (code !== 0) {
+        resolveP({ ok: false, data: {}, stderr: stderr || `Hook exited with code ${code}` });
+        return;
+      }
+
+      try {
+        const data = JSON.parse(stdout);
+        if (DEBUG) {
+          const GRAY = '\x1b[90m';
+          const RESET = '\x1b[0m';
+          log(`${GRAY}output: ${stdout}${RESET}`);
+        }
+        resolveP({ ok: true, data, stderr });
+      } catch {
+        resolveP({ ok: false, data: {}, stderr: `Invalid JSON from hook: ${stdout.slice(0, 200)}` });
+      }
+    });
+  });
+}
+
+/**
+ * Try to run an optional hook. If the hook doesn't exist, returns null.
+ * If it exists, runs it and returns the result.
+ */
+async function tryHook(hooks, name, input, opts) {
+  if (!hooks[name]) return null;
+  log(`Running hook: ${name}`);
+  return runHook(hooks[name], input, opts);
 }
 
 // ── Plan JSON Helpers ──
@@ -456,13 +569,23 @@ function spawnClaude(workdir, args) {
   return new Promise((resolveP) => {
     const fullArgs = [
       '-p',
-      '--print',
+      '--output-format', 'json',
       '--plugin-dir',
       PLUGIN_DIR,
       '--dangerously-skip-permissions',
     ];
 
     fullArgs.push(...args);
+
+    if (DEBUG) {
+      const YELLOW = '\x1b[33m';
+      const RESET = '\x1b[0m';
+      const quotedArgs = fullArgs.map(shellQuote).join(' ');
+      process.stderr.write('\n');
+      log(`${YELLOW}$ claude ${quotedArgs}${RESET}`);
+      log(`${YELLOW}cwd: ${workdir}${RESET}`);
+      process.stderr.write('\n');
+    }
 
     const child = spawn('claude', fullArgs, {
       cwd: workdir,
@@ -478,14 +601,10 @@ function spawnClaude(workdir, args) {
 
     activeChild = child;
 
-    const DIM = '\x1b[2m';
-    const RESET = '\x1b[0m';
-
     const chunks = [];
 
     child.stdout.on('data', (chunk) => {
       chunks.push(chunk);
-      process.stdout.write(`${DIM}${chunk}${RESET}`);
     });
 
     const timer = setTimeout(() => {
@@ -507,28 +626,32 @@ function spawnClaude(workdir, args) {
 // ── Output Parsing ──
 
 function extractStructuredOutput(rawOutput) {
-  // With --print + --json-schema, the final stdout is the structured JSON.
-  // Try parsing the full output first.
+  // --output-format json returns a JSON array of events.
+  // The result event contains structured_output from --json-schema.
   const trimmed = rawOutput.trim();
   try {
-    return JSON.parse(trimmed);
-  } catch {
-    // Fall back: find the last JSON object in the output
-    const lastBrace = trimmed.lastIndexOf('}');
-    if (lastBrace === -1) return {};
-    // Walk backwards to find the matching opening brace
-    let depth = 0;
-    for (let i = lastBrace; i >= 0; i--) {
-      if (trimmed[i] === '}') depth++;
-      else if (trimmed[i] === '{') depth--;
-      if (depth === 0) {
-        try {
-          return JSON.parse(trimmed.slice(i, lastBrace + 1));
-        } catch {
-          return {};
+    const events = JSON.parse(trimmed);
+    if (Array.isArray(events)) {
+      const result = events.find((e) => e.type === 'result');
+      if (result?.structured_output) return result.structured_output;
+      // Fall back to assistant text content (when no --json-schema)
+      const textParts = [];
+      for (const e of events) {
+        if (e.type === 'assistant' && e.message?.content) {
+          for (const c of e.message.content) {
+            if (c.type === 'text') textParts.push(c.text);
+          }
         }
       }
+      if (textParts.length) {
+        const text = textParts.join('\n').trim();
+        try { return JSON.parse(text); } catch { /* not JSON text */ }
+      }
+      return {};
     }
+    // Not an array — try as raw JSON object
+    return events;
+  } catch {
     return {};
   }
 }
@@ -544,24 +667,44 @@ function worktreeBranch(feature, taskId) {
 }
 
 /**
- * Prepare a worktree for a task. Node.js-first, Claude fallback on error.
+ * Prepare a worktree for a task. Checks for create-worktree hook first,
+ * then falls back to Node.js-first with Claude fallback on error.
  * @returns {{ ok: boolean, path: string, error?: string }}
  */
-async function prepareWorktree(projectRoot, feature, taskId, baseBranch) {
+async function prepareWorktree(hooks, projectRoot, feature, taskId, baseBranch, taskContext = {}) {
   const wtPath = worktreePath(projectRoot, feature, taskId);
   const branch = worktreeBranch(feature, taskId);
+
+  // Try optional create-worktree hook first
+  const hookResult = await tryHook(hooks, 'create-worktree', {
+    path: wtPath,
+    branch,
+    base_branch: baseBranch,
+    ...taskContext,
+  });
+  if (hookResult) {
+    if (hookResult.ok && hookResult.data.status === 'ok') {
+      log(`Worktree ready (hook): ${hookResult.data.path || wtPath}`);
+      return { ok: true, path: hookResult.data.path || wtPath };
+    }
+    if (hookResult.ok && hookResult.data.status === 'failed') {
+      return { ok: false, path: wtPath, error: hookResult.data.error || 'create-worktree hook failed' };
+    }
+    // Hook errored — fall through to built-in
+    log('create-worktree hook failed, falling back to built-in');
+  }
 
   mkdirSync(join(projectRoot, '.molcajete', 'worktrees'), { recursive: true });
 
   // Check for stale worktree
   try {
-    const list = execSync('git worktree list --porcelain', {
+    const list = run('git worktree list --porcelain', {
       cwd: projectRoot,
       encoding: 'utf8',
     });
     if (list.includes(wtPath)) {
       log(`Removing stale worktree: ${wtPath}`);
-      execSync(`git worktree remove --force "${wtPath}"`, { cwd: projectRoot });
+      run(`git worktree remove --force "${wtPath}"`, { cwd: projectRoot });
     }
   } catch {
     // ignore — worktree may not exist
@@ -569,14 +712,14 @@ async function prepareWorktree(projectRoot, feature, taskId, baseBranch) {
 
   // Clean up stale branch
   try {
-    execSync(`git branch -D "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
+    run(`git branch -D "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
   } catch {
     // branch doesn't exist — fine
   }
 
   // Create worktree
   try {
-    execSync(
+    run(
       `git worktree add -b "${branch}" "${wtPath}" "${baseBranch}"`,
       { cwd: projectRoot, encoding: 'utf8', stdio: 'pipe' }
     );
@@ -590,22 +733,30 @@ async function prepareWorktree(projectRoot, feature, taskId, baseBranch) {
 
 /**
  * Clean up a worktree and its branch after merge or failure.
+ * Checks for optional cleanup hook first.
  */
-function cleanupWorktree(projectRoot, feature, taskId) {
+async function cleanupWorktree(hooks, projectRoot, feature, taskId, taskContext = {}) {
   const wtPath = worktreePath(projectRoot, feature, taskId);
   const branch = worktreeBranch(feature, taskId);
 
+  // Try optional cleanup hook first
+  const hookResult = await tryHook(hooks, 'cleanup', { path: wtPath, branch, ...taskContext });
+  if (hookResult?.ok && hookResult.data.status === 'ok') {
+    return;
+  }
+
+  // Built-in cleanup
   try {
-    execSync(`git worktree remove --force "${wtPath}"`, { cwd: projectRoot, stdio: 'pipe' });
+    run(`git worktree remove --force "${wtPath}"`, { cwd: projectRoot, stdio: 'pipe' });
   } catch {
     // already removed or doesn't exist
   }
   try {
-    execSync(`git branch -d "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
+    run(`git branch -d "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
   } catch {
     // branch already deleted or not merged — try force
     try {
-      execSync(`git branch -D "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
+      run(`git branch -D "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
     } catch {
       // truly gone
     }
@@ -615,30 +766,67 @@ function cleanupWorktree(projectRoot, feature, taskId) {
 // ── Session Runners ──
 
 /**
- * Run the environment check session (pre-flight).
+ * Run pre-flight checks using health-check and run-tests hooks.
  * @returns {{ ok: boolean, failures: string[], summary: string }}
  */
-async function runEnvCheck(projectRoot, planFile) {
+async function runPreFlight(hooks, planFile) {
   log('Phase 1: Pre-flight environment check');
+  const failures = [];
 
-  const result = await invokeClaude(projectRoot, [
-    '--model', 'claude-sonnet-4-6',
-    '--max-turns', '15',
-    '--allowedTools', 'Read,Glob,Grep,Bash',
-    '--json-schema', JSON.stringify(ENV_CHECK_SCHEMA),
-    `/m:sessions/env-check ${planFile}`,
-  ]);
-
-  const out = extractStructuredOutput(result.output);
-
-  if (result.exitCode !== 0 || out.status !== 'ready') {
-    const failures = out.failures || ['Environment check session failed'];
-    log(`Pre-flight FAILED: ${failures.join('; ')}`);
-    return { ok: false, failures, summary: out.summary || 'Pre-flight failed' };
+  // Start dev environment (optional — if user deleted the hook, manual start is fine)
+  const startResult = await tryHook(hooks, 'start', {});
+  if (startResult && !startResult.ok) {
+    failures.push(`Start hook failed: ${startResult.stderr}`);
+  } else if (startResult && startResult.data.status === 'failed') {
+    failures.push(startResult.data.summary || 'Start hook reported failure');
   }
 
-  log(`Pre-flight passed: ${out.summary || 'all checks green'}`);
-  return { ok: true, failures: [], summary: out.summary || '' };
+  if (failures.length > 0) {
+    log(`Pre-flight FAILED: ${failures.join('; ')}`);
+    return { ok: false, failures, summary: 'Dev environment failed to start' };
+  }
+
+  // Health check
+  const healthResult = await runHook(hooks['health-check'], {});
+  if (!healthResult.ok) {
+    failures.push(`Health check hook failed: ${healthResult.stderr}`);
+  } else if (healthResult.data.status === 'failed') {
+    failures.push(...(healthResult.data.failures || ['Health check failed']));
+  }
+
+  if (failures.length > 0) {
+    log(`Pre-flight FAILED: ${failures.join('; ')}`);
+    return { ok: false, failures, summary: 'Environment health check failed' };
+  }
+
+  // Run BDD tests for plan scope (preflight)
+  const data = readPlan(planFile);
+  const scopeTags = (data.scope || []).map((s) => `@${s}`);
+  const tags = scopeTags.length > 0
+    ? [`(${scopeTags.join(' or ')}) and not @pending and not @dirty`]
+    : [];
+
+  const testResult = await runHook(hooks['run-tests'], {
+    tags,
+    scope: 'preflight',
+  }, { timeout: 300000 });
+
+  if (!testResult.ok) {
+    failures.push(`Run-tests hook failed: ${testResult.stderr}`);
+  } else if (testResult.data.status === 'error') {
+    failures.push(...(testResult.data.failures || ['Test infrastructure error']));
+  } else if (testResult.data.status === 'fail') {
+    failures.push(...(testResult.data.failures || ['Pre-flight tests failed']));
+  }
+
+  if (failures.length > 0) {
+    log(`Pre-flight FAILED: ${failures.join('; ')}`);
+    return { ok: false, failures, summary: 'Pre-flight tests failed' };
+  }
+
+  const summary = testResult.data.summary || 'All checks green';
+  log(`Pre-flight passed: ${summary}`);
+  return { ok: true, failures: [], summary };
 }
 
 /**
@@ -658,7 +846,7 @@ async function runDevSession(projectRoot, planFile, taskId, wtPath, priorSummari
   });
 
   const result = await invokeClaude(wtPath, [
-    '--model', 'claude-sonnet-4-6',
+    '--model', 'sonnet',
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash',
     '--max-turns', MAX_TURNS_AGENT,
     '--max-budget-usd', BUDGET_AGENT,
@@ -679,13 +867,90 @@ async function runDevSession(projectRoot, planFile, taskId, wtPath, priorSummari
 }
 
 /**
- * Run a validation session.
+ * Run validation: format + lint hooks (sequential), then BDD hook (if task-level),
+ * then Claude session for code-review + completeness.
+ * @param {object} opts - Optional: { filesModified: string[], taskContext: object }
  * @returns {{ ok: boolean, issues: string[], structured: object }}
  */
-async function runValidationSession(projectRoot, planFile, taskId, wtPath) {
-  const sessionLabel = `validate-${taskId}`;
-  log(`Validation session: ${taskId}`);
+async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, opts = {}) {
+  log(`Validation: ${taskId}`);
 
+  const data = readPlan(planFile);
+  const isSubTask = isSubTaskId(taskId);
+  let task;
+  if (isSubTask) {
+    const parentId = parentTaskId(taskId);
+    task = findTask(data, parentId);
+  } else {
+    task = findTask(data, taskId);
+  }
+
+  const domain = task?.domain || '';
+  const services = domain ? [domain, 'bdd'] : ['bdd'];
+  const filesModified = opts.filesModified || [];
+  const taskContext = opts.taskContext || {};
+
+  const allIssues = [];
+  const structured = { formatting: [], linting: [], bdd_tests: [], code_review: [], completeness: [] };
+
+  // ── Hook gates: format then lint (sequential — both modify files) ──
+
+  const fmtResult = await runHook(hooks['format'], { files: filesModified, services, ...taskContext }, { timeout: 60000 });
+  if (!fmtResult.ok) {
+    allIssues.push(`Format hook failed: ${fmtResult.stderr}`);
+    structured.formatting.push(`Format hook failed: ${fmtResult.stderr}`);
+  } else if (fmtResult.data.status === 'fail') {
+    structured.formatting = fmtResult.data.issues || [];
+    allIssues.push(...structured.formatting);
+  }
+
+  const lintResult = await runHook(hooks['lint'], { files: filesModified, services, ...taskContext }, { timeout: 120000 });
+  if (!lintResult.ok) {
+    allIssues.push(`Lint hook failed: ${lintResult.stderr}`);
+    structured.linting.push(`Lint hook failed: ${lintResult.stderr}`);
+  } else if (lintResult.data.status === 'fail') {
+    structured.linting = lintResult.data.issues || [];
+    allIssues.push(...structured.linting);
+  }
+
+  // ── BDD hook (task-level only, skipped for sub-tasks and empty done_tags) ──
+
+  const doneTags = task?.done_tags || [];
+
+  if (!isSubTask && doneTags.length > 0) {
+
+    const bddResult = await runHook(hooks['run-tests'], {
+      tags: doneTags,
+      scope: 'task',
+      ...taskContext,
+    }, { timeout: 300000 });
+
+    if (!bddResult.ok) {
+      allIssues.push(`Run-tests hook failed: ${bddResult.stderr}`);
+      structured.bdd_tests.push(`Run-tests hook failed: ${bddResult.stderr}`);
+    } else if (bddResult.data.status === 'error') {
+      structured.bdd_tests = bddResult.data.failures || ['Test infrastructure error'];
+      allIssues.push(...structured.bdd_tests);
+
+      // Attempt to retrieve logs for debugging setup errors
+      const logsResult = await tryHook(hooks, 'logs', { lines: 200 });
+      if (logsResult?.ok && logsResult.data.logs) {
+        const logSnippet = logsResult.data.logs.slice(0, 2000);
+        allIssues.push(`Environment logs:\n${logSnippet}`);
+      }
+    } else if (bddResult.data.status === 'fail') {
+      structured.bdd_tests = bddResult.data.failures || [];
+      allIssues.push(...structured.bdd_tests);
+    }
+  }
+
+  // ── Lifecycle hook: before-validate ──
+
+  await tryHook(hooks, 'before-validate', { task_id: taskId, services, ...taskContext });
+
+  // ── Claude gates: code-review + completeness ──
+
+  const sessionLabel = `validate-${taskId}`;
   const payload = JSON.stringify({
     plan_path: planFile,
     task_id: taskId,
@@ -693,7 +958,7 @@ async function runValidationSession(projectRoot, planFile, taskId, wtPath) {
   });
 
   const result = await invokeClaude(wtPath, [
-    '--model', 'claude-sonnet-4-6',
+    '--model', 'sonnet',
     '--allowedTools', 'Read,Glob,Grep,Bash,Agent',
     '--max-turns', '30',
     '--max-budget-usd', BUDGET_AGENT,
@@ -702,24 +967,22 @@ async function runValidationSession(projectRoot, planFile, taskId, wtPath) {
     `/m:sessions/validate-session ${payload}`,
   ]);
 
-  const out = extractStructuredOutput(result.output);
+  const claudeOut = extractStructuredOutput(result.output);
+  structured.code_review = claudeOut.code_review || [];
+  structured.completeness = claudeOut.completeness || [];
+  allIssues.push(...structured.code_review, ...structured.completeness);
 
-  // Collect all issues from all gates
-  const allIssues = [
-    ...(out.formatting || []),
-    ...(out.linting || []),
-    ...(out.bdd_tests || []),
-    ...(out.code_review || []),
-    ...(out.completeness || []),
-  ];
+  // ── Lifecycle hook: after-validate ──
+
+  await tryHook(hooks, 'after-validate', { task_id: taskId, services, gate_results: structured, ...taskContext });
 
   if (allIssues.length === 0) {
     log(`Validation ${taskId}: all gates passed`);
-    return { ok: true, issues: [], structured: out };
+    return { ok: true, issues: [], structured };
   }
 
   log(`Validation ${taskId}: ${allIssues.length} issues found`);
-  return { ok: false, issues: allIssues, structured: out };
+  return { ok: false, issues: allIssues, structured };
 }
 
 /**
@@ -736,7 +999,7 @@ async function runWorktreeFixSession(projectRoot, wtPath, branch, baseBranch, er
   });
 
   const result = await invokeClaude(projectRoot, [
-    '--model', 'claude-sonnet-4-6',
+    '--model', 'claude-haiku-4-5',
     '--max-turns', '10',
     '--allowedTools', 'Read,Bash,Glob',
     '--json-schema', JSON.stringify(WORKTREE_FIX_SCHEMA),
@@ -756,30 +1019,35 @@ async function runWorktreeFixSession(projectRoot, wtPath, branch, baseBranch, er
 }
 
 /**
- * Run the final test suite session (post-flight).
+ * Run the final test suite using the run-tests hook (post-flight).
  * @returns {{ ok: boolean, failures: string[] }}
  */
-async function runFinalTests(projectRoot, planFile) {
+async function runFinalTests(hooks, planFile) {
   log('Phase 3: Post-flight final tests');
 
-  const payload = JSON.stringify({ plan_path: planFile });
+  const data = readPlan(planFile);
+  const scopeTags = (data.scope || []).map((s) => `@${s}`);
+  const tags = scopeTags.length > 0
+    ? [`(${scopeTags.join(' or ')}) and not @pending and not @dirty`]
+    : [];
 
-  const result = await invokeClaude(projectRoot, [
-    '--model', 'claude-sonnet-4-6',
-    '--max-turns', '15',
-    '--allowedTools', 'Read,Glob,Grep,Bash',
-    '--json-schema', JSON.stringify(FINAL_TESTS_SCHEMA),
-    `/m:sessions/final-tests ${payload}`,
-  ]);
+  const result = await runHook(hooks['run-tests'], {
+    tags,
+    scope: 'final',
+  }, { timeout: 300000 });
 
-  const out = extractStructuredOutput(result.output);
-  const failures = out.failures || [];
+  if (!result.ok) {
+    const failures = [`Run-tests hook failed: ${result.stderr}`];
+    log(`Final tests: hook error`);
+    return { ok: false, failures };
+  }
 
-  if (failures.length === 0) {
+  if (result.data.status === 'pass') {
     log('Final tests: all tests passed');
     return { ok: true, failures: [] };
   }
 
+  const failures = result.data.failures || [`Tests failed: ${result.data.status}`];
   log(`Final tests: ${failures.length} failures`);
   return { ok: false, failures };
 }
@@ -801,7 +1069,7 @@ async function runCommitSession(projectRoot, planFile, taskId, wtPath, devSummar
   });
 
   const result = await invokeClaude(wtPath, [
-    '--model', 'claude-sonnet-4-6',
+    '--model', 'claude-haiku-4-5',
     '--max-turns', '15',
     '--allowedTools', 'Read,Glob,Grep,Bash',
     '--json-schema', JSON.stringify(COMMIT_SESSION_SCHEMA),
@@ -824,6 +1092,29 @@ async function runCommitSession(projectRoot, planFile, taskId, wtPath, devSummar
 // ── Dev-Validate Cycle ──
 
 /**
+ * Build a task context object from plan data for passing to hooks.
+ */
+function buildTaskContext(data, taskId) {
+  const isSubTask = isSubTaskId(taskId);
+  let task;
+  if (isSubTask) {
+    task = findTask(data, parentTaskId(taskId));
+  } else {
+    task = findTask(data, taskId);
+  }
+  if (!task) return {};
+
+  const ctx = {};
+  if (task.feature) ctx.feature_id = task.feature;
+  if (task.use_cases?.length > 0) ctx.usecase_id = task.use_cases[0];
+  if (task.done_tags?.length > 0) {
+    const scTag = task.done_tags.find((t) => t.startsWith('@SC-'));
+    if (scTag) ctx.scenario_id = scTag.replace(/^@/, '');
+  }
+  return ctx;
+}
+
+/**
  * Core dev-validate loop. Runs dev session then validation session,
  * retrying up to MAX_DEV_VALIDATE_CYCLES times.
  *
@@ -831,8 +1122,18 @@ async function runCommitSession(projectRoot, planFile, taskId, wtPath, devSummar
  * @param {string[]} priorSummaries - Summaries from prior tasks/sub-tasks
  * @returns {{ ok: boolean, devResult: object, validateResult: object, error?: string }}
  */
-async function runDevValidateCycle(projectRoot, planFile, taskId, wtPath, priorSummaries, planDir) {
+async function runDevValidateCycle(hooks, projectRoot, planFile, taskId, wtPath, priorSummaries, planDir) {
   let issues = [];
+
+  const data = readPlan(planFile);
+  const taskContext = buildTaskContext(data, taskId);
+
+  // Derive branch info for commit hooks
+  const isSubTask = isSubTaskId(taskId);
+  const parentId = isSubTask ? parentTaskId(taskId) : taskId;
+  const task = findTask(data, parentId);
+  const baseBranch = data.base_branch || 'main';
+  const workingBranch = task ? worktreeBranch(task.feature, parentId) : '';
 
   for (let cycle = 1; cycle <= MAX_DEV_VALIDATE_CYCLES; cycle++) {
     log(`Dev-validate cycle ${cycle}/${MAX_DEV_VALIDATE_CYCLES} for ${taskId}`);
@@ -843,8 +1144,22 @@ async function runDevValidateCycle(projectRoot, planFile, taskId, wtPath, priorS
       return { ok: false, devResult: dev.structured, validateResult: null, error: dev.structured?.error || 'Dev session failed' };
     }
 
+    const filesModified = dev.structured.files_modified || [];
+
+    // Lifecycle hook: before-commit
+    await tryHook(hooks, 'before-commit', {
+      task_id: taskId,
+      files: filesModified,
+      base_branch: baseBranch,
+      working_branch: workingBranch,
+      ...taskContext,
+    });
+
     // Validation session
-    const val = await runValidationSession(projectRoot, planFile, taskId, wtPath);
+    const val = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, {
+      filesModified,
+      taskContext,
+    });
 
     // Save validation report
     if (planDir) {
@@ -861,10 +1176,20 @@ async function runDevValidateCycle(projectRoot, planFile, taskId, wtPath, priorS
     // Validation passed — commit session
     const commit = await runCommitSession(
       projectRoot, planFile, taskId, wtPath,
-      dev.structured.summary, dev.structured.files_modified
+      dev.structured.summary, filesModified
     );
 
     if (commit.ok) {
+      // Lifecycle hook: after-commit
+      await tryHook(hooks, 'after-commit', {
+        task_id: taskId,
+        commits: commit.structured.commits || [],
+        files: filesModified,
+        base_branch: baseBranch,
+        working_branch: workingBranch,
+        ...taskContext,
+      });
+
       return {
         ok: true,
         devResult: { ...dev.structured, commits: commit.structured.commits },
@@ -889,30 +1214,67 @@ async function runDevValidateCycle(projectRoot, planFile, taskId, wtPath, priorS
 
 /**
  * Merge a task's worktree branch back to the base branch.
- * Node.js-first with dev-validate fallback on conflicts.
+ * Checks for optional merge hook first, then falls back to Node.js-first
+ * with dev-validate fallback on conflicts.
  *
  * @returns {{ ok: boolean, error?: string }}
  */
-async function mergeWorktree(projectRoot, planFile, feature, taskId, baseBranch, priorSummaries, planDir) {
+async function mergeWorktree(hooks, projectRoot, planFile, feature, taskId, baseBranch, priorSummaries, planDir) {
   const wtPath = worktreePath(projectRoot, feature, taskId);
   const branch = worktreeBranch(feature, taskId);
 
+  const data = readPlan(planFile);
+  const mergeContext = buildTaskContext(data, taskId);
+
+  // Try optional merge hook first
+  const hookResult = await tryHook(hooks, 'merge', {
+    worktree_path: wtPath,
+    branch,
+    base_branch: baseBranch,
+    ...mergeContext,
+  });
+  if (hookResult) {
+    if (hookResult.ok && hookResult.data.status === 'ok') {
+      // Hook handled the merge — still need to update plan and cleanup
+      const data = readPlan(planFile);
+      const task = findTask(data, taskId);
+      if (task) {
+        task.status = 'implemented';
+        writePlan(planFile, data);
+        try {
+          run(`git add "${planFile}"`, { cwd: projectRoot, stdio: 'pipe' });
+          run(`git commit -m "plan: mark ${taskId} implemented"`, { cwd: projectRoot, stdio: 'pipe' });
+        } catch {
+          log(`Warning: plan commit for ${taskId} failed — plan file may be out of sync`);
+        }
+      }
+      await cleanupWorktree(hooks, projectRoot, feature, taskId, mergeContext);
+      log(`Merged and cleaned up (hook): ${taskId}`);
+      return { ok: true };
+    }
+    if (hookResult.ok && hookResult.data.status === 'failed') {
+      return { ok: false, error: hookResult.data.error || 'merge hook failed' };
+    }
+    // Hook errored — fall through to built-in
+    log('merge hook failed, falling back to built-in');
+  }
+
   // Step 1: Rebase onto base branch
   try {
-    execSync(`git -C "${wtPath}" rebase "${baseBranch}"`, { stdio: 'pipe', encoding: 'utf8' });
+    run(`git -C "${wtPath}" rebase "${baseBranch}"`, { stdio: 'pipe', encoding: 'utf8' });
   } catch (err) {
     log(`Rebase conflict for ${taskId} — launching dev session to resolve`);
 
     // Abort the failed rebase
     try {
-      execSync(`git -C "${wtPath}" rebase --abort`, { stdio: 'pipe' });
+      run(`git -C "${wtPath}" rebase --abort`, { stdio: 'pipe' });
     } catch {
       // may already be clean
     }
 
     // Dev-validate cycle to resolve conflicts
     const resolution = await runDevValidateCycle(
-      projectRoot, planFile, taskId, wtPath,
+      hooks, projectRoot, planFile, taskId, wtPath,
       [...priorSummaries, `MERGE CONFLICT: Rebase of ${branch} onto ${baseBranch} failed. Resolve conflicts, stage files, and commit.`],
       planDir
     );
@@ -923,7 +1285,7 @@ async function mergeWorktree(projectRoot, planFile, feature, taskId, baseBranch,
 
     // Retry rebase after fix
     try {
-      execSync(`git -C "${wtPath}" rebase "${baseBranch}"`, { stdio: 'pipe', encoding: 'utf8' });
+      run(`git -C "${wtPath}" rebase "${baseBranch}"`, { stdio: 'pipe', encoding: 'utf8' });
     } catch {
       return { ok: false, error: 'Rebase still failing after conflict resolution' };
     }
@@ -931,22 +1293,22 @@ async function mergeWorktree(projectRoot, planFile, feature, taskId, baseBranch,
 
   // Step 2: Fast-forward merge
   try {
-    execSync(`git checkout "${baseBranch}"`, { cwd: projectRoot, stdio: 'pipe' });
-    execSync(`git merge --no-edit "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
+    run(`git checkout "${baseBranch}"`, { cwd: projectRoot, stdio: 'pipe' });
+    run(`git merge --no-edit "${branch}"`, { cwd: projectRoot, stdio: 'pipe' });
   } catch (err) {
     return { ok: false, error: `Fast-forward merge failed: ${err.message}` };
   }
 
   // Step 3: Update plan file and commit
-  const data = readPlan(planFile);
-  const task = findTask(data, taskId);
+  const freshData = readPlan(planFile);
+  const task = findTask(freshData, taskId);
   if (task) {
     task.status = 'implemented';
-    writePlan(planFile, data);
+    writePlan(planFile, freshData);
 
     try {
-      execSync(`git add "${planFile}"`, { cwd: projectRoot, stdio: 'pipe' });
-      execSync(`git commit -m "plan: mark ${taskId} implemented"`, { cwd: projectRoot, stdio: 'pipe' });
+      run(`git add "${planFile}"`, { cwd: projectRoot, stdio: 'pipe' });
+      run(`git commit -m "plan: mark ${taskId} implemented"`, { cwd: projectRoot, stdio: 'pipe' });
     } catch {
       // plan commit failed — non-fatal, the merge itself succeeded
       log(`Warning: plan commit for ${taskId} failed — plan file may be out of sync`);
@@ -954,7 +1316,7 @@ async function mergeWorktree(projectRoot, planFile, feature, taskId, baseBranch,
   }
 
   // Step 4: Cleanup
-  cleanupWorktree(projectRoot, feature, taskId);
+  await cleanupWorktree(hooks, projectRoot, feature, taskId, mergeContext);
   log(`Merged and cleaned up: ${taskId}`);
 
   return { ok: true };
@@ -965,21 +1327,40 @@ async function mergeWorktree(projectRoot, planFile, feature, taskId, baseBranch,
 /**
  * Run a simple task (no sub-tasks): dev-validate cycle then merge.
  */
-async function runSimpleTask(projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
+async function runSimpleTask(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
   const taskId = task.id;
   const wtPath = worktreePath(projectRoot, task.feature, taskId);
 
-  const result = await runDevValidateCycle(projectRoot, planFile, taskId, wtPath, priorSummaries, planDir);
+  const data = readPlan(planFile);
+  const taskContext = buildTaskContext(data, taskId);
+
+  // Lifecycle hook: before-task
+  await tryHook(hooks, 'before-task', {
+    task_id: taskId, intent: task.intent, ...taskContext,
+  });
+
+  const result = await runDevValidateCycle(hooks, projectRoot, planFile, taskId, wtPath, priorSummaries, planDir);
 
   if (!result.ok) {
+    await tryHook(hooks, 'after-task', {
+      task_id: taskId, status: 'failed', summary: result.error || '', ...taskContext,
+    });
     return { ok: false, error: result.error, devResult: result.devResult };
   }
 
   // Merge
-  const merge = await mergeWorktree(projectRoot, planFile, task.feature, taskId, baseBranch, priorSummaries, planDir);
+  const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, priorSummaries, planDir);
   if (!merge.ok) {
+    await tryHook(hooks, 'after-task', {
+      task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
+    });
     return { ok: false, error: merge.error, devResult: result.devResult };
   }
+
+  // Lifecycle hook: after-task
+  await tryHook(hooks, 'after-task', {
+    task_id: taskId, status: 'implemented', summary: result.devResult?.summary || '', ...taskContext,
+  });
 
   return { ok: true, devResult: result.devResult };
 }
@@ -987,11 +1368,19 @@ async function runSimpleTask(projectRoot, planFile, task, baseBranch, priorSumma
 /**
  * Run a task with sub-tasks: iterate sub-tasks, then task-level validation.
  */
-async function runTaskWithSubTasks(projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
+async function runTaskWithSubTasks(hooks, projectRoot, planFile, task, baseBranch, priorSummaries, planDir) {
   const taskId = task.id;
   const wtPath = worktreePath(projectRoot, task.feature, taskId);
   const subTasks = task.sub_tasks;
   const subSummaries = [...priorSummaries];
+
+  const data = readPlan(planFile);
+  const taskContext = buildTaskContext(data, taskId);
+
+  // Lifecycle hook: before-task
+  await tryHook(hooks, 'before-task', {
+    task_id: taskId, intent: task.intent, ...taskContext,
+  });
 
   // Run each sub-task sequentially
   for (const st of subTasks) {
@@ -1022,7 +1411,7 @@ async function runTaskWithSubTasks(projectRoot, planFile, task, baseBranch, prio
     updateSubTaskStatus(planFile, stId, 'in_progress');
 
     // Dev-validate cycle for sub-task (validation skips BDD because ID is T-NNN-M)
-    const result = await runDevValidateCycle(projectRoot, planFile, stId, wtPath, subSummaries, planDir);
+    const result = await runDevValidateCycle(hooks, projectRoot, planFile, stId, wtPath, subSummaries, planDir);
 
     if (!result.ok) {
       updateSubTaskStatus(planFile, stId, 'failed', { error: result.error });
@@ -1043,7 +1432,7 @@ async function runTaskWithSubTasks(projectRoot, planFile, task, baseBranch, prio
   // Task-level validation with BDD (using task ID T-NNN, not sub-task ID)
   log(`Running task-level validation for ${taskId} (with BDD)`);
   let valCycleCount = 0;
-  const taskVal = await runValidationSession(projectRoot, planFile, taskId, wtPath);
+  const taskVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath);
   valCycleCount++;
   if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, taskVal.structured);
 
@@ -1060,7 +1449,7 @@ async function runTaskWithSubTasks(projectRoot, planFile, task, baseBranch, prio
         return { ok: false, error: `Task-level fix failed: ${dev.structured?.error || 'Dev session failed'}` };
       }
 
-      const reVal = await runValidationSession(projectRoot, planFile, taskId, wtPath);
+      const reVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath);
       valCycleCount++;
       if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, reVal.structured);
 
@@ -1089,10 +1478,18 @@ async function runTaskWithSubTasks(projectRoot, planFile, task, baseBranch, prio
   }
 
   // Merge
-  const merge = await mergeWorktree(projectRoot, planFile, task.feature, taskId, baseBranch, subSummaries, planDir);
+  const merge = await mergeWorktree(hooks, projectRoot, planFile, task.feature, taskId, baseBranch, subSummaries, planDir);
   if (!merge.ok) {
+    await tryHook(hooks, 'after-task', {
+      task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
+    });
     return { ok: false, error: merge.error };
   }
+
+  // Lifecycle hook: after-task
+  await tryHook(hooks, 'after-task', {
+    task_id: taskId, status: 'implemented', summary: '', ...taskContext,
+  });
 
   return { ok: true };
 }
@@ -1144,25 +1541,23 @@ The plan name can be:
     process.exit(1);
   }
 
-  const projectRoot = execSync('git rev-parse --show-toplevel', {
+  const projectRoot = run('git rev-parse --show-toplevel', {
     encoding: 'utf8',
   }).trim();
 
   const planDir = dirname(planFile);
   const planRelative = basename(planDir);
 
-  // Check for apps.md
-  const appsPath = join(projectRoot, '.molcajete/apps.md');
-  if (!existsSync(appsPath)) {
-    log('Warning: .molcajete/apps.md not found — run /m:setup to configure');
-  }
+  // Discover and validate hooks
+  const hooks = discoverHooks(projectRoot);
+  validateMandatoryHooks(hooks);
 
-  await runAllTasksMode(projectRoot, planRelative, planFile, planDir);
+  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir);
 }
 
 // ── Main Orchestrator Loop ──
 
-async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
+async function runAllTasksMode(hooks, projectRoot, planName, planFile, planDir) {
   log(`Starting build: all pending tasks from ${planName}`);
 
   // Reset failed tasks back to pending so they are retried
@@ -1190,7 +1585,7 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
 
   // ── Phase 1: Pre-flight ──
 
-  const envCheck = await runEnvCheck(projectRoot, planFile);
+  const envCheck = await runPreFlight(hooks, planFile);
   if (!envCheck.ok) {
     log('BUILD ABORTED: pre-flight environment check failed');
     for (const f of envCheck.failures) log(`  - ${f}`);
@@ -1249,8 +1644,11 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
       findTask(d, taskId).status = 'in_progress';
     });
 
+    // Build task context for hook calls
+    const freshTaskContext = buildTaskContext(freshData, taskId);
+
     // Prepare worktree
-    const wt = await prepareWorktree(projectRoot, freshTask.feature, taskId, baseBranch);
+    const wt = await prepareWorktree(hooks, projectRoot, freshTask.feature, taskId, baseBranch, freshTaskContext);
     if (!wt.ok) {
       log(`Task ${taskId}: worktree preparation failed`);
       updatePlanJson(planFile, (d) => {
@@ -1274,9 +1672,9 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
     // Run task (simple or with sub-tasks)
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
     } else {
-      result = await runSimpleTask(projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, baseBranch, priorSummaries, planDir);
     }
 
     if (result.ok) {
@@ -1297,7 +1695,7 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
         t.error = result.error || 'Task failed';
       });
       // Clean up worktree on failure
-      cleanupWorktree(projectRoot, freshTask.feature, taskId);
+      await cleanupWorktree(hooks, projectRoot, freshTask.feature, taskId, freshTaskContext);
       failedCount++;
       log(`Task ${taskId}: failed — stopping build`);
       break;
@@ -1307,7 +1705,7 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
   // ── Phase 3: Post-flight ──
 
   if (failedCount === 0 && doneCount === taskCount) {
-    const finalResult = await runFinalTests(projectRoot, planFile);
+    const finalResult = await runFinalTests(hooks, planFile);
 
     // Save final tests report
     writeReport(planDir, 'final-test', { failures: finalResult.failures });
@@ -1334,7 +1732,7 @@ async function runAllTasksMode(projectRoot, planName, planFile, planDir) {
         }
 
         // Re-run final tests
-        const reCheck = await runFinalTests(projectRoot, planFile);
+        const reCheck = await runFinalTests(hooks, planFile);
         if (reCheck.ok) {
           planFixOk = true;
           break;
