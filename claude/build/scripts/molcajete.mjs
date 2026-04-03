@@ -988,7 +988,7 @@ async function runDevSession(projectRoot, planFile, taskId, wtPath, priorSummari
     '--max-budget-usd', BUDGET_AGENT,
     '--json-schema', JSON.stringify(DEV_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/dev-session ${payload}`,
+    `/molcajete:develop ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output);
@@ -1104,7 +1104,7 @@ async function runValidationSession(hooks, projectRoot, planFile, taskId, wtPath
     '--max-budget-usd', BUDGET_AGENT,
     '--json-schema', JSON.stringify(VALIDATE_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/validate-session ${payload}`,
+    `/molcajete:validate ${payload}`,
   ]);
 
   const claudeOut = extractStructuredOutput(result.output);
@@ -1143,7 +1143,7 @@ async function runWorktreeFixSession(projectRoot, wtPath, branch, baseBranch, er
     '--max-turns', '10',
     '--allowedTools', 'Read,Bash,Glob',
     '--json-schema', JSON.stringify(WORKTREE_FIX_SCHEMA),
-    `/m:sessions/worktree-fix ${payload}`,
+    `/molcajete:resolve-conflicts ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output);
@@ -1214,7 +1214,7 @@ async function runCommitSession(projectRoot, planFile, taskId, wtPath, devSummar
     '--allowedTools', 'Read,Glob,Grep,Bash',
     '--json-schema', JSON.stringify(COMMIT_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/commit-session ${payload}`,
+    `/molcajete:commit ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output);
@@ -1252,7 +1252,7 @@ async function runDocSession(projectRoot, planFile, task, wtPath, devSummary, fi
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash,Agent',
     '--json-schema', JSON.stringify(DOC_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/doc-session ${payload}`,
+    `/molcajete:document ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output);
@@ -1786,7 +1786,7 @@ async function runBuild(args) {
 Resolves <plan-name> to a plan file in .molcajete/plans/ and runs all
 pending tasks in dependency order.
 
-Single-task execution is available interactively via /m:build <plan> <task-id>.
+Single-task execution is available interactively via /m:build in the marketplace plugin.
 
 The plan name can be:
   - Full filename:  202603261430-user-authentication.json

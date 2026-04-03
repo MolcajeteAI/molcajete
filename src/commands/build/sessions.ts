@@ -80,7 +80,7 @@ export async function runDevSession(
     '--max-budget-usd', BUDGET_AGENT,
     '--json-schema', JSON.stringify(DEV_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/dev-session ${payload}`,
+    `/molcajete:develop ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output) as unknown as DevSessionOutput;
@@ -198,7 +198,7 @@ export async function runValidationSession(
     '--max-budget-usd', BUDGET_AGENT,
     '--json-schema', JSON.stringify(VALIDATE_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/validate-session ${payload}`,
+    `/molcajete:validate ${payload}`,
   ]);
 
   const claudeOut = extractStructuredOutput(result.output);
@@ -241,7 +241,7 @@ export async function runWorktreeFixSession(
     '--max-turns', '10',
     '--allowedTools', 'Read,Bash,Glob',
     '--json-schema', JSON.stringify(WORKTREE_FIX_SCHEMA),
-    `/m:sessions/worktree-fix ${payload}`,
+    `/molcajete:resolve-conflicts ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output);
@@ -318,7 +318,7 @@ export async function runCommitSession(
     '--allowedTools', 'Read,Glob,Grep,Bash',
     '--json-schema', JSON.stringify(COMMIT_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/commit-session ${payload}`,
+    `/molcajete:commit ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output) as unknown as CommitSessionOutput;
@@ -362,7 +362,7 @@ export async function runDocSession(
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash,Agent',
     '--json-schema', JSON.stringify(DOC_SESSION_SCHEMA),
     '--name', sessionLabel,
-    `/m:sessions/doc-session ${payload}`,
+    `/molcajete:document ${payload}`,
   ]);
 
   const out = extractStructuredOutput(result.output) as unknown as DocSessionOutput;

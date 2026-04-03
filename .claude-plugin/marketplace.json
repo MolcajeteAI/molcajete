@@ -6,12 +6,12 @@
   },
   "plugins": [
     {
-      "name": "m",
-      "source": "./core",
-      "description": "Spec-driven development with EARS requirements, BDD scenarios, and automated build dispatch"
+      "name": "molcajete",
+      "source": "./claude",
+      "description": "Session commands and build skills for headless build dispatch"
     }
   ],
   "enabledPlugins": {
-    "m@Molcajete.ai": true
+    "molcajete@Molcajete.ai": true
   }
 }

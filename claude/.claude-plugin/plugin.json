@@ -1,0 +1,25 @@
+{
+  "name": "molcajete",
+  "version": "3.9.0",
+  "description": "Session commands and build skills for headless build dispatch",
+  "author": {
+    "name": "Ivan Torres",
+    "email": "ivantorresedge@gmail.com"
+  },
+  "keywords": ["workflow", "development", "testing", "specs", "bdd"],
+  "commands": [
+    "./build/commands/develop.md",
+    "./build/commands/validate.md",
+    "./build/commands/commit.md",
+    "./build/commands/document.md",
+    "./build/commands/resolve-conflicts.md"
+  ],
+  "skills": [
+    "./build/skills/dispatch/SKILL.md",
+    "./build/skills/setup/SKILL.md",
+    "./shared/skills/gherkin/SKILL.md",
+    "./shared/skills/git-committing/SKILL.md",
+    "./shared/skills/code-documentation/SKILL.md",
+    "./shared/skills/id-generation/SKILL.md"
+  ]
+}

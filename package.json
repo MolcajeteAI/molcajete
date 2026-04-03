@@ -1,6 +1,6 @@
 {
   "name": "molcajete",
-  "version": "3.9.0",
+  "version": "3.0.0",
   "type": "module",
   "description": "Spec-driven software development CLI powered by Claude Code",
   "bin": {
@@ -13,7 +13,7 @@
   },
   "files": [
     "dist/",
-    "core/"
+    "claude/"
   ],
   "engines": {
     "node": ">=20"

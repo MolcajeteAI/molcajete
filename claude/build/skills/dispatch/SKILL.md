@@ -10,11 +10,11 @@ description: >-
 
 # Dispatch
 
-Rules for the `/m:build` dispatch pipeline. All build components — the skill entry point (`build.md`), session commands (`sessions/*.md`), and the orchestrator (`molcajete.mjs`) — follow these conventions.
+Rules for the build dispatch pipeline. All build components — session commands (`build/commands/*.md`) and the orchestrator (`molcajete.mjs`) — follow these conventions.
 
 ## When to Use
 
-- Understanding how `/m:build` dispatches and gates tasks
+- Understanding how the build dispatch pipeline gates tasks
 - Writing or modifying dispatch pipeline components
 - Referencing plan JSON schema or status lifecycle
 - Understanding the dev-validate cycle and session types
@@ -35,12 +35,12 @@ The build pipeline uses purpose-specific sessions orchestrated by `molcajete.mjs
 | Merge + cleanup | Node.js first, hook or Claude on conflict | Deterministic rebase/merge; optional `merge`/`cleanup` hooks; dev-validate cycle on conflicts |
 | Post-flight | No (hooks) | Full BDD suite via `run-tests` hook |
 
-Session commands live in `${CLAUDE_PLUGIN_ROOT}/build/commands/sessions/`:
-- `dev-session.md` — development session (implement code + tests, no quality gates, no commits)
-- `validate-session.md` — validation coordinator (code review + completeness gates only)
-- `commit-session.md` — commit session (stages and commits validated changes using git-committing skill)
-- `doc-session.md` — documentation session (architecture updates, PRD propagation, READMEs)
-- `worktree-fix.md` — diagnose and fix worktree creation failures
+Session commands live in `${CLAUDE_PLUGIN_ROOT}/build/commands/`:
+- `develop.md` — development session (implement code + tests, no quality gates, no commits)
+- `validate.md` — validation coordinator (code review + completeness gates only)
+- `commit.md` — commit session (stages and commits validated changes using git-committing skill)
+- `document.md` — documentation session (architecture updates, PRD propagation, READMEs)
+- `resolve-conflicts.md` — diagnose and fix worktree creation failures
 
 ## Dev-Validate Cycle
 
@@ -259,7 +259,7 @@ mkdir -p .molcajete/worktrees
 git worktree add -b "dispatch/{FEAT}-{T-NNN}" ".molcajete/worktrees/{FEAT}-{T-NNN}" "{BASE_BRANCH}"
 ```
 
-All sub-tasks share the parent task's worktree. The orchestrator attempts creation via Node.js first — on failure, it spawns a worktree-fix session (Claude) to diagnose and resolve.
+All sub-tasks share the parent task's worktree. The orchestrator attempts creation via Node.js first — on failure, it spawns a resolve-conflicts session (Claude) to diagnose and resolve.
 
 ### Cleanup
 
@@ -479,7 +479,7 @@ Dev → Validate → Code Commit → Doc Session → Doc Commit → Merge
 
 ### Doc Session
 
-The orchestrator spawns a doc session (`doc-session.md`) at haiku level. The session itself is lightweight coordination — it spawns two parallel sub-agents:
+The orchestrator spawns a doc session (`document.md`) at haiku level. The session itself is lightweight coordination — it spawns two parallel sub-agents:
 
 1. **Architecture agent** (opus) — Updates the feature's `ARCHITECTURE.md` (Component Inventory, Code Map, Architecture Decisions). Propagates PRD statuses (UC rollup → feature rollup).
 2. **README agent** (sonnet, `implement` intent only, skipped for `wire-bdd`) — Examines `files_modified`, determines which directories need README creation/update, updates them.
@@ -590,7 +590,7 @@ Examples:
 
 - **Dev session:** `dev-{T-NNN}` or `dev-{T-NNN-M}`
 - **Validation session:** `validate-{T-NNN}` or `validate-{T-NNN-M}`
-- **Interactive (via /m:build):** No named session — runs in current session
+- **Interactive (via /m:build in marketplace plugin):** No named session — runs in current session
 
 ## Summary Writing
 

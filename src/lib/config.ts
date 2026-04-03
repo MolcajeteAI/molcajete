@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-export const PLUGIN_DIR = resolve(__dirname, '../core');
+export const PLUGIN_DIR = resolve(__dirname, '../claude');
 
 // ── Environment Config ──
 
