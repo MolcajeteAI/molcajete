@@ -43,15 +43,23 @@ The tech stack is organized by **module** -- each application, service, or packa
 2. For each module, detect: directory path, language, framework, build tool, key libraries, styling (if frontend), testing tools, lint/format tools.
 3. Detect shared infrastructure: databases, caches, queues, hosting, CI/CD, monitoring, containerization.
 4. Detect external services: third-party APIs, LLM providers, payment processors, notification services.
-5. Use AskUserQuestion to present the inferred stack organized by module: "I found the following tech stack in your codebase:\n\n{inferred stack grouped by module, then shared infrastructure, then external services}\n\nIs this correct?"
+5. Detect runtime environment: Docker Compose vs host-native, start/stop commands, compose file location.
+6. Detect services: from `docker-compose.yml` or other manifests, extract service names, types, ports, and health check commands.
+7. Detect applications: runnable apps with their ports, run commands, and types (frontend/backend).
+8. Detect BDD framework: check for `behave`, `@cucumber/cucumber`, `godog`, etc. in dependency manifests. Identify the step definition language and feature file location.
+9. Detect per-domain tooling: formatter and linter for each module/domain (see Stage 5 detection tables for specifics).
+10. Detect environment config: `.env` / `.env.example` files, key variables, seed data commands.
+11. Use AskUserQuestion to present the inferred stack organized by section: "I found the following tech stack in your codebase:\n\n{inferred stack: modules, runtime, services, applications, external services, repository structure, BDD, tooling, environment}\n\nIs this correct?"
 
 **If no codebase exists**, use AskUserQuestion for each question:
 1. "What applications or services make up your project? For each one, what language and framework does it use?" (e.g., "Patient app: React + TypeScript, Backend API: Go + gqlgen")
 2. "What database, cache, or queue systems?"
 3. "How is the project hosted and what CI/CD do you use?"
 4. "Is this a monorepo or multi-repo? What package manager?"
+5. "What BDD framework will you use? (e.g., Behave, Cucumber.js, godog)"
+6. "What formatter and linter do you use per module?"
 
-Fill in the TECH-STACK.md template with the confirmed answers, one module section per application/service.
+Fill in the TECH-STACK.md template with the confirmed answers, populating all applicable sections (Modules, Runtime, Services, Applications, External Services, Repository Structure, BDD, Tooling, Environment, Conventions).
 
 ### Stage 3: Actors
 
@@ -91,6 +99,8 @@ After domain confirmation, if more than one domain exists: auto-prepend a `globa
 Scans the codebase for project tooling and runtime configuration. Results are baked into executable hook scripts in `.molcajete/hooks/`. Each hook handles one checkpoint — no configuration file needed. This stage is re-runnable — it overwrites existing hooks with freshly detected values (unless `--no-overwrite` is set).
 
 **This stage requires a codebase.** If no codebase exists, skip and tell the user: "Hook generation requires a codebase. Run `/m:setup` again after you have code."
+
+**TECH-STACK.md as primary source:** Before scanning the codebase, check if `prd/TECH-STACK.md` exists and has populated sections (Runtime, Services, Applications, BDD, Tooling). If it does, use it as the primary source for hook configuration — extract start/stop commands from Runtime, service health checks from Services, BDD framework/command from BDD, and format/lint commands from Tooling. Only fall back to codebase scanning for sections that are missing or still contain template placeholders. When `--overwrite-hooks` is used, re-read TECH-STACK.md and regenerate hooks from it without re-running the interview stages.
 
 **Detection philosophy:** The Explore agent reads project manifests (docker-compose.yml, package.json, pyproject.toml, Makefile, .env.example, Dockerfile, etc.) to understand what technologies the project uses and how it's composed. From that understanding, it derives the direct tool commands that Molcajete needs. It never stores wrapper commands (make, npm run, pnpm --filter). Makefiles and package.json scripts are read only to discover which underlying tools are in use.
 

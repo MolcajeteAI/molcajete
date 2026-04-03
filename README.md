@@ -16,27 +16,62 @@ Molcajete operates in three phases:
 
 There is also a **reverse** path: point Molcajete at an existing codebase and it will extract specs from the code, then wire BDD tests to what already exists.
 
-## Quick Start
+## Prerequisites
 
-```
-# Spec — author the product spec
-/m:setup                  # initialize PROJECT.md, TECH-STACK.md, ACTORS.md, GLOSSARY.md, DOMAINS.md, FEATURES.md
-/m:feature                # create a feature with EARS requirements
-/m:usecase                # create use cases under that feature
-/m:scenario               # generate Gherkin feature files from a use case
+- Node.js >= 20
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 
-# Plan — decompose into tasks
-/m:plan                   # decompose use cases into an implementation plan
+## Installation
 
-# Build — execute the plan
-/m:build {plan-name}      # execute the plan — dispatches tasks until all tests pass
+```bash
+pnpm add -g molcajete
 ```
 
-Each command runs an interactive interview to gather what it needs. Setup through scenario is spec authoring; plan decomposes work into tasks; build executes them.
+Or install from source:
 
-## Command Reference
+```bash
+git clone <repo-url>
+cd molcajete-v3
+pnpm install
+pnpm build
+pnpm link --global
+```
 
-All commands are prefixed with `/m:`.
+## Building from Source
+
+```bash
+pnpm install          # install dependencies
+pnpm build            # produces dist/molcajete.mjs
+pnpm typecheck        # type-check without emitting
+pnpm dev              # watch mode (rebuilds on change)
+```
+
+The build uses [tsup](https://tsup.egoist.dev/) to bundle `src/cli.ts` into a single ESM file at `dist/molcajete.mjs` with a Node shebang.
+
+## CLI Reference
+
+```
+molcajete [--debug] <command>
+```
+
+The `--debug` flag prints spawned Claude commands to stderr.
+
+### `molcajete build`
+
+Execute all pending tasks in a plan.
+
+```
+molcajete build 202604021530-login    # by plan directory name
+molcajete build --resume 202604021530-login   # skip already-implemented tasks
+```
+
+| Flag | Description |
+|------|-------------|
+| `--resume` | Resume from where a previous build left off |
+
+## Plugin Commands
+
+Inside a Claude Code session, all commands are prefixed with `/m:`.
 
 ### Setup
 
@@ -94,6 +129,46 @@ All commands are prefixed with `/m:`.
 
 Headless commands are invoked automatically by the build dispatch loop — you don't call them directly.
 
+## Hooks
+
+Setup generates executable hook scripts in `.molcajete/hooks/`. Each hook handles one checkpoint.
+
+### Mandatory Hooks
+
+These four are required for builds to run:
+
+| Hook | Purpose |
+|------|---------|
+| `health-check.mjs` | Verify services are running (DB, cache, app servers) |
+| `run-tests.mjs` | Run BDD tests with tag filtering |
+| `format.mjs` | Check formatting per domain (check mode only, no writes) |
+| `lint.mjs` | Run linters per domain (report mode only, no fixes) |
+
+### Optional Hooks
+
+Generated with `--all` or `--hooks <name>`:
+
+| Hook | Purpose |
+|------|---------|
+| `start.mjs` | Start the dev environment |
+| `stop.mjs` | Stop the dev environment |
+| `logs.mjs` | Retrieve service logs |
+| `restart.mjs` | Restart services |
+| `cleanup.mjs` | Remove worktree + branch after merge |
+| `merge.mjs` | Merge a task branch to base |
+| `before-worktree-created.mjs` | Pre-worktree-creation lifecycle event |
+| `after-worktree-created.mjs` | Post-worktree-creation lifecycle event |
+| `before-worktree-merged.mjs` | Pre-merge lifecycle event |
+| `after-worktree-merged.mjs` | Post-merge lifecycle event |
+| `before-task.mjs` | Pre-task lifecycle event |
+| `after-task.mjs` | Post-task lifecycle event |
+| `before-validate.mjs` | Pre-validation lifecycle event |
+| `after-validate.mjs` | Post-validation lifecycle event |
+| `before-commit.mjs` | Pre-commit lifecycle event |
+| `after-commit.mjs` | Post-commit lifecycle event |
+
+Hooks derive direct tool commands (never `make`, `npm run`, or wrapper scripts). Setup reads `prd/TECH-STACK.md` as primary source for hook configuration and falls back to codebase scanning for missing fields.
+
 ## The PRD Structure
 
 Every project is organized by **domains** — bounded contexts of concern. A domain can be a separate application, a backend service, or a logical area within one app. Even single-app projects have one domain. The `global` domain holds cross-cutting concerns (authentication, shared UI) that apply to every module.
@@ -132,6 +207,23 @@ prd/
     └── ...
 ```
 
+### TECH-STACK.md
+
+Setup populates `prd/TECH-STACK.md` with the following sections:
+
+| Section | Contents |
+|---------|----------|
+| **Modules** | Per-app/service: directory, language, framework, build, libraries, styling, testing, lint/format |
+| **Runtime** | Docker Compose vs host-native, compose file, start/stop commands |
+| **Services** | Infrastructure services: type, port, health check, notes |
+| **Applications** | Runnable apps: type, port, run command, notes |
+| **External Services** | Third-party APIs and integrations |
+| **Repository Structure** | Monorepo vs multi-repo, package manager |
+| **BDD** | Framework, language, format |
+| **Tooling** | Per-domain format and lint commands |
+| **Environment** | Env file, key variables, seed data |
+| **Conventions** | Project-wide patterns |
+
 ### Domains
 
 `DOMAINS.md` declares the project's bounded contexts:
@@ -145,7 +237,7 @@ prd/
 
 `FEATURES.md` is a single master index with the global section first (cross-cutting baseline), then one section per domain. Cross-cutting features use the **same FEAT-XXXX ID** across global and all implementing domains — the shared ID makes the relationship explicit. Global holds only baseline REQUIREMENTS.md + ARCHITECTURE.md (no use cases). Each domain that implements the feature gets its own `features/FEAT-XXXX-{slug}/` directory with domain-specific requirements, use cases, and architecture. Domain features declare `refs: [FEAT-XXXX]` in their REQUIREMENTS.md frontmatter to link back to the global baseline (plus any other features they depend on).
 
-When a command receives a global feature ID (e.g., `/m:plan FEAT-XXXX`), it globs `prd/domains/*/features/FEAT-XXXX-*/` to find all domain implementations, then generates a cross-domain plan. Pass specific use case IDs for narrower scope.
+When a command receives a global feature ID (e.g., `molcajete plan FEAT-XXXX`), it globs `prd/domains/*/features/FEAT-XXXX-*/` to find all domain implementations, then generates a cross-domain plan. Pass specific use case IDs for narrower scope.
 
 ### Documents
 
@@ -199,11 +291,11 @@ Detection results are cached in `.molcajete/settings.json` so sniffing only runs
 
 ## The Build Pipeline
 
-When you run `/m:build {plan-name}`, this is what happens:
+When you run `molcajete build {plan-name}`, this is what happens:
 
 ### 1. Task Dispatch
 
-The dispatch loop reads `.molcajete/tasks.json` and processes tasks sequentially, respecting dependencies. Each task goes through:
+The dispatch loop reads the plan's `plan.json` and processes tasks sequentially, respecting dependencies. Each task goes through:
 
 ```
 pending → in_progress → implemented
@@ -212,7 +304,7 @@ pending → in_progress → implemented
 
 ### 2. Task Execution
 
-Each task runs in an isolated git worktree (`.claude/worktrees/{FEAT-ID}-{TASK-ID}/`) with a dedicated Claude agent. The agent receives the task's spec files, Gherkin scenarios, and architecture context.
+Each task runs in an isolated git worktree (configurable via `useWorktrees` in settings) with a dedicated Claude agent. The agent receives the task's spec files, Gherkin scenarios, and architecture context.
 
 For **forward plans** (`implement` intent), the agent produces two atomic commits:
 1. Production code (guided by Gherkin assertions)
@@ -227,44 +319,25 @@ Every completed task passes through an adversarial review agent that checks:
 
 | Gate | What it checks |
 |------|----------------|
-| **Formatting** | Project formatter (prettier, black, gofmt, rustfmt) |
-| **Linting** | Project linter (eslint, ruff, golangci-lint, clippy) |
+| **Formatting** | Project formatter (biome, prettier, gofmt, rustfmt) |
+| **Linting** | Project linter (biome, eslint, ruff, golangci-lint, clippy) |
 | **BDD Tests** | Tagged `@SC-XXXX` scenarios pass using detected framework |
 | **Code Review** | Step definitions and production code conform to specs |
 | **Completeness** | All requirements traced to code, no stubs or TODOs |
 
 ### 4. Retry Logic
 
-If review fails, the issues are sent back to the task agent for a fix. The task agent resumes its session, applies fixes, and the review runs again in a fresh session. Maximum 2 retries per task.
+If review fails, the issues are sent back to the task agent for a fix. The task agent resumes its session, applies fixes, and the review runs again in a fresh session. Maximum retries are configurable via `MAX_DEV_VALIDATE_CYCLES` (default: 7).
 
 ### 5. Architecture Update
 
 After a task passes review, a dedicated agent updates `ARCHITECTURE.md` to reflect what was built. Then the worktree merges back to the base branch. Architecture updates are skipped for the global domain (spec-only — no implementation to document).
 
-## Skills Reference
-
-Skills are internal prompt modules that govern how commands behave. They are not user-facing commands.
-
-| Skill | Governs |
-|-------|---------|
-| `setup` | Interview rules, codebase detection, domain scaffolding, templates for initial PRD files |
-| `feature-authoring` | EARS syntax, Fit Criteria, FEAT-XXXX ID assignment, domain resolution, global vs domain decision |
-| `usecase-authoring` | UC file structure, flat scenario blocks, UC-XXXX IDs, creation interview |
-| `gherkin` | BDD conventions, feature file generation, step definitions, framework detection |
-| `planning` | Plan file format, task decomposition, context budgets, global feature planning, refs loading |
-| `architecture` | ARCHITECTURE.md schema (C4, data model, component inventory, ADRs) |
-| `reverse-engineering` | Research methodology, extraction patterns, reverse command conventions |
-| `dispatch` | Task status lifecycle, retry policy, worktree naming, session management |
-| `git-committing` | Commit message format, project style detection, atomic commit rules |
-| `id-generation` | Canonical FEAT/UC/SC ID generation via base36 timestamp script |
-| `headless-research` | Silent pre-research before spec writing, parallel agents, context briefs |
-| `research-methods` | Search strategies, source evaluation, research guide templates |
-
 ## Configuration
 
 ### `.molcajete/settings.json`
 
-Stores cached detection results:
+Stores cached detection results and build settings:
 
 ```json
 {
@@ -273,7 +346,10 @@ Stores cached detection results:
     "framework": "behave",
     "format": "gherkin",
     "detected_at": "2026-03-29T10:00:00Z"
-  }
+  },
+  "useWorktrees": true,
+  "allowParallelTasks": false,
+  "startTimeout": 60000
 }
 ```
 
@@ -281,23 +357,19 @@ Delete the `bdd` key to force re-detection.
 
 ### Environment Variables
 
-Override dispatch defaults by setting these before running `/m:build`:
+Override defaults by setting these before running `molcajete build`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLCAJETE_MAX_RETRIES` | `2` | Max review retries per task |
 | `MOLCAJETE_BACKOFF_BASE` | `30` | Backoff base in seconds between retries |
-| `MOLCAJETE_MAX_TURNS_AGENT` | `30` | Max conversation turns for task agent |
-| `MOLCAJETE_MAX_TURNS_REVIEW` | `15` | Max conversation turns for review agent |
-| `MOLCAJETE_BUDGET_AGENT` | `3.00` | Token budget for task agent |
-| `MOLCAJETE_BUDGET_REVIEW` | `1.50` | Token budget for review agent |
+| `MOLCAJETE_MAX_TURNS_AGENT` | `50` | Max conversation turns for task agent |
+| `MOLCAJETE_BUDGET_AGENT` | `5.00` | Token budget for task agent |
 | `MOLCAJETE_TASK_TIMEOUT` | `897` | Timeout per task in seconds |
+| `MOLCAJETE_HOOK_TIMEOUT` | `30000` | Timeout per hook in milliseconds |
 
-### Plan and Task Files
+### Plan Files
 
-- **Plans:** `.molcajete/plans/{YYYYMMDDHHmm}-{slug}.md`
-- **Tasks:** `.molcajete/tasks.json` (generated by dispatch from the plan)
-- **Research:** `.molcajete/research/{YYYYMMDDHHmm}-{slug}.md`
+Plans live in `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` with a `plan.json` inside.
 
 ## Reverse Engineering Workflow
 
@@ -309,7 +381,7 @@ For existing codebases that need specs and BDD coverage:
 /m:reverse-usecase             # extract one use case, cascades to scenarios
 /m:reverse-scenario            # extract one scenario from a code path (atomic)
 /m:reverse-plan                # generate a plan for wiring BDD to existing code
-/m:build {reverse-plan-name}   # execute — writes step definitions, not production code
+molcajete build {reverse-plan} # execute — writes step definitions, not production code
 ```
 
 The reverse path produces the same PRD structure as the forward path. The only difference is the build intent: `wire-bdd` instead of `implement`, which means the task agent writes step definitions against existing code rather than building new code.
@@ -321,12 +393,9 @@ The reverse path produces the same PRD structure as the forward path. The only d
 - `FEAT-XXXX` — features
 - `UC-XXXX` — use cases
 - `SC-XXXX` — scenarios
-- `T-NNN` — tasks in plan files (sequential: T-001, T-002, ...)
+- `TASK-XXXX` — tasks in plan files
 
-All FEAT/UC/SC IDs are generated via script — never computed manually:
-```
-node ${CLAUDE_PLUGIN_ROOT}/shared/skills/id-generation/scripts/generate-id.js [count]
-```
+All FEAT/UC/SC IDs are generated via base62 timestamp (4-char uppercase codes).
 
 ### Naming
 
@@ -358,3 +427,22 @@ Verbs: Adds, Fixes, Updates, Removes, Refactors, Improves, Moves, Renames, Repla
 ### Context Budgets
 
 Each task is decomposed to fit within ~200K tokens, covering source files, spec files, Gherkin files, and implementation work. Plans break larger work into multiple tasks to stay within this limit.
+
+## Skills Reference
+
+Skills are internal prompt modules that govern how commands behave. They are not user-facing commands.
+
+| Skill | Governs |
+|-------|---------|
+| `setup` | Interview rules, codebase detection, domain scaffolding, templates for initial PRD files |
+| `feature-authoring` | EARS syntax, Fit Criteria, FEAT-XXXX ID assignment, domain resolution, global vs domain decision |
+| `usecase-authoring` | UC file structure, flat scenario blocks, UC-XXXX IDs, creation interview |
+| `gherkin` | BDD conventions, feature file generation, step definitions, framework detection |
+| `planning` | Plan file format, task decomposition, context budgets, global feature planning, refs loading |
+| `architecture` | ARCHITECTURE.md schema (C4, data model, component inventory, ADRs) |
+| `reverse-engineering` | Research methodology, extraction patterns, reverse command conventions |
+| `dispatch` | Task status lifecycle, retry policy, worktree naming, session management |
+| `git-committing` | Commit message format, project style detection, atomic commit rules |
+| `id-generation` | Canonical FEAT/UC/SC ID generation via base36 timestamp script |
+| `headless-research` | Silent pre-research before spec writing, parallel agents, context briefs |
+| `research-methods` | Search strategies, source evaluation, research guide templates |

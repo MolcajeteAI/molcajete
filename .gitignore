@@ -1,3 +1,6 @@
 research/*.md
 *.local.*
 .molcajete/worktrees/
+dist/
+node_modules/
+~/
