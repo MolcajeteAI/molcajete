@@ -1,4 +1,5 @@
-import type { HookMap, Task, PlanData, Settings } from '../../types.js';
+import type { HookMap, Task, Settings } from '../../types.js';
+import type { HookContextManager } from '../../lib/hook-context.js';
 import { MAX_DEV_VALIDATE_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId } from '../../lib/utils.js';
 import { readPlan, findTask, updateSubTaskStatus, checkSubTaskDeps } from './plan-data.js';
@@ -23,6 +24,7 @@ export async function runSimpleTask(
   planDir: string | null,
   wtPath: string,
   settings: Settings,
+  ctxManager?: HookContextManager,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
   const taskId = task.id;
 
@@ -32,14 +34,14 @@ export async function runSimpleTask(
   // Lifecycle hook: before-task
   await tryHook(hooks, 'before-task', {
     task_id: taskId, intent: task.intent, ...taskContext,
-  });
+  }, { ctxManager });
 
-  const result = await runDevValidateCycle(hooks, projectRoot, planFile, taskId, wtPath, priorSummaries, planDir, planTimestamp);
+  const result = await runDevValidateCycle(hooks, projectRoot, planFile, taskId, wtPath, priorSummaries, planDir, planTimestamp, ctxManager);
 
   if (!result.ok) {
     await tryHook(hooks, 'after-task', {
       task_id: taskId, status: 'failed', summary: result.error || '', ...taskContext,
-    });
+    }, { ctxManager });
     return { ok: false, error: result.error, devResult: result.devResult };
   }
 
@@ -63,18 +65,18 @@ export async function runSimpleTask(
       log(`Warning: doc session failed for ${taskId} — proceeding to merge`);
     }
 
-    const merge = await mergeWorktree(hooks, projectRoot, planFile, baseBranch, planTimestamp, taskId, priorSummaries, planDir);
+    const merge = await mergeWorktree(hooks, projectRoot, planFile, baseBranch, planTimestamp, taskId, priorSummaries, planDir, ctxManager);
     if (!merge.ok) {
       await tryHook(hooks, 'after-task', {
         task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
-      });
+      }, { ctxManager });
       return { ok: false, error: merge.error, devResult: result.devResult };
     }
   }
 
   await tryHook(hooks, 'after-task', {
     task_id: taskId, status: 'implemented', summary: result.devResult?.summary || '', ...taskContext,
-  });
+  }, { ctxManager });
 
   return { ok: true, devResult: result.devResult };
 }
@@ -93,6 +95,7 @@ export async function runTaskWithSubTasks(
   planDir: string | null,
   wtPath: string,
   settings: Settings,
+  ctxManager?: HookContextManager,
 ): Promise<{ ok: boolean; error?: string }> {
   const taskId = task.id;
   const subTasks = task.sub_tasks!;
@@ -105,7 +108,7 @@ export async function runTaskWithSubTasks(
   // Lifecycle hook: before-task
   await tryHook(hooks, 'before-task', {
     task_id: taskId, intent: task.intent, ...taskContext,
-  });
+  }, { ctxManager });
 
   // Run each sub-task sequentially
   for (const st of subTasks) {
@@ -133,12 +136,28 @@ export async function runTaskWithSubTasks(
     }
 
     log(`── Sub-task: ${stId} — ${st.title} ──`);
+
+    // Subtask scope lifecycle
+    ctxManager?.newSubtaskScope();
+
+    await tryHook(hooks, 'before-subtask', {
+      task_id: taskId, subtask_id: stId, ...taskContext,
+      ...(ctxManager ? { snapshot: ctxManager.snapshot(taskId, stId) } : {}),
+    }, { ctxManager });
+
     updateSubTaskStatus(planFile, stId, 'in_progress');
 
-    const result = await runDevValidateCycle(hooks, projectRoot, planFile, stId, wtPath, subSummaries, planDir, planTimestamp);
+    const result = await runDevValidateCycle(hooks, projectRoot, planFile, stId, wtPath, subSummaries, planDir, planTimestamp, ctxManager);
 
     if (!result.ok) {
       updateSubTaskStatus(planFile, stId, 'failed', { errors: [result.error] });
+
+      await tryHook(hooks, 'after-subtask', {
+        task_id: taskId, subtask_id: stId, status: 'failed', ...taskContext,
+        ...(ctxManager ? { snapshot: ctxManager.snapshot(taskId, stId) } : {}),
+      }, { ctxManager });
+      ctxManager?.clearSubtaskScope();
+
       return { ok: false, error: `Sub-task ${stId} failed: ${result.error}` };
     }
 
@@ -150,6 +169,12 @@ export async function runTaskWithSubTasks(
     if (result.devResult?.summary) subSummaries.push(result.devResult.summary);
     log(`Sub-task ${stId}: implemented`);
 
+    await tryHook(hooks, 'after-subtask', {
+      task_id: taskId, subtask_id: stId, status: 'implemented', ...taskContext,
+      ...(ctxManager ? { snapshot: ctxManager.snapshot(taskId, stId) } : {}),
+    }, { ctxManager });
+    ctxManager?.clearSubtaskScope();
+
     // Push branch after sub-task commit if enabled
     if (settings.persistWorktreeBranches && wtPath !== projectRoot) {
       const branch = worktreeBranch(baseBranch, planTimestamp, taskId);
@@ -160,7 +185,7 @@ export async function runTaskWithSubTasks(
   // Task-level validation with BDD
   log(`Running task-level validation for ${taskId} (with BDD)`);
   let valCycleCount = 0;
-  const taskVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath);
+  const taskVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, { ctxManager });
   valCycleCount++;
   if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, taskVal.structured);
 
@@ -181,7 +206,7 @@ export async function runTaskWithSubTasks(
         return { ok: false, error: `Task-level fix failed: ${dev.structured?.error || 'Dev session failed'}` };
       }
 
-      const reVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath);
+      const reVal = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, { ctxManager });
       valCycleCount++;
       if (planDir) writeReport(planDir, `${taskId}-validate-${valCycleCount}`, reVal.structured);
 
@@ -231,18 +256,18 @@ export async function runTaskWithSubTasks(
       log(`Warning: doc session failed for ${taskId} — proceeding to merge`);
     }
 
-    const merge = await mergeWorktree(hooks, projectRoot, planFile, baseBranch, planTimestamp, taskId, subSummaries, planDir);
+    const merge = await mergeWorktree(hooks, projectRoot, planFile, baseBranch, planTimestamp, taskId, subSummaries, planDir, ctxManager);
     if (!merge.ok) {
       await tryHook(hooks, 'after-task', {
         task_id: taskId, status: 'failed', summary: merge.error || '', ...taskContext,
-      });
+      }, { ctxManager });
       return { ok: false, error: merge.error };
     }
   }
 
   await tryHook(hooks, 'after-task', {
     task_id: taskId, status: 'implemented', summary: '', ...taskContext,
-  });
+  }, { ctxManager });
 
   return { ok: true };
 }

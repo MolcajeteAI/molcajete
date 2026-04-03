@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
-import type { HookMap, DevSessionOutput, ValidateSessionOutput, CommitSessionOutput, DocSessionOutput, ValidationResult, Task, PlanData } from '../../types.js';
+import type { HookMap, DevSessionOutput, ValidateSessionOutput, CommitSessionOutput, DocSessionOutput, ValidationResult, Task } from '../../types.js';
+import type { HookContextManager } from '../../lib/hook-context.js';
 import {
   DEV_SESSION_SCHEMA,
   VALIDATE_SESSION_SCHEMA,
@@ -19,6 +20,7 @@ import { readPlan, findTask } from './plan-data.js';
 export async function runPreFlight(
   hooks: HookMap,
   planFile: string,
+  { ctxManager }: { ctxManager?: HookContextManager } = {},
 ): Promise<{ ok: boolean; failures: string[]; summary: string }> {
   log('Pre-flight: running baseline BDD tests');
   const failures: string[] = [];
@@ -32,7 +34,7 @@ export async function runPreFlight(
   const testResult = await runHook(hooks['run-tests'], {
     tags,
     scope: 'preflight',
-  }, { timeout: 300000 });
+  }, { timeout: 300000, ctxManager });
 
   if (!testResult.ok) {
     failures.push(`Run-tests hook failed: ${testResult.stderr}`);
@@ -102,7 +104,7 @@ export async function runValidationSession(
   planFile: string,
   taskId: string,
   wtPath: string,
-  opts: { filesModified?: string[]; taskContext?: Record<string, unknown> } = {},
+  opts: { filesModified?: string[]; taskContext?: Record<string, unknown>; ctxManager?: HookContextManager } = {},
 ): Promise<ValidationResult> {
   log(`Validation: ${taskId}`);
 
@@ -120,6 +122,7 @@ export async function runValidationSession(
   const services = domain ? [domain, 'bdd'] : ['bdd'];
   const filesModified = opts.filesModified || [];
   const taskContext = opts.taskContext || {};
+  const ctxManager = opts.ctxManager;
 
   const allIssues: string[] = [];
   const structured: ValidateSessionOutput = {
@@ -131,7 +134,7 @@ export async function runValidationSession(
   };
 
   // Format then lint (sequential)
-  const fmtResult = await runHook(hooks['format'], { files: filesModified, services, ...taskContext }, { timeout: 60000, cwd: wtPath });
+  const fmtResult = await runHook(hooks['format'], { files: filesModified, services, ...taskContext }, { timeout: 60000, cwd: wtPath, ctxManager });
   if (!fmtResult.ok) {
     allIssues.push(`Format hook failed: ${fmtResult.stderr}`);
     structured.formatting!.push(`Format hook failed: ${fmtResult.stderr}`);
@@ -140,7 +143,7 @@ export async function runValidationSession(
     allIssues.push(...structured.formatting);
   }
 
-  const lintResult = await runHook(hooks['lint'], { files: filesModified, services, ...taskContext }, { timeout: 120000, cwd: wtPath });
+  const lintResult = await runHook(hooks['lint'], { files: filesModified, services, ...taskContext }, { timeout: 120000, cwd: wtPath, ctxManager });
   if (!lintResult.ok) {
     allIssues.push(`Lint hook failed: ${lintResult.stderr}`);
     structured.linting!.push(`Lint hook failed: ${lintResult.stderr}`);
@@ -153,11 +156,24 @@ export async function runValidationSession(
   const scenarioTag = task?.scenario ? ['@' + task.scenario] : [];
 
   if (!isSub && scenarioTag.length > 0) {
-    const bddResult = await runHook(hooks['run-tests'], {
+    // Generic run-tests input — hook decides how to execute
+    const testInput: Record<string, unknown> = {
       tags: scenarioTag,
       scope: 'task',
+      task_id: taskId,
       ...taskContext,
-    }, { timeout: 300000, cwd: wtPath });
+    };
+
+    // Include host/environment info from context if available
+    if (ctxManager) {
+      const hosts = ctxManager.snapshot(taskId).hosts;
+      if (hosts.length > 0) {
+        testInput.hosts = hosts;
+        testInput.environment = { status: 'running', cwd: wtPath };
+      }
+    }
+
+    const bddResult = await runHook(hooks['run-tests'], testInput, { timeout: 300000, cwd: wtPath, ctxManager });
 
     if (!bddResult.ok) {
       allIssues.push(`Run-tests hook failed: ${bddResult.stderr}`);
@@ -166,7 +182,7 @@ export async function runValidationSession(
       structured.bdd_tests = (bddResult.data as Record<string, unknown>).failures as string[] || ['Test infrastructure error'];
       allIssues.push(...structured.bdd_tests);
 
-      const logsResult = await tryHook(hooks, 'logs', { lines: 200 });
+      const logsResult = await tryHook(hooks, 'logs', { lines: 200 }, { ctxManager });
       if (logsResult?.ok && (logsResult.data as Record<string, unknown>).logs) {
         const logSnippet = ((logsResult.data as Record<string, unknown>).logs as string).slice(0, 2000);
         allIssues.push(`Environment logs:\n${logSnippet}`);
@@ -181,7 +197,7 @@ export async function runValidationSession(
   }
 
   // Lifecycle hook: before-validate
-  await tryHook(hooks, 'before-validate', { task_id: taskId, services, ...taskContext });
+  await tryHook(hooks, 'before-validate', { task_id: taskId, services, ...taskContext }, { ctxManager });
 
   // Claude gates: code-review + completeness
   const sessionLabel = `validate-${taskId}`;
@@ -207,7 +223,7 @@ export async function runValidationSession(
   allIssues.push(...structured.code_review, ...structured.completeness);
 
   // Lifecycle hook: after-validate
-  await tryHook(hooks, 'after-validate', { task_id: taskId, services, gate_results: structured, ...taskContext });
+  await tryHook(hooks, 'after-validate', { task_id: taskId, services, gate_results: structured, ...taskContext }, { ctxManager });
 
   if (allIssues.length === 0) {
     log(`Validation ${taskId}: all gates passed`);
@@ -261,6 +277,7 @@ export async function runWorktreeFixSession(
 export async function runFinalTests(
   hooks: HookMap,
   planFile: string,
+  { ctxManager }: { ctxManager?: HookContextManager } = {},
 ): Promise<{ ok: boolean; failures: string[] }> {
   log('Phase 3: Post-flight final tests');
 
@@ -273,7 +290,7 @@ export async function runFinalTests(
   const result = await runHook(hooks['run-tests'], {
     tags,
     scope: 'final',
-  }, { timeout: 300000 });
+  }, { timeout: 300000, ctxManager });
 
   if (!result.ok) {
     const failures = [`Run-tests hook failed: ${result.stderr}`];

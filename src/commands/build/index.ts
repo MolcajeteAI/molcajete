@@ -1,9 +1,10 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname, basename, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { log, run } from '../../lib/utils.js';
 import { MAX_DEV_VALIDATE_CYCLES } from '../../lib/config.js';
 import { readPlan, readSettings, findTask, updatePlanJson, updatePlanLevelStatus, resolvePlanFile } from './plan-data.js';
-import { discoverHooks, validateMandatoryHooks, startEnvironment, stopEnvironment } from '../lib/hooks.js';
+import { discoverHooks, validateMandatoryHooks, startEnvironment, stopEnvironment, tryHook } from '../lib/hooks.js';
 import { buildStats, formatDuration } from '../lib/claude.js';
 import { writeReport } from './reports.js';
 import { buildTaskContext } from './cycle.js';
@@ -12,7 +13,9 @@ import { runPreFlight, runFinalTests, runDevSession } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
 import { updatePrdStatuses } from './prd.js';
 import { runWorktreeFixSession } from './sessions.js';
-import type { HookMap } from '../../types.js';
+import { HookContextManager } from '../../lib/hook-context.js';
+import { NullRegistry } from '../../lib/global-registry.js';
+import type { HookMap, InstanceInfo } from '../../types.js';
 
 // Wire up worktree fix session
 setWorktreeFixSession(runWorktreeFixSession);
@@ -47,10 +50,23 @@ export async function runBuild(planName: string, opts: { resume?: boolean }): Pr
   // Extract planTimestamp from directory name (format: YYYYMMDDHHmm-slug)
   const planTimestamp = planRelative.match(/^(\d{12})/)?.[1] || planRelative;
 
-  const hooks = discoverHooks(projectRoot);
+  const hooks = await discoverHooks(projectRoot);
   validateMandatoryHooks(hooks);
 
-  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, planTimestamp, opts.resume);
+  // Create context manager for v2 hooks
+  const instance: InstanceInfo = {
+    cwd: projectRoot,
+    planId: planTimestamp,
+    pid: process.pid,
+    id: randomUUID().slice(0, 8),
+  };
+
+  // Use NullRegistry for now — Phase 6 replaces with real GlobalRegistry
+  const registry = new NullRegistry();
+  const ctxManager = new HookContextManager(instance, registry);
+  ctxManager.newPlanScope();
+
+  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, planTimestamp, ctxManager, opts.resume);
 }
 
 // ── Main Orchestrator Loop ──
@@ -62,6 +78,7 @@ async function runAllTasksMode(
   planFile: string,
   planDir: string,
   planTimestamp: string,
+  ctxManager: HookContextManager,
   resume?: boolean,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
@@ -94,25 +111,32 @@ async function runAllTasksMode(
   const baseBranch = data.base_branch || 'main';
 
   // Environment startup for pre-flight
-  const envStart = await startEnvironment(hooks, settings, { cwd: projectRoot });
-  if (!envStart.ok) {
-    log(`BUILD ABORTED: environment startup failed — ${envStart.error}`);
-    updatePlanJson(planFile, (d) => { d.status = 'failed'; });
-    process.exit(1);
+  // If after-worktree-created hook exists, skip legacy start (hooks manage lifecycle)
+  const hasLifecycleHooks = !!hooks['after-worktree-created'];
+
+  if (!hasLifecycleHooks) {
+    const envStart = await startEnvironment(hooks, settings, { cwd: projectRoot, ctxManager });
+    if (!envStart.ok) {
+      log(`BUILD ABORTED: environment startup failed — ${envStart.error}`);
+      updatePlanJson(planFile, (d) => { d.status = 'failed'; });
+      process.exit(1);
+    }
   }
 
   // Phase 1: Pre-flight
-  const envCheck = await runPreFlight(hooks, planFile);
+  const envCheck = await runPreFlight(hooks, planFile, { ctxManager });
   if (!envCheck.ok) {
     log('BUILD ABORTED: pre-flight BDD baseline failed');
     for (const f of envCheck.failures) log(`  - ${f}`);
-    await stopEnvironment(hooks, { cwd: projectRoot });
+    if (!hasLifecycleHooks) {
+      await stopEnvironment(hooks, { cwd: projectRoot, ctxManager });
+    }
     updatePlanJson(planFile, (d) => { d.status = 'failed'; });
     process.exit(1);
   }
 
-  if (settings.useWorktrees) {
-    await stopEnvironment(hooks, { cwd: projectRoot });
+  if (settings.useWorktrees && !hasLifecycleHooks) {
+    await stopEnvironment(hooks, { cwd: projectRoot, ctxManager });
   }
 
   // Phase 2: Task Loop
@@ -140,6 +164,9 @@ async function runAllTasksMode(
 
     log(`━━━ Task: ${taskId} — ${freshTask.title} ━━━`);
 
+    // New task scope
+    ctxManager.newTaskScope();
+
     // Check dependencies
     const { checkDependencies } = await import('./plan-data.js');
     const depResult = checkDependencies(freshData, taskId);
@@ -154,11 +181,13 @@ async function runAllTasksMode(
         }
       });
       failedCount++;
+      ctxManager.clearTaskScope();
       continue;
     }
 
     if (depResult === 2) {
       log(`Skipping ${taskId}: dependency not yet implemented`);
+      ctxManager.clearTaskScope();
       continue;
     }
 
@@ -172,7 +201,7 @@ async function runAllTasksMode(
     let wtPath: string;
 
     if (settings.useWorktrees) {
-      const wt = await prepareWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext);
+      const wt = await prepareWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext, { ctxManager });
       if (!wt.ok) {
         log(`Task ${taskId}: worktree preparation failed`);
         updatePlanJson(planFile, (d) => {
@@ -183,28 +212,37 @@ async function runAllTasksMode(
           }
         });
         failedCount++;
+        ctxManager.clearTaskScope();
         log(`Task ${taskId}: failed — stopping build`);
         break;
       }
       wtPath = wt.path;
 
-      const taskEnv = await startEnvironment(hooks, settings, { cwd: wtPath });
-      if (!taskEnv.ok) {
-        log(`Task ${taskId}: environment startup failed — ${taskEnv.error}`);
-        updatePlanJson(planFile, (d) => {
-          const t = findTask(d, taskId);
-          if (t) {
-            t.status = 'failed';
-            t.errors = [taskEnv.error || 'Environment startup failed'];
-          }
-        });
-        await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext);
-        failedCount++;
-        log(`Task ${taskId}: failed — stopping build`);
-        break;
+      // If lifecycle hooks exist, after-worktree-created already launched the environment.
+      // Otherwise, use legacy startEnvironment.
+      if (!hasLifecycleHooks) {
+        const taskEnv = await startEnvironment(hooks, settings, { cwd: wtPath, ctxManager });
+        if (!taskEnv.ok) {
+          log(`Task ${taskId}: environment startup failed — ${taskEnv.error}`);
+          updatePlanJson(planFile, (d) => {
+            const t = findTask(d, taskId);
+            if (t) {
+              t.status = 'failed';
+              t.errors = [taskEnv.error || 'Environment startup failed'];
+            }
+          });
+          await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext, { ctxManager });
+          failedCount++;
+          ctxManager.clearTaskScope();
+          log(`Task ${taskId}: failed — stopping build`);
+          break;
+        }
       }
     } else {
       wtPath = projectRoot;
+
+      // Non-worktree mode: before-task hook serves as environment launch
+      // (handled inside runSimpleTask/runTaskWithSubTasks)
     }
 
     // Collect prior summaries
@@ -217,9 +255,9 @@ async function runAllTasksMode(
 
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, baseBranch, planTimestamp, priorSummaries, planDir, wtPath, settings);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, baseBranch, planTimestamp, priorSummaries, planDir, wtPath, settings, ctxManager);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, baseBranch, planTimestamp, priorSummaries, planDir, wtPath, settings);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, baseBranch, planTimestamp, priorSummaries, planDir, wtPath, settings, ctxManager);
     }
 
     if (result.ok) {
@@ -245,25 +283,28 @@ async function runAllTasksMode(
         }
       });
       if (settings.useWorktrees) {
-        await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext);
+        await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, freshTaskContext, { ctxManager });
       }
       failedCount++;
       log(`Task ${taskId}: failed — stopping build`);
-      if (settings.useWorktrees) {
-        await stopEnvironment(hooks, { cwd: wtPath });
+      if (settings.useWorktrees && !hasLifecycleHooks) {
+        await stopEnvironment(hooks, { cwd: wtPath, ctxManager });
       }
+      ctxManager.clearTaskScope();
       break;
     }
 
-    if (settings.useWorktrees) {
-      await stopEnvironment(hooks, { cwd: wtPath });
+    if (settings.useWorktrees && !hasLifecycleHooks) {
+      await stopEnvironment(hooks, { cwd: wtPath, ctxManager });
     }
+
+    ctxManager.clearTaskScope();
   }
 
   // Phase 3: Post-flight
   if (failedCount === 0 && doneCount === taskCount) {
-    if (settings.useWorktrees) {
-      const postEnv = await startEnvironment(hooks, settings, { cwd: projectRoot });
+    if (settings.useWorktrees && !hasLifecycleHooks) {
+      const postEnv = await startEnvironment(hooks, settings, { cwd: projectRoot, ctxManager });
       if (!postEnv.ok) {
         log(`Post-flight environment startup failed — ${postEnv.error}`);
         updatePlanJson(planFile, (d) => { d.status = 'failed'; });
@@ -272,7 +313,7 @@ async function runAllTasksMode(
     }
 
     if (failedCount === 0) {
-      const finalResult = await runFinalTests(hooks, planFile);
+      const finalResult = await runFinalTests(hooks, planFile, { ctxManager });
       writeReport(planDir, 'final-test', { failures: finalResult.failures });
 
       if (!finalResult.ok) {
@@ -293,7 +334,7 @@ async function runAllTasksMode(
             break;
           }
 
-          const reCheck = await runFinalTests(hooks, planFile);
+          const reCheck = await runFinalTests(hooks, planFile, { ctxManager });
           if (reCheck.ok) {
             planFixOk = true;
             break;
@@ -316,7 +357,9 @@ async function runAllTasksMode(
     }
   }
 
-  await stopEnvironment(hooks, { cwd: projectRoot });
+  if (!hasLifecycleHooks) {
+    await stopEnvironment(hooks, { cwd: projectRoot, ctxManager });
+  }
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 

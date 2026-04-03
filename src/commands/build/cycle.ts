@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import type { HookMap, TaskContext, DevValidateResult, PlanData } from '../../types.js';
+import type { HookContextManager } from '../../lib/hook-context.js';
 import { MAX_DEV_VALIDATE_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { readPlan, findTask } from './plan-data.js';
@@ -39,6 +40,7 @@ export async function runDevValidateCycle(
   priorSummaries: string[],
   planDir: string | null,
   planTimestamp: string,
+  ctxManager?: HookContextManager,
 ): Promise<DevValidateResult> {
   let issues: string[] = [];
 
@@ -68,11 +70,12 @@ export async function runDevValidateCycle(
       base_branch: baseBranch,
       working_branch: workingBranch,
       ...taskContext,
-    });
+    }, { ctxManager });
 
     const val = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, {
       filesModified,
       taskContext,
+      ctxManager,
     });
 
     if (planDir) {
@@ -114,7 +117,7 @@ export async function runDevValidateCycle(
         base_branch: baseBranch,
         working_branch: workingBranch,
         ...taskContext,
-      });
+      }, { ctxManager });
 
       return {
         ok: true,

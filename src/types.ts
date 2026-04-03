@@ -40,10 +40,6 @@ export interface Settings {
   persistWorktreeBranches: boolean;
 }
 
-export interface HookMap {
-  [name: string]: string; // name → absolute path
-}
-
 export interface HookResult {
   ok: boolean;
   data: Record<string, unknown>;
@@ -127,4 +123,107 @@ export interface ValidationResult {
   issues: string[];
   structured: ValidateSessionOutput;
   hardStop?: boolean;
+}
+
+// ── Hook Context Types ──
+
+/** Key-value store scoped to a lifecycle phase (plan, task, subtask). */
+export interface ScopedStore {
+  get<T = unknown>(key: string): T | undefined;
+  set(key: string, value: unknown): void;
+  has(key: string): boolean;
+  delete(key: string): boolean;
+  keys(): string[];
+  entries(): Array<[string, unknown]>;
+  clear(): void;
+}
+
+/** Describes a host environment (local or remote) for test execution. */
+export interface HostDescriptor {
+  name: string;
+  type: 'local' | 'remote';
+  path?: string;
+  ssh?: { host: string; port: number; user: string; keyPath?: string };
+  appPath?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** Task-scoped store with host registration. */
+export interface TaskStore extends ScopedStore {
+  registerHost(descriptor: HostDescriptor): void;
+  getHost(name?: string): HostDescriptor | undefined;
+  getHosts(): HostDescriptor[];
+  removeHost(name: string): boolean;
+}
+
+/** Information about the current Molcajete instance. */
+export interface InstanceInfo {
+  cwd: string;
+  planId: string;
+  pid: number;
+  id: string;
+}
+
+/** Information about the hook being executed. */
+export interface HookInfo {
+  name: string;
+  taskId?: string;
+  subtaskId?: string;
+  worktreePath?: string;
+  branch?: string;
+  identifiers?: Record<string, string>;
+}
+
+/** Global cross-instance registry interface. */
+export interface GlobalRegistry {
+  get<T = unknown>(key: string): T | undefined;
+  set(key: string, value: unknown): Promise<void>;
+  has(key: string): boolean;
+  listInstances(): InstanceInfo[];
+  allocatePort(startFrom?: number): Promise<number>;
+  connect(): Promise<void>;
+  disconnect(): void;
+}
+
+/** Context object passed to v2 hook functions. */
+export interface HookContext {
+  plan: ScopedStore;
+  task: TaskStore;
+  subtask: ScopedStore;
+  global: GlobalRegistry;
+  instance: InstanceInfo;
+  hook: HookInfo;
+  /** Convenience: get the first registered host (or by name). */
+  getHost(name?: string): HostDescriptor | undefined;
+  /** Convenience: get all registered hosts. */
+  getHosts(): HostDescriptor[];
+  /** Convenience: get allocated port for a host port mapping. */
+  getHostPort(internalPort: number): number | undefined;
+  /** Serializable snapshot for Claude sessions. */
+  snapshot(): ContextSnapshot;
+}
+
+/** Serializable subset of context for Claude session prompts. */
+export interface ContextSnapshot {
+  planId: string;
+  taskId?: string;
+  subtaskId?: string;
+  planStore: Record<string, unknown>;
+  taskStore: Record<string, unknown>;
+  hosts: HostDescriptor[];
+}
+
+/** v2 hook function signature. */
+export type HookFn = (ctx: HookContext) => Promise<HookResult | void>;
+
+/** Hook entry: path + version + optional cached function. */
+export interface HookEntry {
+  path: string;
+  version: 1 | 2;
+  fn?: HookFn;
+}
+
+/** Hook map: name → entry. */
+export interface HookMap {
+  [name: string]: HookEntry;
 }

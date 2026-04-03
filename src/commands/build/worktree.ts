@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HookMap, TaskContext } from '../../types.js';
+import type { HookContextManager } from '../../lib/hook-context.js';
 import { log, run } from '../../lib/utils.js';
 import { tryHook } from '../lib/hooks.js';
 
@@ -39,6 +40,7 @@ export async function prepareWorktree(
   planTimestamp: string,
   taskId: string,
   taskContext: TaskContext = {},
+  { ctxManager }: { ctxManager?: HookContextManager } = {},
 ): Promise<{ ok: boolean; path: string; error?: string }> {
   const wtPath = worktreePath(projectRoot, baseBranch, planTimestamp, taskId);
   const branch = worktreeBranch(baseBranch, planTimestamp, taskId);
@@ -49,7 +51,7 @@ export async function prepareWorktree(
     branch,
     base_branch: baseBranch,
     ...taskContext,
-  });
+  }, { ctxManager });
 
   // Try optional create-worktree hook first
   const hookResult = await tryHook(hooks, 'create-worktree', {
@@ -57,7 +59,7 @@ export async function prepareWorktree(
     branch,
     base_branch: baseBranch,
     ...taskContext,
-  });
+  }, { ctxManager });
   if (hookResult) {
     if (hookResult.ok && (hookResult.data as Record<string, unknown>).status === 'ok') {
       const hookPath = ((hookResult.data as Record<string, unknown>).path as string) || wtPath;
@@ -67,7 +69,7 @@ export async function prepareWorktree(
         branch,
         base_branch: baseBranch,
         ...taskContext,
-      });
+      }, { ctxManager });
       return { ok: true, path: hookPath };
     }
     if (hookResult.ok && (hookResult.data as Record<string, unknown>).status === 'failed') {
@@ -108,7 +110,7 @@ export async function prepareWorktree(
       branch,
       base_branch: baseBranch,
       ...taskContext,
-    });
+    }, { ctxManager });
     return { ok: true, path: wtPath };
   } catch (err) {
     log('Worktree creation failed — launching fix session');
@@ -128,12 +130,13 @@ export async function cleanupWorktree(
   planTimestamp: string,
   taskId: string,
   taskContext: TaskContext = {},
+  { ctxManager }: { ctxManager?: HookContextManager } = {},
 ): Promise<void> {
   const wtPath = worktreePath(projectRoot, baseBranch, planTimestamp, taskId);
   const branch = worktreeBranch(baseBranch, planTimestamp, taskId);
 
   // Try optional cleanup hook first
-  const hookResult = await tryHook(hooks, 'cleanup', { path: wtPath, branch, ...taskContext });
+  const hookResult = await tryHook(hooks, 'cleanup', { path: wtPath, branch, ...taskContext }, { ctxManager });
   if (hookResult?.ok && (hookResult.data as Record<string, unknown>).status === 'ok') {
     return;
   }

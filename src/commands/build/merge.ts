@@ -1,4 +1,5 @@
-import type { HookMap, PlanData } from '../../types.js';
+import type { HookMap } from '../../types.js';
+import type { HookContextManager } from '../../lib/hook-context.js';
 import { log, run } from '../../lib/utils.js';
 import { readPlan, writePlan, findTask } from './plan-data.js';
 import { tryHook } from '../lib/hooks.js';
@@ -17,6 +18,7 @@ export async function mergeWorktree(
   taskId: string,
   priorSummaries: string[],
   planDir: string | null,
+  ctxManager?: HookContextManager,
 ): Promise<{ ok: boolean; error?: string }> {
   const wtPath = worktreePath(projectRoot, baseBranch, planTimestamp, taskId);
   const branch = worktreeBranch(baseBranch, planTimestamp, taskId);
@@ -30,7 +32,7 @@ export async function mergeWorktree(
     branch,
     base_branch: baseBranch,
     ...mergeContext,
-  });
+  }, { ctxManager });
 
   // Try optional merge hook first
   const hookResult = await tryHook(hooks, 'merge', {
@@ -38,7 +40,7 @@ export async function mergeWorktree(
     branch,
     base_branch: baseBranch,
     ...mergeContext,
-  });
+  }, { ctxManager });
   if (hookResult) {
     if (hookResult.ok && (hookResult.data as Record<string, unknown>).status === 'ok') {
       const freshData = readPlan(planFile);
@@ -58,8 +60,8 @@ export async function mergeWorktree(
         branch,
         base_branch: baseBranch,
         ...mergeContext,
-      });
-      await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, mergeContext);
+      }, { ctxManager });
+      await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, mergeContext, { ctxManager });
       log(`Merged and cleaned up (hook): ${taskId}`);
       return { ok: true };
     }
@@ -86,6 +88,7 @@ export async function mergeWorktree(
       [...priorSummaries, `MERGE CONFLICT: Rebase of ${branch} onto ${baseBranch} failed. Resolve conflicts, stage files, and commit.`],
       planDir,
       planTimestamp,
+      ctxManager,
     );
 
     if (!resolution.ok) {
@@ -128,10 +131,10 @@ export async function mergeWorktree(
     branch,
     base_branch: baseBranch,
     ...mergeContext,
-  });
+  }, { ctxManager });
 
   // Step 4: Cleanup (always after successful merge)
-  await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, mergeContext);
+  await cleanupWorktree(hooks, projectRoot, baseBranch, planTimestamp, taskId, mergeContext, { ctxManager });
   log(`Merged and cleaned up: ${taskId}`);
 
   return { ok: true };

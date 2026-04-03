@@ -25,6 +25,7 @@ export const ALL_HOOKS = [
   'before-worktree-created', 'after-worktree-created',
   'before-worktree-merged', 'after-worktree-merged',
   'before-task', 'after-task',
+  'before-subtask', 'after-subtask',
   'before-validate', 'after-validate',
   'before-commit', 'after-commit',
 ];

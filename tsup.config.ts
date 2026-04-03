@@ -1,7 +1,10 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { molcajete: 'src/cli.ts' },
+  entry: {
+    molcajete: 'src/cli.ts',
+    'registry-daemon': 'src/lib/registry-daemon.ts',
+  },
   format: ['esm'],
   splitting: false,
   banner: { js: '#!/usr/bin/env node' },
