@@ -1,20 +1,20 @@
 # Molcajete.ai
 
-A Claude Code plugin that turns product specs into working, tested software — powered by BDD as the done signal.
-
-You write the spec. Molcajete plans the work, implements it, reviews it, and commits it — task by task — until every scenario passes.
+A CLI that turns spec-driven plans into working, tested software — powered by BDD as the done signal.
 
 ## How It Works
 
-Molcajete operates in three phases:
+Molcajete is split into two packages:
 
-**Spec** reads your intent and produces structured specs — features with EARS requirements, use cases with scenario blocks, and Gherkin feature files. Everything lands in a `prd/` folder that becomes the permanent source of truth.
+[**MolcajeteAI/plugin**](https://github.com/MolcajeteAI/plugin) is a Claude Code plugin that handles **Spec** and **Plan**. It reads your intent, produces structured specs (features with EARS requirements, use cases, and Gherkin scenarios), and decomposes use cases into implementation plans. Everything lands in a `prd/` folder that becomes the permanent source of truth.
 
-**Plan** decomposes use cases into an implementation plan — ordered tasks with dependencies, context budgets, and done signals.
+There is also a **reverse** path: point the plugin at an existing codebase and it will extract specs from the code, then wire BDD tests to what already exists.
 
-**Build** picks up a plan and dispatches tasks one at a time. Each task runs in its own worktree with a dedicated agent, passes through a 5-gate adversarial review, and merges back automatically. The loop continues until all BDD scenarios pass.
+**@molcajeteai/cli** (this package) handles **Build**. It picks up a plan and dispatches tasks one at a time from your host repository. Each task runs in its own worktree with a dedicated agent, passes through a 5-gate adversarial review, and merges back automatically. The loop continues until all BDD scenarios pass.
 
-There is also a **reverse** path: point Molcajete at an existing codebase and it will extract specs from the code, then wire BDD tests to what already exists.
+```bash
+molcajete build <plan-timestamp>
+```
 
 ## Prerequisites
 

@@ -1,5 +1,5 @@
 {
-  "name": "molcajete",
+  "name": "@molcajeteai/cli",
   "version": "3.0.0",
   "type": "module",
   "description": "Spec-driven software development CLI powered by Claude Code",
