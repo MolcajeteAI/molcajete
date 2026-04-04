@@ -504,9 +504,9 @@ pending → in_progress → implemented
 
 Each task runs with a dedicated Claude Opus agent that receives the task's spec files, Gherkin scenarios, and architecture context. The agent writes code and commits all changes.
 
-For **forward plans** (`implement` intent), the agent produces production code and step definitions.
+For **Specs First** (`implement` intent) plans, the agent produces production code and step definitions.
 
-For **reverse plans** (`wire-bdd` intent), the agent writes step definitions against existing code (no production code changes).
+For **Code First** (`wire-bdd` intent) plans, the agent writes step definitions against existing code (no production code changes).
 
 ### 3. Test + Review
 
@@ -551,11 +551,11 @@ Override defaults by setting these before running `molcajete build`:
 
 Plans live in `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` with a `plan.json` inside.
 
-## Reverse Engineering Workflow
+## Code First (brownfield) Workflow
 
-If you already have working software but lack specs and test coverage, Molcajete can reverse-engineer specs from your code and then build BDD tests against it. The goal is to get roughly 70% coverage as a starting point, then continue building new features from there using the normal forward flow.
+If you already have working software but lack specs and test coverage, Molcajete can reverse-engineer specs from your code and then build BDD tests against it. The goal is to get roughly 70% coverage as a starting point, then continue building new features from there using the normal Specs First flow.
 
-The marketplace plugin handles spec extraction. Its `/m:reverse-*` commands (`reverse-spec`, `reverse-feature`, `reverse-usecase`, `reverse-scenario`, `reverse-plan`) read the existing codebase and produce the same PRD structure as the forward path — features, use cases, scenarios, and Gherkin files.
+The marketplace plugin handles spec extraction. Its `/m:reverse-*` commands (`reverse-spec`, `reverse-feature`, `reverse-usecase`, `reverse-scenario`, `reverse-plan`) read the existing codebase and produce the same PRD structure as the Specs First (greenfield) path — features, use cases, scenarios, and Gherkin files.
 
 Once specs exist, the CLI takes over:
 
@@ -563,7 +563,7 @@ Once specs exist, the CLI takes over:
 Existing code → Plugin extracts specs (PRD + Gherkin) → CLI builds step definitions → Validation passes
 ```
 
-The only difference from the forward flow is the plan intent: `wire-bdd` instead of `implement`. The task agent writes step definitions against existing code rather than building new production code. Everything else — test + review cycle, retry logic, architecture updates — works identically.
+The only difference from the Specs First flow is the plan intent: `wire-bdd` instead of `implement`. The task agent writes step definitions against existing code rather than building new production code. Everything else — test + review cycle, retry logic, architecture updates — works identically.
 
 ## Key Conventions
 

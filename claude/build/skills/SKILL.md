@@ -285,7 +285,7 @@ If either test or review fails, issues are collected and fed back to the next de
 
 ## Implementation: `implement` Intent
 
-Forward path — specs drive code creation.
+Specs First (greenfield) — specs drive code creation.
 
 ### Phase A: Production Code
 
@@ -313,7 +313,7 @@ Forward path — specs drive code creation.
 
 ## Implementation: `wire-bdd` Intent
 
-Reverse path — BDD wiring for existing code.
+Code First (brownfield) — BDD wiring for existing code.
 
 ### Single Phase: Step Definitions
 
