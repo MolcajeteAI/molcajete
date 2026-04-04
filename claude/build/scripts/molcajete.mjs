@@ -1786,7 +1786,7 @@ async function runBuild(args) {
 Resolves <plan-name> to a plan file in .molcajete/plans/ and runs all
 pending tasks in dependency order.
 
-Single-task execution is available interactively via /m:build in the marketplace plugin.
+Single-task execution is available via /m:build in the marketplace plugin.
 
 The plan name can be:
   - Full filename:  202603261430-user-authentication.json

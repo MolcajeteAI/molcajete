@@ -59,22 +59,11 @@ Collect all matches from 2-exp-a through 2-exp-d (`feature_matches`, `spec_match
 
 **No matches found (all lists empty):**
 
-Inform the user: "No matching feature found in the codebase for '{argument}'." Use AskUserQuestion:
-- Question: "No codebase match found for '{argument}'. How should I proceed?"
-- Header: "No match"
-- Options:
-  - "Try a different name" — user provides a new name via the "Other" option; restart from Step 1d
-  - "Generate skeleton scenarios" — proceed to Step 3 without exploration context; generated scenarios will use the argument as-is for the feature name and include `# TODO: replace with implementation-specific scenarios` comments to indicate they need manual refinement
-  - "Cancel" — stop execution
-- multiSelect: false
+Log: "No matching feature found in the codebase for '{argument}'." Proceed to Step 3 without exploration context — generate skeleton scenarios using the argument as-is for the feature name. Include `# TODO: replace with implementation-specific scenarios` comments to indicate they need manual refinement.
 
 **Multiple unrelated matches:**
 
-If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), present disambiguation via AskUserQuestion:
-- Question: "'{argument}' matches multiple features. Which one should I generate scenarios for?"
-- Header: "Disambiguate"
-- Options: List up to 4 matched features, each with a label (feature/module name) and description (source and brief summary). If more than 4 matches exist, show the 4 most relevant (prioritizing feature inventory and spec matches over code matches).
-- multiSelect: false
+If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), select the most relevant match autonomously. Priority: feature inventory matches > spec matches > README matches > code matches. If still ambiguous at the same priority level, pick the match with the most detailed context.
 
 Use the selected match as the sole context for Step 3.
 

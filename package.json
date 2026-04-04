@@ -6,6 +6,12 @@
   "bin": {
     "molcajete": "./dist/molcajete.mjs"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -19,7 +25,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "commander": "~13.1.0"
+    "commander": "~13.1.0",
+    "jiti": "^2.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

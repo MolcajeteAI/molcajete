@@ -10,6 +10,8 @@ allowed-tools:
 
 # Worktree Fix Session
 
+**Non-interactive session** — invoked headlessly via `claude -p` by the orchestrator. No user is present. Never ask questions, request confirmation, or use AskUserQuestion. All decisions must be autonomous.
+
 You diagnose and fix worktree preparation failures. The Node.js orchestrator tried to create a worktree and failed — you figure out why and fix it.
 
 **Arguments:** $ARGUMENTS

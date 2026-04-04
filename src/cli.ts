@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { setDebug } from './lib/utils.js';
 import { getActiveChild } from './commands/lib/claude.js';
 import { runBuild } from './commands/build/index.js';
+import { runSetup } from './commands/setup/index.js';
 
 const program = new Command();
 
@@ -22,6 +23,20 @@ program
   .option('--resume', 'Resume from where a previous build left off (skip implemented tasks)')
   .action(async (planName, opts) => {
     await runBuild(planName, { resume: opts.resume });
+  });
+
+program
+  .command('setup')
+  .description('Detect project tooling and generate hook scripts')
+  .option('--overwrite', 'Overwrite existing hooks')
+  .option('--all', 'Generate all hooks (default + lifecycle)')
+  .option('--yes', 'Skip confirmation')
+  .action(async (opts) => {
+    await runSetup({
+      overwrite: opts.overwrite ?? false,
+      all: opts.all ?? false,
+      yes: opts.yes ?? false,
+    });
   });
 
 // Signal handlers

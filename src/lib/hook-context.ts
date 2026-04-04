@@ -138,11 +138,12 @@ export class HookContextManager {
 
   // ── Context Building ──
 
-  buildContext(hookInfo: HookInfo): HookContext {
+  buildContext(hookInfo: HookInfo, input: Record<string, unknown> = {}): HookContext {
     const taskStore = this.taskStore;
     const portMap = this.portMap;
 
     return {
+      input,
       plan: this.planStore,
       task: taskStore,
       subtask: this.subtaskStore,

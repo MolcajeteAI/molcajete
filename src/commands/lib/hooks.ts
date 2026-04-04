@@ -6,11 +6,30 @@ import type { HookContextManager } from '../../lib/hook-context.js';
 import { MANDATORY_HOOKS, HOOK_TIMEOUT } from '../../lib/config.js';
 import { log, sleep, isDebug } from '../../lib/utils.js';
 
+// ── Lazy jiti loader for TypeScript hooks ──
+
+interface JitiLoader {
+  import(id: string): Promise<unknown>;
+}
+
+let jitiInstance: JitiLoader | undefined;
+
+async function jitiImport(fullPath: string): Promise<Record<string, unknown>> {
+  if (!jitiInstance) {
+    const jiti = await import('jiti');
+    const createJiti = (jiti as Record<string, unknown>).createJiti ?? (jiti as Record<string, unknown>).default;
+    jitiInstance = (createJiti as (url: string | URL) => JitiLoader)(import.meta.url);
+  }
+  return (await jitiInstance.import(fullPath)) as Record<string, unknown>;
+}
+
 /**
  * Discover hooks in .molcajete/hooks/.
  * Returns { name: HookEntry } map.
  *
- * - `*.hook.mjs` files → version 2 (in-process import)
+ * Priority: .ts > .hook.mjs > .mjs
+ * - `*.ts` files (except types.ts) → version 2 (jiti import)
+ * - `*.hook.mjs` files → version 2 (native import, backwards compat)
  * - `*.mjs` (no `.hook.`) → version 1 (child-process spawn)
  */
 export async function discoverHooks(projectRoot: string): Promise<HookMap> {
@@ -26,29 +45,44 @@ export async function discoverHooks(projectRoot: string): Promise<HookMap> {
     const filename = entry.name;
     const fullPath = join(hooksDir, filename);
 
-    if (filename.endsWith('.hook.mjs') || filename.endsWith('.hook.ts')) {
-      // v2: in-process hook
-      const name = filename.replace(/\.hook\.(mjs|ts)$/, '');
-      let fn: HookFn | undefined;
+    // v2: .ts files (highest priority, new convention)
+    if (filename.endsWith('.ts') && filename !== 'types.ts') {
+      const name = filename.replace(/(?:\.hook)?\.ts$/, '');
+
+      try {
+        const mod = await jitiImport(fullPath);
+        if (typeof mod.default === 'function') {
+          hooks[name] = { path: fullPath, version: 2, fn: mod.default as HookFn };
+        } else {
+          log(`Warning: v2 hook ${filename} has no default function export — skipping`);
+        }
+      } catch (err) {
+        log(`Warning: failed to import v2 hook ${filename}: ${(err as Error).message}`);
+      }
+      continue;
+    }
+
+    // v2: .hook.mjs files (backwards compatible)
+    if (filename.endsWith('.hook.mjs')) {
+      const name = filename.replace(/\.hook\.mjs$/, '');
+      if (hooks[name]) continue; // .ts has priority
 
       try {
         const mod = await import(fullPath);
         if (typeof mod.default === 'function') {
-          fn = mod.default as HookFn;
+          hooks[name] = { path: fullPath, version: 2, fn: mod.default as HookFn };
         } else {
           log(`Warning: v2 hook ${filename} has no default function export — skipping`);
-          continue;
         }
       } catch (err) {
         log(`Warning: failed to import v2 hook ${filename}: ${(err as Error).message}`);
-        continue;
       }
+      continue;
+    }
 
-      hooks[name] = { path: fullPath, version: 2, fn };
-    } else if (filename.endsWith('.mjs')) {
-      // v1: child-process spawn (existing behavior)
-      const name = filename.replace(/\.[^.]+$/, '');
-      // Don't overwrite a v2 hook with v1 if both exist
+    // v1: .mjs files (child-process spawn, lowest priority)
+    if (filename.endsWith('.mjs')) {
+      const name = filename.replace(/\.mjs$/, '');
       if (!hooks[name]) {
         hooks[name] = { path: fullPath, version: 1 };
       }
@@ -96,7 +130,7 @@ async function runHookV2(
   input: Record<string, unknown>,
   { timeout, ctxManager }: { timeout?: number; ctxManager?: HookContextManager },
 ): Promise<HookResult> {
-  const hookName = basename(entry.path).replace(/\.hook\.(mjs|ts)$/, '');
+  const hookName = basename(entry.path).replace(/(?:\.hook)?\.(?:mjs|ts)$/, '');
 
   if (isDebug()) {
     const YELLOW = '\x1b[33m';
@@ -138,7 +172,7 @@ async function runHookV2(
     identifiers: extractIdentifiers(input),
   };
 
-  const ctx = ctxManager.buildContext(hookInfo);
+  const ctx = ctxManager.buildContext(hookInfo, input);
 
   // Patch process.exit to prevent v2 hooks from killing the host process
   const originalExit = process.exit;

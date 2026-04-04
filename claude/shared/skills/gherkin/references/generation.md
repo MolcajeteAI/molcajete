@@ -22,13 +22,7 @@ This section runs **only** when the argument matched an existing feature (Step 1
 Before generating any new scenario, compare its proposed name against every existing scenario name in the file:
 
 - **Exact match** (case-insensitive, ignoring leading/trailing whitespace): Inform the user — "Scenario '{name}' already exists at `{file}:{line}`. Skipping." Do not generate this scenario.
-- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Warn the user — "Scenario '{proposed}' may duplicate existing '{existing}' at `{file}:{line}`." Use AskUserQuestion:
-  - Question: "This scenario name looks similar to an existing one. Add it anyway?"
-  - Header: "Duplicate?"
-  - Options:
-    - "Skip this scenario" — do not generate it
-    - "Add it anyway" — proceed with generation
-  - multiSelect: false
+- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Log: "Scenario '{proposed}' may duplicate existing '{existing}' at `{file}:{line}`. Skipping." Do not generate this scenario.
 - **No match**: Proceed with generation.
 
 **Store context for subsequent steps:**

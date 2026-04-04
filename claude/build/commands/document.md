@@ -14,6 +14,8 @@ allowed-tools:
 
 # Documentation Session
 
+**Non-interactive session** — invoked headlessly via `claude -p` by the orchestrator. No user is present. Never ask questions, request confirmation, or use AskUserQuestion. All decisions must be autonomous.
+
 You coordinate documentation updates for a completed task. You spawn parallel sub-agents to handle architecture updates and README updates. You do **NOT** modify code — only documentation files.
 
 **Arguments:** $ARGUMENTS

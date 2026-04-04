@@ -13,6 +13,8 @@ allowed-tools:
 
 # Development Session
 
+**Non-interactive session** — invoked headlessly via `claude -p` by the orchestrator. No user is present. Never ask questions, request confirmation, or use AskUserQuestion. All decisions must be autonomous based on the plan, skills, and project context.
+
 You implement code for a single task or sub-task. You write production code and unit tests. You do **NOT** run quality gates — the validation session handles that. You do **NOT** commit — the commit session handles that after validation passes.
 
 **Arguments:** $ARGUMENTS
@@ -31,7 +33,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 Read skills that govern this session:
 
-1. `${CLAUDE_PLUGIN_ROOT}/build/skills/dispatch/SKILL.md` — dispatch rules, implementation procedures
+1. `${CLAUDE_PLUGIN_ROOT}/build/skills/SKILL.md` — dispatch rules, implementation procedures
 2. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — BDD conventions
 
 ## Step 2: Load Context
