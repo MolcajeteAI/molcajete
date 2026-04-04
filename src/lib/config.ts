@@ -14,6 +14,7 @@ export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? '50';
 export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? '5.00';
 export const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? '897', 10) * 1000;
 export const MAX_DEV_CYCLES = 7;
+export const BUDGET_RECOVERY = process.env.MOLCAJETE_BUDGET_RECOVERY ?? '8.00';
 
 // ── Hook Constants ──
 
@@ -59,6 +60,18 @@ export const DOC_SESSION_SCHEMA = {
     error: { type: ['string', 'null'] },
   },
   required: ['status', 'files_modified'],
+};
+
+export const RECOVERY_SESSION_SCHEMA = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['recovered', 'failed'] },
+    actions_taken: { type: 'array', items: { type: 'string' } },
+    files_modified: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+    error: { type: ['string', 'null'] },
+  },
+  required: ['status', 'actions_taken', 'files_modified', 'summary'],
 };
 
 export const RESOLVE_CONFLICTS_SCHEMA = {

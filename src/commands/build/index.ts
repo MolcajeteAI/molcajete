@@ -6,10 +6,11 @@ import { discoverHooks, validateMandatoryHooks, tryHook } from '../lib/hooks.js'
 import { buildStats, formatDuration } from '../lib/claude.js';
 import { writeReport } from './reports.js';
 import { buildTaskContext, buildBuildContext } from './cycle.js';
-import { runDocSession, commitDocChanges, runTestHook } from './sessions.js';
+import { runDocSession, commitDocChanges, runTestHook, runRecoverySession } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
 import { updatePrdStatuses } from './prd.js';
-import type { HookMap } from '../../types.js';
+import type { HookMap, BuildStage, RecoveryContext } from '../../types.js';
+import { MAX_DEV_CYCLES } from '../../lib/config.js';
 
 /**
  * Build command entry point.
@@ -100,16 +101,17 @@ async function runAllTasksMode(
 
   updatePlanJson(planFile, (d) => { d.status = 'in_progress'; });
 
-  for (const task of data.tasks) {
-    const taskId = task.id;
+  const recoveredTasks = new Set<string>();
+  let taskIndex = 0;
 
-    if (task.status === 'implemented') continue;
+  while (taskIndex < data.tasks.length) {
+    const taskId = data.tasks[taskIndex].id;
+    taskIndex++;
 
     const freshData = readPlan(planFile);
     const freshTask = findTask(freshData, taskId);
     if (!freshTask) continue;
 
-    // In resume mode, skip already-implemented tasks
     if (freshTask.status === 'implemented') continue;
 
     log(`━━━ Task: ${taskId} — ${freshTask.title} ━━━`);
@@ -119,16 +121,8 @@ async function runAllTasksMode(
     const depResult = checkDependencies(freshData, taskId);
 
     if (depResult === 1) {
-      log(`Skipping ${taskId}: dependency failed`);
-      updatePlanJson(planFile, (d) => {
-        const t = findTask(d, taskId);
-        if (t) {
-          t.status = 'failed';
-          t.errors = ['Dependency failed'];
-        }
-      });
-      failedCount++;
-      continue;
+      log(`Skipping ${taskId}: dependency failed — stopping build`);
+      break;
     }
 
     if (depResult === 2) {
@@ -178,8 +172,58 @@ async function runAllTasksMode(
           t.errors = [result.error || 'Task failed'];
         }
       });
+
+      // Attempt recovery if not already recovered this task
+      if (recoveredTasks.has(taskId)) {
+        log(`Task ${taskId}: already recovered once — giving up`);
+        failedCount++;
+        break;
+      }
+
+      log(`Task ${taskId}: failed — attempting recovery`);
+      recoveredTasks.add(taskId);
+
+      const recoveryContext: RecoveryContext = {
+        plan_path: planFile,
+        plan_name: planName,
+        failed_task_id: taskId,
+        failed_stage: 'halted',
+        error: result.error || 'Task failed',
+        build: buildBuildContext(planFile, planName, 'halted'),
+        prior_summaries: priorSummaries,
+        cycle_count: MAX_DEV_CYCLES,
+      };
+
+      // Fire halted hook (informational)
+      await tryHook(hooks, 'stop', {
+        build: buildBuildContext(planFile, planName, 'halted'),
+      });
+
+      const recovery = await runRecoverySession(projectRoot, recoveryContext);
+
+      if (recovery.ok) {
+        log(`Recovery succeeded for ${taskId} — resetting task to pending`);
+        updatePlanJson(planFile, (d) => {
+          const t = findTask(d, taskId);
+          if (t) {
+            t.status = 'pending';
+            t.errors = [];
+            if (t.sub_tasks) {
+              for (const st of t.sub_tasks) {
+                if (st.status === 'failed') {
+                  st.status = 'pending';
+                  st.errors = [];
+                }
+              }
+            }
+          }
+        });
+        taskIndex--;
+        continue;
+      }
+
+      log(`Recovery failed for ${taskId} — stopping build`);
       failedCount++;
-      log(`Task ${taskId}: failed — stopping build`);
       break;
     }
   }
@@ -226,8 +270,9 @@ async function runAllTasksMode(
   }
 
   // Stop hook (optional) — developer tears down environment
+  const stopStage: BuildStage = failedCount > 0 ? 'failed' : 'stop';
   await tryHook(hooks, 'stop', {
-    build: buildBuildContext(planFile, planName, 'stop'),
+    build: buildBuildContext(planFile, planName, stopStage),
   });
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);

@@ -7,7 +7,9 @@ export type BuildStage =
   | 'validation'
   | 'after-task'
   | 'documentation'
-  | 'stop';
+  | 'stop'
+  | 'halted'
+  | 'failed';
 
 export interface BuildContext {
   plan_path: string;
@@ -122,6 +124,25 @@ export interface ResolveConflictsOutput {
   files_resolved: string[];
   decisions: string[];
   error?: string | null;
+}
+
+export interface RecoverySessionOutput {
+  status: 'recovered' | 'failed';
+  actions_taken: string[];
+  files_modified: string[];
+  summary: string;
+  error?: string | null;
+}
+
+export interface RecoveryContext {
+  plan_path: string;
+  plan_name: string;
+  failed_task_id: string;
+  failed_stage: BuildStage;
+  error: string;
+  build: BuildContext;
+  prior_summaries: string[];
+  cycle_count: number;
 }
 
 export interface TaskContext {

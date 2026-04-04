@@ -1,11 +1,13 @@
 import { execSync } from 'node:child_process';
-import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, Task, TestHookOutput, BuildStage } from '../../types.js';
+import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, RecoverySessionOutput, RecoveryContext, Task, TestHookOutput, BuildStage } from '../../types.js';
 import {
   DEV_SESSION_SCHEMA,
   REVIEW_SESSION_SCHEMA,
   DOC_SESSION_SCHEMA,
+  RECOVERY_SESSION_SCHEMA,
   MAX_TURNS_AGENT,
   BUDGET_AGENT,
+  BUDGET_RECOVERY,
 } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { invokeClaude, extractStructuredOutput } from '../lib/claude.js';
@@ -156,6 +158,39 @@ export async function runReviewSession(
 
   log(`Review session ${taskId}: ${allIssues.length} issues found`);
   return { ok: false, issues: allIssues, structured: out };
+}
+
+// ── Recovery Session ──
+
+export async function runRecoverySession(
+  projectRoot: string,
+  context: RecoveryContext,
+): Promise<{ ok: boolean; structured: RecoverySessionOutput }> {
+  const sessionLabel = `recover-${context.failed_task_id}`;
+  log(`Recovery session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
+
+  const payload = JSON.stringify(context);
+
+  const result = await invokeClaude(projectRoot, [
+    '--model', 'opus',
+    '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash',
+    '--max-turns', MAX_TURNS_AGENT,
+    '--max-budget-usd', BUDGET_RECOVERY,
+    '--json-schema', JSON.stringify(RECOVERY_SESSION_SCHEMA),
+    '--name', sessionLabel,
+    `/molcajete:recover ${payload}`,
+  ]);
+
+  const out = extractStructuredOutput(result.output) as unknown as RecoverySessionOutput;
+
+  if (result.exitCode === 0 && out.status === 'recovered') {
+    log(`Recovery session ${context.failed_task_id}: recovered — ${out.summary}`);
+    return { ok: true, structured: out };
+  }
+
+  const error = out.error || 'Recovery session failed';
+  log(`Recovery session ${context.failed_task_id}: failed (${error})`);
+  return { ok: false, structured: out };
 }
 
 // ── Doc Session ──
