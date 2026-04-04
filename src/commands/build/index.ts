@@ -5,7 +5,7 @@ import { readPlan, findTask, updatePlanJson, updatePlanLevelStatus, resolvePlanF
 import { discoverHooks, validateMandatoryHooks, tryHook } from '../lib/hooks.js';
 import { buildStats, formatDuration } from '../lib/claude.js';
 import { writeReport } from './reports.js';
-import { buildTaskContext } from './cycle.js';
+import { buildTaskContext, buildBuildContext } from './cycle.js';
 import { runDocSession, commitDocChanges, runTestHook } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
 import { updatePrdStatuses } from './prd.js';
@@ -80,7 +80,9 @@ async function runAllTasksMode(
   const data = readPlan(planFile);
 
   // Start hook (optional) — developer sets up environment
-  const startResult = await tryHook(hooks, 'start', {});
+  const startResult = await tryHook(hooks, 'start', {
+    build: buildBuildContext(planFile, planName, 'start'),
+  });
   if (startResult && !startResult.ok) {
     log(`BUILD ABORTED: start hook failed — ${startResult.stderr}`);
     updatePlanJson(planFile, (d) => { d.status = 'failed'; });
@@ -149,9 +151,9 @@ async function runAllTasksMode(
 
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, planName);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, planName);
     }
 
     if (result.ok) {
@@ -187,7 +189,9 @@ async function runAllTasksMode(
     log('━━━ Documentation Session ━━━');
 
     // before-documentation hook
-    await tryHook(hooks, 'before-documentation', {});
+    await tryHook(hooks, 'before-documentation', {
+      build: buildBuildContext(planFile, planName, 'documentation'),
+    });
 
     const finalData = readPlan(planFile);
     const allFiles: string[] = [];
@@ -214,13 +218,17 @@ async function runAllTasksMode(
     }
 
     // after-documentation hook
-    await tryHook(hooks, 'after-documentation', {});
+    await tryHook(hooks, 'after-documentation', {
+      build: buildBuildContext(planFile, planName, 'documentation'),
+    });
 
     updatePrdStatuses(projectRoot, planFile);
   }
 
   // Stop hook (optional) — developer tears down environment
-  await tryHook(hooks, 'stop', {});
+  await tryHook(hooks, 'stop', {
+    build: buildBuildContext(planFile, planName, 'stop'),
+  });
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 

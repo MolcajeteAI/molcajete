@@ -1,3 +1,29 @@
+// ── Build Context ──
+
+export type BuildStage =
+  | 'start'
+  | 'before-task'
+  | 'development'
+  | 'validation'
+  | 'after-task'
+  | 'documentation'
+  | 'stop';
+
+export interface BuildContext {
+  plan_path: string;
+  plan_name: string;
+  plan_status: string;
+  base_branch: string;
+  scope: string[];
+  stage: BuildStage;
+  completed: {
+    tasks: string[];
+    scenarios: string[];
+    use_cases: string[];
+    features: string[];
+  };
+}
+
 // ── Shared Interfaces ──
 
 export interface Task {
@@ -120,6 +146,7 @@ export interface TestHookInput {
   files: string[];
   tags: string[];
   scope: 'task' | 'subtask' | 'final';
+  build?: BuildContext;
 }
 
 export interface TestHookOutput {
@@ -129,13 +156,13 @@ export interface TestHookOutput {
 
 // ── Hook Types ──
 
-export type StartInput = Record<string, never>;
+export type StartInput = { build?: BuildContext };
 export interface StartOutput {
   status: 'ready' | 'failed';
   summary?: string;
 }
 
-export type StopInput = Record<string, never>;
+export type StopInput = { build?: BuildContext };
 export interface StopOutput {
   status: 'ok' | 'failed';
   summary?: string;
@@ -148,6 +175,7 @@ export interface TaskLifecycleInput {
   scenario_id?: string;
   status?: string;
   summary?: string;
+  build?: BuildContext;
 }
 
 export interface SubtaskLifecycleInput {
@@ -157,6 +185,7 @@ export interface SubtaskLifecycleInput {
   usecase_id?: string;
   scenario_id?: string;
   status?: string;
+  build?: BuildContext;
 }
 
 export interface LifecycleOutput {

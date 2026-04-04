@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, Task, TestHookOutput } from '../../types.js';
+import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, Task, TestHookOutput, BuildStage } from '../../types.js';
 import {
   DEV_SESSION_SCHEMA,
   REVIEW_SESSION_SCHEMA,
@@ -11,6 +11,7 @@ import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { invokeClaude, extractStructuredOutput } from '../lib/claude.js';
 import { runHook, tryHook } from '../lib/hooks.js';
 import { readPlan, findTask } from './plan-data.js';
+import { buildBuildContext } from './cycle.js';
 
 // ── Dev Session ──
 
@@ -60,6 +61,8 @@ export async function runTestHook(
   planFile: string,
   filesModified: string[],
   scope: 'task' | 'subtask' | 'final',
+  planName?: string,
+  stage?: BuildStage,
 ): Promise<{ ok: boolean; issues: string[] }> {
   log(`Test hook: ${taskId} (scope: ${scope})`);
 
@@ -77,13 +80,17 @@ export async function runTestHook(
     // non-fatal
   }
 
-  const input = {
+  const input: Record<string, unknown> = {
     task_id: taskId,
     commit,
     files: filesModified,
     tags: scenarioTag,
     scope,
   };
+
+  if (planName) {
+    input.build = buildBuildContext(planFile, planName, stage || 'development');
+  }
 
   const result = await runHook(hooks['test'], input, { timeout: 300000 });
 
@@ -109,11 +116,14 @@ export async function runReviewSession(
   hooks: HookMap,
   planFile: string,
   taskId: string,
+  planName?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
   log(`Review session: ${taskId}`);
 
   // Lifecycle hook: before-review
-  await tryHook(hooks, 'before-review', { task_id: taskId });
+  const beforeReviewInput: Record<string, unknown> = { task_id: taskId };
+  if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, 'validation');
+  await tryHook(hooks, 'before-review', beforeReviewInput);
 
   const sessionLabel = `review-${taskId}`;
   const payload = JSON.stringify({
@@ -135,7 +145,9 @@ export async function runReviewSession(
   const allIssues = [...(out.code_review || []), ...(out.completeness || [])];
 
   // Lifecycle hook: after-review
-  await tryHook(hooks, 'after-review', { task_id: taskId, issues: allIssues });
+  const afterReviewInput: Record<string, unknown> = { task_id: taskId, issues: allIssues };
+  if (planName) afterReviewInput.build = buildBuildContext(planFile, planName, 'validation');
+  await tryHook(hooks, 'after-review', afterReviewInput);
 
   if (allIssues.length === 0) {
     log(`Review session ${taskId}: all clear`);

@@ -225,16 +225,55 @@ Generated with `molcajete setup --all`. The build does not abort for missing opt
 
 | Hook | Purpose | Input | Default (without hook) |
 |------|---------|-------|------------------------|
-| `start` | Start dev environment | `{ }` | No default (user starts manually) |
-| `stop` | Stop dev environment | `{ }` | No default (user stops manually) |
-| `before-task` | Pre-task setup | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | No-op (skipped) |
-| `after-task` | Post-task teardown or reporting | `{ "task_id": "...", "status": "...", "summary": "..." }` | No-op (skipped) |
-| `before-subtask` | Sub-task-level setup | `{ "task_id": "...", "subtask_id": "..." }` | No-op (skipped) |
-| `after-subtask` | Sub-task-level teardown | `{ "task_id": "...", "subtask_id": "..." }` | No-op (skipped) |
-| `before-review` | Prepare for review | `{ "task_id": "..." }` | No-op (skipped) |
-| `after-review` | Collect review results | `{ "task_id": "...", "issues": [...] }` | No-op (skipped) |
-| `before-documentation` | Prepare for documentation | `{ "task_id": "..." }` | No-op (skipped) |
-| `after-documentation` | Post-documentation actions | `{ "task_id": "..." }` | No-op (skipped) |
+| `start` | Start dev environment | `{ build }` | No default (user starts manually) |
+| `stop` | Stop dev environment | `{ build }` | No default (user stops manually) |
+| `before-task` | Pre-task setup | `{ task_id, intent, feature_id?, usecase_id?, scenario_id?, build }` | No-op (skipped) |
+| `after-task` | Post-task teardown or reporting | `{ task_id, status, summary, feature_id?, usecase_id?, scenario_id?, build }` | No-op (skipped) |
+| `before-subtask` | Sub-task-level setup | `{ task_id, subtask_id, feature_id?, usecase_id?, scenario_id?, build }` | No-op (skipped) |
+| `after-subtask` | Sub-task-level teardown | `{ task_id, subtask_id, status?, feature_id?, usecase_id?, scenario_id?, build }` | No-op (skipped) |
+| `before-review` | Prepare for review | `{ task_id, build }` | No-op (skipped) |
+| `after-review` | Collect review results | `{ task_id, issues, build }` | No-op (skipped) |
+| `before-documentation` | Prepare for documentation | `{ build }` | No-op (skipped) |
+| `after-documentation` | Post-documentation actions | `{ build }` | No-op (skipped) |
+
+### Build Context
+
+Every hook receives a `build` field (`BuildContext`) in its input payload containing plan-level context. The context is computed fresh from plan data each time a hook fires.
+
+```typescript
+interface BuildContext {
+  plan_path: string;       // absolute path to plan.json
+  plan_name: string;       // directory name (e.g., "202604021530-login")
+  plan_status: string;     // current plan status
+  base_branch: string;     // from plan data
+  scope: string[];         // FEAT/UC IDs from plan scope
+  stage: BuildStage;       // current pipeline stage
+  completed: {
+    tasks: string[];       // task IDs with status 'implemented'
+    scenarios: string[];   // SC-XXXX IDs from completed tasks
+    use_cases: string[];   // UC-XXXX where ALL plan tasks for that UC are done
+    features: string[];    // FEAT-XXXX where ALL plan tasks for that feature are done
+  };
+}
+
+type BuildStage = 'start' | 'before-task' | 'development' | 'validation' | 'after-task' | 'documentation' | 'stop';
+```
+
+**Stage values:**
+
+| Stage | Hooks |
+|-------|-------|
+| `start` | `start` |
+| `before-task` | `before-task`, `before-subtask`, `after-subtask` |
+| `development` | `test` (during dev-test-review cycle) |
+| `validation` | `test` (during task-level validation), `before-review`, `after-review` |
+| `after-task` | `after-task` |
+| `documentation` | `before-documentation`, `after-documentation` |
+| `stop` | `stop` |
+
+**Completion rollup** uses plan-scoped completion only:
+- A UC is complete when ALL tasks in the plan that reference it are implemented
+- A feature is complete when ALL tasks in the plan that reference it are implemented
 
 ### How the Orchestrator Uses Hooks
 

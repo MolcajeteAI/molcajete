@@ -1,5 +1,9 @@
 // Public API — hook type exports
 export type {
+  // Build context
+  BuildContext,
+  BuildStage,
+
   // Context
   HookContext,
   HookFn,

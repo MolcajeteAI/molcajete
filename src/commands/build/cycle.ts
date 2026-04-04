@@ -1,4 +1,4 @@
-import type { HookMap, TaskContext, DevTestReviewResult, PlanData } from '../../types.js';
+import type { HookMap, TaskContext, DevTestReviewResult, PlanData, BuildContext, BuildStage } from '../../types.js';
 import { MAX_DEV_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { readPlan, findTask } from './plan-data.js';
@@ -21,6 +21,64 @@ export function buildTaskContext(data: PlanData, taskId: string): TaskContext {
 }
 
 /**
+ * Build a BuildContext object from plan data for passing to hooks.
+ */
+export function buildBuildContext(planFile: string, planName: string, stage: BuildStage): BuildContext {
+  const data = readPlan(planFile);
+
+  const completedTasks: string[] = [];
+  const completedScenarios: string[] = [];
+  const ucTaskCounts = new Map<string, { total: number; done: number }>();
+  const featTaskCounts = new Map<string, { total: number; done: number }>();
+
+  for (const task of data.tasks) {
+    // Track UC/feature completion counts
+    if (task.use_case) {
+      const entry = ucTaskCounts.get(task.use_case) || { total: 0, done: 0 };
+      entry.total++;
+      if (task.status === 'implemented') entry.done++;
+      ucTaskCounts.set(task.use_case, entry);
+    }
+    if (task.feature) {
+      const entry = featTaskCounts.get(task.feature) || { total: 0, done: 0 };
+      entry.total++;
+      if (task.status === 'implemented') entry.done++;
+      featTaskCounts.set(task.feature, entry);
+    }
+
+    if (task.status === 'implemented') {
+      completedTasks.push(task.id);
+      if (task.scenario) completedScenarios.push(task.scenario);
+    }
+  }
+
+  const completedUseCases: string[] = [];
+  for (const [uc, counts] of ucTaskCounts) {
+    if (counts.total > 0 && counts.done === counts.total) completedUseCases.push(uc);
+  }
+
+  const completedFeatures: string[] = [];
+  for (const [feat, counts] of featTaskCounts) {
+    if (counts.total > 0 && counts.done === counts.total) completedFeatures.push(feat);
+  }
+
+  return {
+    plan_path: planFile,
+    plan_name: planName,
+    plan_status: data.status,
+    base_branch: data.base_branch || 'main',
+    scope: data.scope || [],
+    stage,
+    completed: {
+      tasks: completedTasks,
+      scenarios: completedScenarios,
+      use_cases: completedUseCases,
+      features: completedFeatures,
+    },
+  };
+}
+
+/**
  * Core dev → test → review cycle.
  *
  * 1. Dev session (Opus) — writes code + commits
@@ -40,6 +98,7 @@ export async function runDevTestReviewCycle(
   priorSummaries: string[],
   planDir: string | null,
   scope: 'task' | 'subtask',
+  planName?: string,
 ): Promise<DevTestReviewResult> {
   let issues: string[] = [];
 
@@ -60,7 +119,7 @@ export async function runDevTestReviewCycle(
     const filesModified = dev.structured.files_modified || [];
 
     // 2. Test hook — mandatory programmatic checks
-    const test = await runTestHook(hooks, taskId, planFile, filesModified, scope);
+    const test = await runTestHook(hooks, taskId, planFile, filesModified, scope, planName, 'development');
 
     if (planDir) {
       writeReport(planDir, `${taskId}-test-${cycle}`, { issues: test.issues });
@@ -73,7 +132,7 @@ export async function runDevTestReviewCycle(
     }
 
     // 3. Review session — AI code review + completeness
-    const review = await runReviewSession(hooks, planFile, taskId);
+    const review = await runReviewSession(hooks, planFile, taskId, planName);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -115,17 +174,18 @@ export async function runTaskLevelValidation(
   taskId: string,
   priorSummaries: string[],
   planDir: string | null,
+  planName?: string,
 ): Promise<DevTestReviewResult> {
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
 
-  const test = await runTestHook(hooks, taskId, planFile, [], 'task');
+  const test = await runTestHook(hooks, taskId, planFile, [], 'task', planName, 'validation');
   if (planDir) {
     writeReport(planDir, `${taskId}-task-test-1`, { issues: test.issues });
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, planFile, taskId);
+    const review = await runReviewSession(hooks, planFile, taskId, planName);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
@@ -136,7 +196,7 @@ export async function runTaskLevelValidation(
 
     // Review failed — need a dev fix
     log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
-    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task');
+    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', planName);
   }
 
   // Test failed — need a dev fix
@@ -160,7 +220,7 @@ export async function runTaskLevelValidation(
 
     const filesModified = dev.structured.files_modified || [];
 
-    const reTest = await runTestHook(hooks, taskId, planFile, filesModified, 'task');
+    const reTest = await runTestHook(hooks, taskId, planFile, filesModified, 'task', planName, 'validation');
     if (planDir) {
       writeReport(planDir, `${taskId}-task-test-${cycle + 1}`, { issues: reTest.issues });
     }
@@ -171,7 +231,7 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, planFile, taskId);
+    const review = await runReviewSession(hooks, planFile, taskId, planName);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
     }

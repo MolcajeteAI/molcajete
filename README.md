@@ -213,7 +213,8 @@ The `test` hook receives:
   "commit": "abc123...",
   "files": ["src/auth.ts", "src/auth.test.ts"],
   "tags": ["@SC-A1B2"],
-  "scope": "task | subtask | final"
+  "scope": "task | subtask | final",
+  "build": { "...see Build Context below..." }
 }
 ```
 
@@ -246,6 +247,66 @@ Generated with `molcajete setup --all`.
 | `after-documentation` | After the doc session | Post-documentation actions |
 
 Hooks derive direct tool commands (never `make`, `npm run`, or wrapper scripts).
+
+### Build Context
+
+Every hook receives a `build` field in its input payload with plan-level context. This lets hook authors make decisions based on build progress — for example, running regression tests against all completed scenarios after each task.
+
+```typescript
+import type { BuildContext } from '@molcajeteai/cli';
+```
+
+```json
+{
+  "build": {
+    "plan_path": "/abs/path/.molcajete/plans/202604021530-login/plan.json",
+    "plan_name": "202604021530-login",
+    "plan_status": "in_progress",
+    "base_branch": "main",
+    "scope": ["FEAT-0F3y"],
+    "stage": "after-task",
+    "completed": {
+      "tasks": ["TASK-0001"],
+      "scenarios": ["SC-A1B2"],
+      "use_cases": ["UC-0F4a"],
+      "features": []
+    }
+  }
+}
+```
+
+**`stage`** tells hooks where the build pipeline is:
+
+| Value | When |
+|-------|------|
+| `start` | start hook |
+| `before-task` | before-task, before-subtask, after-subtask hooks |
+| `development` | test hook during dev-test-review cycle |
+| `validation` | before-review, after-review hooks; test hook during task-level validation |
+| `after-task` | after-task hook |
+| `documentation` | before-documentation, after-documentation hooks |
+| `stop` | stop hook |
+
+**Completion rollup** is computed fresh from plan data each time a hook fires:
+
+- **`completed.tasks`** — all tasks with `status: 'implemented'`
+- **`completed.scenarios`** — scenario IDs from completed tasks
+- **`completed.use_cases`** — a UC is complete when ALL plan tasks referencing it are implemented
+- **`completed.features`** — a feature is complete when ALL plan tasks referencing it are implemented
+
+This uses plan-scoped completion only, not PRD-level.
+
+**Example: regression testing in `after-task`**
+
+```typescript
+export default async function(ctx) {
+  const { completed } = ctx.input.build;
+  // Run all completed scenario tags (not just the current task's)
+  const tags = completed.scenarios.map(s => `@${s}`).join(' or ');
+  // Use tags to run BDD tests for regression
+  return { status: 'ok' };
+}
+```
 
 ## Git Utilities
 

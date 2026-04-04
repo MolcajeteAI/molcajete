@@ -2,7 +2,7 @@ import type { HookMap, Task } from '../../types.js';
 import { log, isSubTaskId } from '../../lib/utils.js';
 import { readPlan, findTask, updateSubTaskStatus, checkSubTaskDeps } from './plan-data.js';
 import { tryHook } from '../lib/hooks.js';
-import { buildTaskContext, runDevTestReviewCycle, runTaskLevelValidation } from './cycle.js';
+import { buildTaskContext, buildBuildContext, runDevTestReviewCycle, runTaskLevelValidation } from './cycle.js';
 
 /**
  * Run a simple task (no sub-tasks): dev → test → review cycle.
@@ -14,6 +14,7 @@ export async function runSimpleTask(
   task: Task,
   priorSummaries: string[],
   planDir: string | null,
+  planName?: string,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
   const taskId = task.id;
 
@@ -23,19 +24,22 @@ export async function runSimpleTask(
   // Lifecycle hook: before-task
   await tryHook(hooks, 'before-task', {
     task_id: taskId, intent: task.intent, ...taskContext,
+    ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
   });
 
-  const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task');
+  const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', planName);
 
   if (!result.ok) {
     await tryHook(hooks, 'after-task', {
       task_id: taskId, status: 'failed', summary: result.error || '', ...taskContext,
+      ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
     });
     return { ok: false, error: result.error, devResult: result.devResult };
   }
 
   await tryHook(hooks, 'after-task', {
     task_id: taskId, status: 'implemented', summary: result.devResult?.summary || '', ...taskContext,
+    ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
   });
 
   return { ok: true, devResult: result.devResult };
@@ -51,6 +55,7 @@ export async function runTaskWithSubTasks(
   task: Task,
   priorSummaries: string[],
   planDir: string | null,
+  planName?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const taskId = task.id;
   const subTasks = task.sub_tasks!;
@@ -62,6 +67,7 @@ export async function runTaskWithSubTasks(
   // Lifecycle hook: before-task
   await tryHook(hooks, 'before-task', {
     task_id: taskId, intent: task.intent, ...taskContext,
+    ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
   });
 
   // Run each sub-task sequentially
@@ -93,17 +99,19 @@ export async function runTaskWithSubTasks(
 
     await tryHook(hooks, 'before-subtask', {
       task_id: taskId, subtask_id: stId, ...taskContext,
+      ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
     });
 
     updateSubTaskStatus(planFile, stId, 'in_progress');
 
-    const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, stId, subSummaries, planDir, 'subtask');
+    const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, stId, subSummaries, planDir, 'subtask', planName);
 
     if (!result.ok) {
       updateSubTaskStatus(planFile, stId, 'failed', { errors: [result.error] });
 
       await tryHook(hooks, 'after-subtask', {
         task_id: taskId, subtask_id: stId, status: 'failed', ...taskContext,
+        ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
       });
 
       return { ok: false, error: `Sub-task ${stId} failed: ${result.error}` };
@@ -118,22 +126,25 @@ export async function runTaskWithSubTasks(
 
     await tryHook(hooks, 'after-subtask', {
       task_id: taskId, subtask_id: stId, status: 'implemented', ...taskContext,
+      ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
     });
   }
 
   // Task-level validation — test + review only (code already written by sub-tasks)
   // If test or review fails, a dev fix session is launched automatically
-  const taskResult = await runTaskLevelValidation(hooks, projectRoot, planFile, taskId, subSummaries, planDir);
+  const taskResult = await runTaskLevelValidation(hooks, projectRoot, planFile, taskId, subSummaries, planDir, planName);
 
   if (!taskResult.ok) {
     await tryHook(hooks, 'after-task', {
       task_id: taskId, status: 'failed', summary: taskResult.error || '', ...taskContext,
+      ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
     });
     return { ok: false, error: taskResult.error };
   }
 
   await tryHook(hooks, 'after-task', {
     task_id: taskId, status: 'implemented', summary: '', ...taskContext,
+    ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
   });
 
   return { ok: true };
