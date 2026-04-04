@@ -26,7 +26,6 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 |-------|------|-------------|
 | `plan_path` | string | Absolute path to the plan JSON file |
 | `task_id` | string | Task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`) |
-| `worktree_path` | string | Absolute path to the worktree |
 
 ## Step 1: Load Context
 
@@ -73,6 +72,6 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 ## Rules
 
 - This is **read-only**. Do not modify any files, do not fix issues, do not commit.
-- All sub-agents run in the worktree path.
+- All sub-agents run in the project root.
 - Spawn both gates in parallel — they are independent and read-only.
 - Report every issue with enough detail for the dev session to locate and fix it (file path, line number, description).

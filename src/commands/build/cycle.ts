@@ -1,13 +1,9 @@
-import { execSync } from 'node:child_process';
-import type { HookMap, TaskContext, DevValidateResult, PlanData } from '../../types.js';
-import type { HookContextManager } from '../../lib/hook-context.js';
-import { MAX_DEV_VALIDATE_CYCLES } from '../../lib/config.js';
+import type { HookMap, TaskContext, DevTestReviewResult, PlanData } from '../../types.js';
+import { MAX_DEV_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { readPlan, findTask } from './plan-data.js';
-import { tryHook } from '../lib/hooks.js';
 import { writeReport } from './reports.js';
-import { runDevSession, runValidationSession, runCommitSession } from './sessions.js';
-import { worktreeBranch } from './worktree.js';
+import { runDevSession, runTestHook, runReviewSession } from './sessions.js';
 
 /**
  * Build a task context object from plan data for passing to hooks.
@@ -25,141 +21,174 @@ export function buildTaskContext(data: PlanData, taskId: string): TaskContext {
 }
 
 /**
- * Core dev-validate loop. Runs dev session then validation session,
- * retrying up to MAX_DEV_VALIDATE_CYCLES times.
+ * Core dev → test → review cycle.
  *
- * Hard-stop commit: when validation returns hardStop, stage all files and commit
- * with error details before returning failure.
+ * 1. Dev session (Opus) — writes code + commits
+ * 2. Test hook (mandatory) — developer-defined programmatic checks
+ * 3. If test fails → loop back to dev with issues
+ * 4. Review session (Sonnet) — AI code review + completeness
+ * 5. If review has issues → loop back to dev with issues
+ * 6. If review passes → done
+ *
+ * Retries up to MAX_DEV_CYCLES times.
  */
-export async function runDevValidateCycle(
+export async function runDevTestReviewCycle(
   hooks: HookMap,
   projectRoot: string,
   planFile: string,
   taskId: string,
-  wtPath: string,
   priorSummaries: string[],
   planDir: string | null,
-  planTimestamp: string,
-  ctxManager?: HookContextManager,
-): Promise<DevValidateResult> {
+  scope: 'task' | 'subtask',
+): Promise<DevTestReviewResult> {
   let issues: string[] = [];
 
-  const data = readPlan(planFile);
-  const taskContext = buildTaskContext(data, taskId);
+  for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
+    log(`Dev-test-review cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
 
-  const isSub = isSubTaskId(taskId);
-  const pId = isSub ? parentTaskId(taskId) : taskId;
-  const task = findTask(data, pId);
-  const baseBranch = data.base_branch || 'main';
-  const workingBranch = task ? worktreeBranch(baseBranch, planTimestamp, pId) : '';
-
-  for (let cycle = 1; cycle <= MAX_DEV_VALIDATE_CYCLES; cycle++) {
-    log(`Dev-validate cycle ${cycle}/${MAX_DEV_VALIDATE_CYCLES} for ${taskId}`);
-
-    const dev = await runDevSession(projectRoot, planFile, taskId, wtPath, priorSummaries, issues);
+    // 1. Dev session — writes code + commits
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues);
     if (!dev.ok) {
-      return { ok: false, devResult: dev.structured, validateResult: null, error: dev.structured?.error || 'Dev session failed' };
+      return {
+        ok: false,
+        devResult: dev.structured,
+        reviewResult: null,
+        error: dev.structured?.error || 'Dev session failed',
+      };
     }
 
     const filesModified = dev.structured.files_modified || [];
 
-    // Lifecycle hook: before-commit
-    await tryHook(hooks, 'before-commit', {
-      task_id: taskId,
-      files: filesModified,
-      base_branch: baseBranch,
-      working_branch: workingBranch,
-      ...taskContext,
-    }, { ctxManager });
-
-    const val = await runValidationSession(hooks, projectRoot, planFile, taskId, wtPath, {
-      filesModified,
-      taskContext,
-      ctxManager,
-    });
+    // 2. Test hook — mandatory programmatic checks
+    const test = await runTestHook(hooks, taskId, planFile, filesModified, scope);
 
     if (planDir) {
-      writeReport(planDir, `${taskId}-validate-${cycle}`, val.structured);
+      writeReport(planDir, `${taskId}-test-${cycle}`, { issues: test.issues });
     }
 
-    if (!val.ok) {
-      if (val.hardStop) {
-        log(`Cycle ${cycle}: BDD setup error — stopping task (infrastructure is broken)`);
-
-        // Hard-stop commit: save progress before returning failure
-        hardStopCommit(wtPath, taskId, val.issues);
-
-        return {
-          ok: false,
-          devResult: dev.structured,
-          validateResult: val.structured,
-          error: `Setup error: ${val.issues.join('; ').slice(0, 500)}`,
-        };
-      }
-
-      issues = val.issues;
-      log(`Cycle ${cycle} failed with ${issues.length} issues — ${cycle < MAX_DEV_VALIDATE_CYCLES ? 'retrying' : 'exhausted'}`);
+    if (!test.ok) {
+      issues = test.issues;
+      log(`Cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
       continue;
     }
 
-    // Validation passed — commit session
-    const commit = await runCommitSession(
-      projectRoot, planFile, taskId, wtPath,
-      dev.structured.summary, filesModified,
-    );
+    // 3. Review session — AI code review + completeness
+    const review = await runReviewSession(hooks, planFile, taskId);
 
-    if (commit.ok) {
-      // Lifecycle hook: after-commit
-      await tryHook(hooks, 'after-commit', {
-        task_id: taskId,
-        commits: commit.structured.commits || [],
-        files: filesModified,
-        base_branch: baseBranch,
-        working_branch: workingBranch,
-        ...taskContext,
-      }, { ctxManager });
-
-      return {
-        ok: true,
-        devResult: { ...dev.structured, commits: commit.structured.commits } as never,
-        validateResult: val.structured,
-      };
+    if (planDir) {
+      writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
     }
 
-    issues = [`Commit hook failure:\n${commit.structured.error}`];
-    log(`Commit hook failure for ${taskId} — ${cycle < MAX_DEV_VALIDATE_CYCLES ? 'retrying' : 'exhausted'}`);
+    if (!review.ok) {
+      issues = review.issues;
+      log(`Cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      continue;
+    }
+
+    // All clear — success
+    return {
+      ok: true,
+      devResult: dev.structured,
+      reviewResult: review.structured,
+    };
   }
 
   return {
     ok: false,
     devResult: null,
-    validateResult: null,
-    error: `Dev-validate cycle exhausted after ${MAX_DEV_VALIDATE_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join('; ')}`,
+    reviewResult: null,
+    error: `Dev-test-review cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join('; ')}`,
   };
 }
 
 /**
- * Hard-stop commit: stage all files and commit with error details
- * to preserve progress when infrastructure is broken.
+ * Task-level validation after all sub-tasks are complete.
+ *
+ * Runs test → review without an initial dev session (the code is already
+ * written by sub-tasks). If test or review fails, launches a dev fix
+ * session and retries up to MAX_DEV_CYCLES times.
  */
-function hardStopCommit(wtPath: string, taskId: string, issues: string[]): void {
-  try {
-    execSync('git add -A', { cwd: wtPath, stdio: 'pipe' });
+export async function runTaskLevelValidation(
+  hooks: HookMap,
+  projectRoot: string,
+  planFile: string,
+  taskId: string,
+  priorSummaries: string[],
+  planDir: string | null,
+): Promise<DevTestReviewResult> {
+  // First pass: test + review only (no dev session needed)
+  log(`Task-level validation for ${taskId} (test + review)`);
 
-    // Check if there's anything to commit
-    try {
-      execSync('git diff --cached --quiet', { cwd: wtPath, stdio: 'pipe' });
-      return; // nothing staged
-    } catch {
-      // staged changes exist
+  const test = await runTestHook(hooks, taskId, planFile, [], 'task');
+  if (planDir) {
+    writeReport(planDir, `${taskId}-task-test-1`, { issues: test.issues });
+  }
+
+  if (test.ok) {
+    const review = await runReviewSession(hooks, planFile, taskId);
+    if (planDir) {
+      writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
 
-    const reason = `hard-stop for ${taskId}`;
-    const body = issues.slice(0, 10).join('\n');
-    const message = `Molcajete: ${reason}\n\n${body}`;
-    execSync(`git commit -m ${JSON.stringify(message)}`, { cwd: wtPath, stdio: 'pipe' });
-    log(`Hard-stop commit created for ${taskId}`);
-  } catch (err) {
-    log(`Warning: hard-stop commit failed: ${(err as Error).message}`);
+    if (review.ok) {
+      return { ok: true, devResult: null, reviewResult: review.structured };
+    }
+
+    // Review failed — need a dev fix
+    log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
+    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task');
   }
+
+  // Test failed — need a dev fix
+  log(`Task-level test failed with ${test.issues.length} issues — launching fix cycle`);
+
+  // Feed test issues directly into a dev-test-review cycle
+  let issues = test.issues;
+
+  for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
+    log(`Task-level fix cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
+
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues);
+    if (!dev.ok) {
+      return {
+        ok: false,
+        devResult: dev.structured,
+        reviewResult: null,
+        error: dev.structured?.error || 'Dev session failed',
+      };
+    }
+
+    const filesModified = dev.structured.files_modified || [];
+
+    const reTest = await runTestHook(hooks, taskId, planFile, filesModified, 'task');
+    if (planDir) {
+      writeReport(planDir, `${taskId}-task-test-${cycle + 1}`, { issues: reTest.issues });
+    }
+
+    if (!reTest.ok) {
+      issues = reTest.issues;
+      log(`Fix cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      continue;
+    }
+
+    const review = await runReviewSession(hooks, planFile, taskId);
+    if (planDir) {
+      writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
+    }
+
+    if (!review.ok) {
+      issues = review.issues;
+      log(`Fix cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      continue;
+    }
+
+    return { ok: true, devResult: dev.structured, reviewResult: review.structured };
+  }
+
+  return {
+    ok: false,
+    devResult: null,
+    reviewResult: null,
+    error: `Task-level fix cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join('; ')}`,
+  };
 }

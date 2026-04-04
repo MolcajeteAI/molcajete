@@ -5,49 +5,22 @@ export type {
   HookFn,
   HookInfo,
 
-  // Stores
-  ScopedStore,
-  TaskStore,
-  GlobalRegistry,
-  InstanceInfo,
-  HostDescriptor,
-
-  // Shared
-  HookIdentifiers,
-
-  // Mandatory hooks
-  HealthCheckInput,
-  HealthCheckOutput,
-  RunTestsInput,
-  RunTestsOutput,
-  FormatInput,
-  FormatOutput,
-  LintInput,
-  LintOutput,
+  // Mandatory hook
+  TestHookInput,
+  TestHookOutput,
 
   // Environment hooks
   StartInput,
   StartOutput,
   StopInput,
   StopOutput,
-  LogsInput,
-  LogsOutput,
-  RestartInput,
-  RestartOutput,
-
-  // Worktree hooks
-  CreateWorktreeInput,
-  CreateWorktreeOutput,
-  CleanupInput,
-  CleanupOutput,
-  MergeInput,
-  MergeOutput,
 
   // Lifecycle hooks
   TaskLifecycleInput,
   SubtaskLifecycleInput,
-  CommitLifecycleInput,
-  ValidateLifecycleInput,
-  WorktreeLifecycleInput,
   LifecycleOutput,
 } from './types.js';
+
+// Git utilities
+export { merge, rebase, resolveConflicts } from './lib/git.js';
+export type { GitResult, MergeOptions } from './lib/git.js';

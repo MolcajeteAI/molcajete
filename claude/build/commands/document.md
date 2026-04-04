@@ -26,7 +26,6 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 |-------|------|-------------|
 | `plan_path` | string | Absolute path to the plan JSON file |
 | `task_id` | string | Task ID (e.g., `T-003`) |
-| `worktree_path` | string | Absolute path to the worktree |
 | `intent` | string | `implement` or `wire-bdd` |
 | `files_modified` | string[] | Files created/modified by the dev session |
 | `dev_summary` | string | Summary from the dev session |
@@ -54,7 +53,7 @@ Spawn with `model: "opus"`. This agent:
    - **UC Status Rollup:** For the UC-XXXX in the task's `use_case`, find the UC file, read all scenario headings (`### SC-XXXX`), check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan. If all covered → update UC status to `implemented`.
    - **Feature Status Rollup:** After updating UC status, read the feature's `USE-CASES.md`. If ALL UCs are `implemented` → update feature status in `prd/FEATURES.md`. Skip `global` domain features.
 
-Provide the agent with: `plan_path`, `task_id`, `worktree_path`, `architecture` path, `use_case`, `feature`, `domain`, `scenario`, `files_modified`, `dev_summary`, and the full plan JSON content.
+Provide the agent with: `plan_path`, `task_id`, `architecture` path, `use_case`, `feature`, `domain`, `scenario`, `files_modified`, `dev_summary`, and the full plan JSON content.
 
 ### README Agent (model: sonnet, `implement` intent only)
 
@@ -68,7 +67,7 @@ For `implement` intent, spawn with `model: "sonnet"`. This agent:
    - Do NOT create README.md in every directory touched
 3. Creates or updates `README.md` files in those directories
 
-Provide the agent with: `worktree_path`, `files_modified`, `dev_summary`.
+Provide the agent with: `files_modified`, `dev_summary`.
 
 ## Step 3: Collect and Output
 
@@ -89,6 +88,5 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 ## Rules
 
 - This session only modifies documentation files — never production code or step definitions.
-- Doc session failures are **non-blocking** — the orchestrator logs a warning and proceeds to merge.
-- All work happens inside the worktree — never modify files outside it.
+- Doc session failures are **non-blocking** — the orchestrator logs a warning and proceeds.
 - Do NOT stage or commit — the orchestrator handles the doc commit separately.

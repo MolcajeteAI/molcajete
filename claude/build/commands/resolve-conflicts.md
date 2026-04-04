@@ -1,18 +1,21 @@
 ---
-description: Worktree fix session — diagnose and fix worktree creation failures
+description: Resolve git conflicts — read conflict markers, resolve each file, stage results
 model: claude-sonnet-4-6
 argument-hint: "<json-payload>"
 allowed-tools:
   - Read
-  - Bash
+  - Write
+  - Edit
   - Glob
+  - Grep
+  - Bash
 ---
 
-# Worktree Fix Session
+# Resolve Conflicts
 
 **Non-interactive session** — invoked headlessly via `claude -p` by the orchestrator. No user is present. Never ask questions, request confirmation, or use AskUserQuestion. All decisions must be autonomous.
 
-You diagnose and fix worktree preparation failures. The Node.js orchestrator tried to create a worktree and failed — you figure out why and fix it.
+You resolve git merge or rebase conflicts. You read conflict markers, understand both sides using project context, resolve each file, and stage the results.
 
 **Arguments:** $ARGUMENTS
 
@@ -20,64 +23,64 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `worktree_path` | string | Intended worktree path that failed to create |
-| `branch_name` | string | Intended branch name (e.g., `dispatch/FEAT-0F3y-T-001`) |
-| `base_branch` | string | Branch to create the worktree from |
-| `error_output` | string | Error output from the failed git worktree command |
+| `conflicted_files` | string[] | File paths with conflict markers |
+| `operation` | string | `merge` or `rebase` |
+| `base_ref` | string | The base ref (branch being merged into or rebased onto) |
+| `incoming_ref` | string | The incoming ref (branch being merged or rebased) |
 
-## Step 1: Diagnose
+## Step 1: Load Skill
 
-Read the error output and check for common issues:
+Read the git conflict resolution skill for reference:
 
-1. **Stale worktree:** The path already exists from a previous failed run
-   - Check: `git worktree list --porcelain`
-   - Fix: `git worktree remove --force "{worktree_path}"` then `git branch -D "{branch_name}"`
+1. `${CLAUDE_PLUGIN_ROOT}/shared/skills/git-conflict-resolution/SKILL.md`
 
-2. **Locked branch:** The branch already exists (possibly from a stale worktree)
-   - Check: `git branch --list "{branch_name}"`
-   - Fix: Delete the branch if no worktree references it, then retry
+## Step 2: Gather Context
 
-3. **Dirty state:** Unexpected files or locks in `.molcajete/worktrees/`
-   - Check: `ls -la .molcajete/worktrees/`
-   - Fix: Clean up orphaned directories
+1. Read `CLAUDE.md` and `.claude/rules/*.md` for project conventions
+2. Run `git log --oneline -10 {base_ref}` and `git log --oneline -10 {incoming_ref}` to understand what each side changed
+3. For each conflicted file, read the file to see the conflict markers
 
-4. **Other issues:** Read the error message carefully and apply appropriate fix
+## Step 3: Resolve Each File
 
-## Step 2: Retry Creation
+For each file in `conflicted_files`:
 
-After fixing the issue, create the worktree:
+1. Read the file — identify all `<<<<<<<` / `=======` / `>>>>>>>` conflict blocks
+2. Understand the intent of both sides using the git log context
+3. **Lock files** (package-lock.json, pnpm-lock.yaml, yarn.lock): delete the file and run the appropriate package manager install command
+4. **Generated files**: regenerate rather than merge
+5. **Code files**: understand both sides' intent and merge the logic correctly
+6. **Config files**: prefer the more complete version
+7. Write the resolved file with no conflict markers remaining
+8. Run `git add {file}` to stage it
 
-```bash
-mkdir -p .molcajete/worktrees
-git worktree add -b "{branch_name}" "{worktree_path}" "{base_branch}"
-```
+## Step 4: Verify
 
-Verify the worktree was created:
+1. Run `git diff --check` to confirm no conflict markers remain in staged files
+2. If any markers remain, go back and fix those files
 
-```bash
-git worktree list --porcelain | grep "{worktree_path}"
-```
-
-## Step 3: Output
+## Step 5: Output
 
 Respond with a structured JSON block:
 
 ```json
 {
   "status": "resolved | failed",
-  "worktree_path": "string",
-  "action_taken": "cleaned stale worktree and recreated",
+  "files_resolved": ["path/to/file"],
+  "decisions": ["kept incoming auth middleware, dropped base's deprecated version"],
   "error": null
 }
 ```
 
-- `status`: `"resolved"` if the worktree is now ready. `"failed"` if the issue could not be fixed.
-- `worktree_path`: the final worktree path (should match the intended path).
-- `action_taken`: what was done to fix the issue.
+- `status`: `"resolved"` when all conflicts are resolved and staged. `"failed"` if any conflict could not be resolved.
+- `files_resolved`: all files that were resolved and staged.
+- `decisions`: brief description of each non-trivial resolution decision.
 - `error`: null on success, error description on failure.
 
 ## Rules
 
-- Only modify git state (worktrees, branches) — do not touch code files.
-- Be conservative — only delete worktrees/branches that are clearly stale or orphaned.
-- If the issue looks like active work in progress (uncommitted changes in a worktree), report it as failed rather than destroying it.
+- Never leave conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) in resolved files.
+- Resolve ALL conflicts in one pass — do not leave any for later.
+- Stage each file immediately after resolving it.
+- For lock files: delete and regenerate, do not try to merge.
+- If a conflict is truly ambiguous (both sides make valid contradictory changes), fail rather than guess.
+- Do NOT commit — the caller handles committing or continuing the rebase.

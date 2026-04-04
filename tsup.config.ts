@@ -19,7 +19,11 @@ export default defineConfig([
   {
     entry: { index: 'src/index.ts' },
     format: ['esm'],
-    dts: { only: true },
+    dts: true,
+    outExtension: () => ({ js: '.mjs' }),
+    platform: 'node',
+    external: ['jiti'],
+    target: 'node20',
     outDir: 'dist',
   },
 ]);

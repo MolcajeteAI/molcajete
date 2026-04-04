@@ -1,5 +1,5 @@
 ---
-description: Development session — implement code for a task or sub-task, write unit tests
+description: Development session — implement code for a task or sub-task, write unit tests, commit changes
 model: claude-opus-4-6
 argument-hint: "<json-payload>"
 allowed-tools:
@@ -15,7 +15,7 @@ allowed-tools:
 
 **Non-interactive session** — invoked headlessly via `claude -p` by the orchestrator. No user is present. Never ask questions, request confirmation, or use AskUserQuestion. All decisions must be autonomous based on the plan, skills, and project context.
 
-You implement code for a single task or sub-task. You write production code and unit tests. You do **NOT** run quality gates — the validation session handles that. You do **NOT** commit — the commit session handles that after validation passes.
+You implement code for a single task or sub-task. You write production code and unit tests. You write code and commit all changes. The orchestrator runs a test hook and AI review after this session.
 
 **Arguments:** $ARGUMENTS
 
@@ -25,7 +25,6 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 |-------|------|-------------|
 | `plan_path` | string | Absolute path to the plan JSON file |
 | `task_id` | string | Task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`) |
-| `worktree_path` | string | Absolute path to the worktree |
 | `prior_summaries` | string[] | Summaries from completed prior tasks/sub-tasks |
 | `issues` | string[] | Issues from a failed validation (empty on first run) |
 
@@ -35,13 +34,14 @@ Read skills that govern this session:
 
 1. `${CLAUDE_PLUGIN_ROOT}/build/skills/SKILL.md` — dispatch rules, implementation procedures
 2. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — BDD conventions
+3. `${CLAUDE_PLUGIN_ROOT}/shared/skills/git-committing/SKILL.md` — commit message format and rules
 
 ## Step 2: Load Context
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
 3. For sub-tasks: the parent task provides `use_case`, `feature`, `domain`, `architecture`, `intent`, `scenario`
-4. Read project context files (in the worktree):
+4. Read project context files:
    - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/DOMAINS.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
    - Feature's REQUIREMENTS.md and ARCHITECTURE.md
@@ -73,9 +73,15 @@ Follow the dispatch skill's implementation procedure based on the task's intent:
 
 **On retry (issues list is non-empty):** Focus on fixing the reported issues. Read the specific files and lines mentioned. Fix all issues.
 
-All work happens inside the worktree path.
+## Step 4: Commit
 
-## Step 4: Output
+Stage and commit all changes following the git-committing skill:
+
+1. Stage all modified/created files
+2. Create a commit with a message that describes the implementation
+3. Follow the project's commit style conventions
+
+## Step 5: Output
 
 Respond with a structured JSON block:
 
@@ -97,8 +103,6 @@ Respond with a structured JSON block:
 
 ## Rules
 
-- Do NOT run quality gates (formatting, linting, BDD tests). The validation session handles that.
-- Do NOT merge or rebase. The orchestrator handles that.
-- All work happens inside the worktree — never modify files outside it.
-- Do NOT stage or commit — the commit session handles that after validation passes.
+- Do NOT run quality gates (formatting, linting, BDD tests). The orchestrator's test hook handles that.
 - If this is a retry, fix ALL reported issues in one pass — do not fix them one at a time.
+- Commit all changes before outputting results.

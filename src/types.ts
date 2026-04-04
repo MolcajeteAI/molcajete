@@ -8,6 +8,10 @@ export interface Task {
   use_case?: string;
   scenario?: string;
   domain?: string;
+  architecture?: string;
+  description?: string;
+  files_to_modify?: string[];
+  estimated_context?: string;
   depends_on?: string[];
   status: 'pending' | 'in_progress' | 'implemented' | 'failed';
   errors?: string[];
@@ -19,6 +23,9 @@ export interface SubTask {
   id: string; // TASK-XXXX-N
   title: string;
   intent?: string;
+  description?: string;
+  files_to_modify?: string[];
+  estimated_context?: string;
   depends_on?: string[];
   status: 'pending' | 'in_progress' | 'implemented' | 'failed';
   errors?: string[];
@@ -30,14 +37,10 @@ export interface PlanData {
   status: string;
   scope?: string[];
   base_branch?: string;
-  bdd_command?: string;
 }
 
 export interface Settings {
-  useWorktrees: boolean;
-  allowParallelTasks: boolean;
-  startTimeout: number;
-  persistWorktreeBranches: boolean;
+  maxDevCycles: number;
 }
 
 export interface HookResult {
@@ -77,18 +80,9 @@ export interface DevSessionOutput {
   error?: string | null;
 }
 
-export interface ValidateSessionOutput {
+export interface ReviewSessionOutput {
   code_review: string[];
   completeness: string[];
-  formatting?: string[];
-  linting?: string[];
-  bdd_tests?: string[];
-}
-
-export interface CommitSessionOutput {
-  status: 'done' | 'failed';
-  commits: string[];
-  error?: string | null;
 }
 
 export interface DocSessionOutput {
@@ -97,10 +91,10 @@ export interface DocSessionOutput {
   error?: string | null;
 }
 
-export interface WorktreeFixOutput {
+export interface ResolveConflictsOutput {
   status: 'resolved' | 'failed';
-  worktree_path: string;
-  action_taken?: string;
+  files_resolved: string[];
+  decisions: string[];
   error?: string | null;
 }
 
@@ -111,158 +105,29 @@ export interface TaskContext {
   scenario_id?: string;
 }
 
-export interface DevValidateResult {
+export interface DevTestReviewResult {
   ok: boolean;
   devResult: DevSessionOutput | null;
-  validateResult: ValidateSessionOutput | null;
+  reviewResult: ReviewSessionOutput | null;
   error?: string;
 }
 
-export interface ValidationResult {
-  ok: boolean;
-  issues: string[];
-  structured: ValidateSessionOutput;
-  hardStop?: boolean;
-}
+// ── Test Hook Types ──
 
-// ── Hook Context Types ──
-
-/** Key-value store scoped to a lifecycle phase (plan, task, subtask). */
-export interface ScopedStore {
-  get<T = unknown>(key: string): T | undefined;
-  set(key: string, value: unknown): void;
-  has(key: string): boolean;
-  delete(key: string): boolean;
-  keys(): string[];
-  entries(): Array<[string, unknown]>;
-  clear(): void;
-}
-
-/** Describes a host environment (local or remote) for test execution. */
-export interface HostDescriptor {
-  name: string;
-  type: 'local' | 'remote';
-  path?: string;
-  ssh?: { host: string; port: number; user: string; keyPath?: string };
-  appPath?: string;
-  metadata?: Record<string, unknown>;
-}
-
-/** Task-scoped store with host registration. */
-export interface TaskStore extends ScopedStore {
-  registerHost(descriptor: HostDescriptor): void;
-  getHost(name?: string): HostDescriptor | undefined;
-  getHosts(): HostDescriptor[];
-  removeHost(name: string): boolean;
-}
-
-/** Information about the current Molcajete instance. */
-export interface InstanceInfo {
-  cwd: string;
-  planId: string;
-  pid: number;
-  id: string;
-}
-
-/** Information about the hook being executed. */
-export interface HookInfo {
-  name: string;
-  taskId?: string;
-  subtaskId?: string;
-  worktreePath?: string;
-  branch?: string;
-  identifiers?: Record<string, string>;
-}
-
-/** Global cross-instance registry interface. */
-export interface GlobalRegistry {
-  get<T = unknown>(key: string): T | undefined;
-  set(key: string, value: unknown): Promise<void>;
-  has(key: string): boolean;
-  listInstances(): InstanceInfo[];
-  allocatePort(startFrom?: number): Promise<number>;
-  connect(): Promise<void>;
-  disconnect(): void;
-}
-
-/** Context object passed to v2 hook functions. */
-export interface HookContext<TInput = Record<string, unknown>> {
-  input: TInput;
-  plan: ScopedStore;
-  task: TaskStore;
-  subtask: ScopedStore;
-  global: GlobalRegistry;
-  instance: InstanceInfo;
-  hook: HookInfo;
-  /** Convenience: get the first registered host (or by name). */
-  getHost(name?: string): HostDescriptor | undefined;
-  /** Convenience: get all registered hosts. */
-  getHosts(): HostDescriptor[];
-  /** Convenience: get allocated port for a host port mapping. */
-  getHostPort(internalPort: number): number | undefined;
-  /** Serializable snapshot for Claude sessions. */
-  snapshot(): ContextSnapshot;
-}
-
-/** Serializable subset of context for Claude session prompts. */
-export interface ContextSnapshot {
-  planId: string;
-  taskId?: string;
-  subtaskId?: string;
-  planStore: Record<string, unknown>;
-  taskStore: Record<string, unknown>;
-  hosts: HostDescriptor[];
-}
-
-// ── Per-Hook Input/Output Types ──
-
-/** Shared identifiers included in hook inputs. */
-export interface HookIdentifiers {
+export interface TestHookInput {
   task_id: string;
-  feature_id?: string;
-  usecase_id?: string;
-  scenario_id?: string;
+  commit: string;
+  files: string[];
+  tags: string[];
+  scope: 'task' | 'subtask' | 'final';
 }
 
-// ── Mandatory Hooks ──
-
-export interface HealthCheckInput {
-  services?: string[];
-}
-export interface HealthCheckOutput {
-  status: 'ready' | 'failed';
-  services: Record<string, 'ready' | 'failed'>;
-}
-
-export interface RunTestsInput extends HookIdentifiers {
-  tags?: string[];
-  scope?: 'task' | 'preflight' | 'final';
-}
-export interface RunTestsOutput {
-  status: 'pass' | 'fail' | 'error';
-  failures?: string[];
-  summary: string;
-}
-
-export interface FormatInput extends HookIdentifiers {
-  files?: string[];
-  services?: string[];
-}
-export interface FormatOutput {
-  status: 'pass' | 'fail';
+export interface TestHookOutput {
+  status: 'success' | 'failure';
   issues: string[];
 }
 
-export interface LintInput extends HookIdentifiers {
-  files?: string[];
-  services?: string[];
-}
-export interface LintOutput {
-  status: 'pass' | 'fail';
-  issues: string[];
-}
-
-// ── Environment Hooks ──
+// ── Hook Types ──
 
 export type StartInput = Record<string, never>;
 export interface StartOutput {
@@ -276,77 +141,22 @@ export interface StopOutput {
   summary?: string;
 }
 
-export interface LogsInput {
-  service?: string;
-  lines?: number;
-  since?: string;
-}
-export interface LogsOutput {
-  logs: string;
-}
-
-export type RestartInput = Record<string, never>;
-export interface RestartOutput {
-  status: 'ready' | 'failed';
-}
-
-// ── Worktree Hooks ──
-
-export interface CreateWorktreeInput {
-  path: string;
-  branch: string;
-  base_branch: string;
-}
-export interface CreateWorktreeOutput {
-  status: 'ok' | 'failed';
-  path: string;
-}
-
-export interface CleanupInput {
-  path: string;
-  branch: string;
-}
-export interface CleanupOutput {
-  status: 'ok' | 'failed';
-}
-
-export interface MergeInput {
-  path: string;
-  branch: string;
-  base_branch: string;
-}
-export interface MergeOutput {
-  status: 'ok' | 'failed';
-  conflicts?: string[];
-}
-
-// ── Lifecycle Hooks ──
-
-export interface TaskLifecycleInput extends HookIdentifiers {
+export interface TaskLifecycleInput {
+  task_id: string;
+  feature_id?: string;
+  usecase_id?: string;
+  scenario_id?: string;
   status?: string;
   summary?: string;
 }
 
-export interface SubtaskLifecycleInput extends HookIdentifiers {
+export interface SubtaskLifecycleInput {
+  task_id: string;
   subtask_id: string;
+  feature_id?: string;
+  usecase_id?: string;
+  scenario_id?: string;
   status?: string;
-}
-
-export interface CommitLifecycleInput extends HookIdentifiers {
-  commits?: string[];
-  files?: string[];
-  base_branch?: string;
-  working_branch?: string;
-}
-
-export interface ValidateLifecycleInput extends HookIdentifiers {
-  cycle: number;
-}
-
-export interface WorktreeLifecycleInput extends HookIdentifiers {
-  path?: string;
-  branch?: string;
-  base_branch?: string;
 }
 
 export interface LifecycleOutput {
@@ -367,4 +177,17 @@ export interface HookEntry {
 /** Hook map: name → entry. */
 export interface HookMap {
   [name: string]: HookEntry;
+}
+
+/** Context object passed to v2 hook functions. */
+export interface HookContext<TInput = Record<string, unknown>> {
+  input: TInput;
+  hook: HookInfo;
+}
+
+/** Information about the hook being executed. */
+export interface HookInfo {
+  name: string;
+  taskId?: string;
+  subtaskId?: string;
 }

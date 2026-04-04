@@ -10,7 +10,6 @@
   "commands": [
     "./build/commands/develop.md",
     "./build/commands/validate.md",
-    "./build/commands/commit.md",
     "./build/commands/document.md",
     "./build/commands/resolve-conflicts.md",
     "./setup/commands/setup.md"
@@ -20,6 +19,7 @@
     "./shared/skills/gherkin/SKILL.md",
     "./shared/skills/git-committing/SKILL.md",
     "./shared/skills/code-documentation/SKILL.md",
-    "./shared/skills/id-generation/SKILL.md"
+    "./shared/skills/id-generation/SKILL.md",
+    "./shared/skills/git-conflict-resolution/SKILL.md"
   ]
 }

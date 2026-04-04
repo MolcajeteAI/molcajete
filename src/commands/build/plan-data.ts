@@ -26,19 +26,13 @@ export function updatePlanJson(planPath: string, mutator: (data: PlanData) => vo
 export function readSettings(projectRoot: string): Settings {
   const settingsPath = join(projectRoot, '.molcajete', 'settings.json');
   const defaults: Settings = {
-    useWorktrees: true,
-    allowParallelTasks: false,
-    startTimeout: 120000,
-    persistWorktreeBranches: false,
+    maxDevCycles: 7,
   };
   if (!existsSync(settingsPath)) return defaults;
   try {
     const raw = JSON.parse(readFileSync(settingsPath, 'utf8'));
     return {
-      useWorktrees: raw.useWorktrees ?? defaults.useWorktrees,
-      allowParallelTasks: raw.allowParallelTasks ?? defaults.allowParallelTasks,
-      startTimeout: raw.startTimeout ?? defaults.startTimeout,
-      persistWorktreeBranches: raw.persistWorktreeBranches ?? defaults.persistWorktreeBranches,
+      maxDevCycles: raw.maxDevCycles ?? defaults.maxDevCycles,
     };
   } catch {
     return defaults;

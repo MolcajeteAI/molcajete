@@ -2,9 +2,9 @@
 name: dispatch
 description: >-
   Rules and conventions for the build dispatch pipeline. Defines session types,
-  dev-validate cycle, sub-task lifecycle, task status lifecycle, intent handling,
-  quality gates, plan JSON schema, worktree naming, merge procedure, conflict
-  resolution, architecture updates, PRD propagation, and BDD detection.
+  dev-test-review cycle, sub-task lifecycle, task status lifecycle, intent handling,
+  quality gates, plan JSON schema, hook protocol, architecture updates, PRD
+  propagation, and BDD test execution.
   Referenced by build.md, session commands, and molcajete.mjs.
 ---
 
@@ -17,7 +17,7 @@ Rules for the build dispatch pipeline. All build components — session commands
 - Understanding how the build dispatch pipeline gates tasks
 - Writing or modifying dispatch pipeline components
 - Referencing plan JSON schema or status lifecycle
-- Understanding the dev-validate cycle and session types
+- Understanding the dev-test-review cycle and session types
 
 ## Session Types
 
@@ -25,67 +25,58 @@ The build pipeline uses purpose-specific sessions orchestrated by `molcajete.mjs
 
 | Session | Needs Claude? | Purpose |
 |---------|---------------|---------|
-| Pre-flight | No (hooks) | Health check + BDD tests via `health-check` and `run-tests` hooks |
-| Worktree preparation | Node.js first, hook or Claude on error | Deterministic git commands; optional `create-worktree` hook; Claude fixes stale worktrees |
-| Development | Yes | Write code, unit tests |
-| Commit session | Yes | Stage files and create commits after validation passes (uses git-committing skill) |
-| Validation (hooks) | No (hooks) | Format, lint, BDD tests via hooks (sub-second) |
-| Validation (Claude) | Yes | Code review + completeness gates (parallel read-only sub-agents) |
-| Documentation | Yes (haiku coordinator, opus + sonnet sub-agents) | Architecture updates, PRD propagation, README updates (post-commit, pre-merge) |
-| Merge + cleanup | Node.js first, hook or Claude on conflict | Deterministic rebase/merge; optional `merge`/`cleanup` hooks; dev-validate cycle on conflicts |
-| Post-flight | No (hooks) | Full BDD suite via `run-tests` hook |
+| Development | Yes (Opus) | Write code, unit tests, commit changes |
+| Test hook | No (hook) | Run all programmatic quality checks via developer-defined `test` hook |
+| Review | Yes (Sonnet) | Code review + completeness gates (parallel read-only sub-agents) |
+| Documentation | Yes (Haiku coordinator, Opus + Sonnet sub-agents) | Architecture updates, PRD propagation, README updates |
 
 Session commands live in `${CLAUDE_PLUGIN_ROOT}/build/commands/`:
-- `develop.md` — development session (implement code + tests, no quality gates, no commits)
+- `develop.md` — development session (implement code + tests, commit changes)
 - `validate.md` — validation coordinator (code review + completeness gates only)
-- `commit.md` — commit session (stages and commits validated changes using git-committing skill)
 - `document.md` — documentation session (architecture updates, PRD propagation, READMEs)
-- `resolve-conflicts.md` — diagnose and fix worktree creation failures
 
-## Dev-Validate Cycle
+## Dev-Test-Review Cycle
 
-The core loop between development and validation sessions:
+The core loop between development, testing, and review:
 
 ```
-Dev Session (code only, no commit)
+Dev Session (code + commit)
   │
   ▼
-Validation Session (read-only gates on uncommitted changes)
+Test Hook (programmatic checks)
   │
   ├── fail ──> Dev Session (with issues) ──> loop back
   │
-  └── pass ──> Commit Session (git-committing skill)
+  └── pass ──> Review Session (Claude judgment)
                 │
-                ├── success ──> done (proceed to merge or next sub-task)
+                ├── issues ──> Dev Session (with issues) ──> loop back to test
                 │
-                └── hook fail ──> Dev Session (with hook errors) ──> loop back to validation
+                └── all clear ──> done (proceed to next sub-task or doc session)
                                     │
                                     └── max 7 total cycles ──> mark failed
 ```
 
-- Max **7 dev-validate cycles** per task or sub-task. Hook failures consume a cycle from the same budget — no separate retry counter.
+- Max **7 dev-test-review cycles** per task or sub-task. Test and review failures consume cycles from the same budget.
 - Each cycle is a fresh Claude session with full context budget.
-- On validation failure, ALL issues from ALL gates are fed to the next dev session.
+- On failure, ALL issues from ALL gates are fed to the next dev session.
 - The dev session fixes ALL issues in one pass — never one at a time.
-- The commit session only runs after validation passes. It stages files and creates commits using the git-committing skill.
 
 ### Validation Level by Context
 
 | Context | Gates Run |
 |---------|-----------|
-| Sub-task (ID: `T-NNN-M`) | Formatting, linting, code review, completeness (NO BDD) |
-| Task (ID: `T-NNN`) | Formatting, linting, code review, completeness, BDD tests |
-| Plan-level (post-flight fix) | BDD tests for all features in plan scope |
+| Sub-task (ID: `T-NNN-M`) | Test hook (scope: subtask) + review |
+| Task (ID: `T-NNN`) | Test hook (scope: task) + review |
 
-The validation coordinator auto-detects whether it's validating a sub-task or task by the ID format — no special flags needed.
+The test hook receives a `scope` field so the developer can decide what checks to run at each level — for example, skip BDD tests when scope is `"subtask"`.
 
 ## Sub-Task Lifecycle
 
-Sub-tasks break a large task into sequential steps within a shared worktree.
+Sub-tasks break a large task into sequential steps.
 
 ### Rules
 
-- **One worktree per task, not per sub-task.** Sub-tasks are sequential steps on the same branch.
+- Sub-tasks are sequential steps on the same branch.
 - Sub-tasks inherit `use_case`, `feature`, `domain`, `architecture`, `intent`, `scenario` from the parent task.
 - Sub-task `depends_on` references sibling sub-task IDs only (e.g., `T-003-1`).
 - Sub-task IDs follow `T-NNN-M` format (parent ID + dash + integer). Never decimal.
@@ -93,12 +84,10 @@ Sub-tasks break a large task into sequential steps within a shared worktree.
 
 ### Execution Flow
 
-1. Orchestrator creates worktree for the parent task
-2. Sub-tasks run sequentially (respecting `depends_on`)
-3. Each sub-task goes through a dev-validate cycle (NO BDD)
-4. After all sub-tasks complete, task-level validation runs (WITH BDD)
-5. If task-level validation fails, a fix dev session gets full task scope (all sub-task summaries, all files modified)
-6. After validation passes, merge the worktree
+1. Sub-tasks run sequentially (respecting `depends_on`)
+2. Each sub-task goes through a dev-test-review cycle
+3. After all sub-tasks complete, task-level validation runs (test hook with scope `task` + review)
+4. If task-level validation fails, a fix dev session gets full task scope (all sub-task summaries, all files modified)
 
 ### Sub-Task Fields
 
@@ -109,34 +98,12 @@ Sub-task objects in the plan JSON:
 | `id` | string | `T-NNN-M` — parent task ID + dash + integer |
 | `title` | string | Human-readable sub-task title |
 | `status` | string | Same lifecycle as tasks: pending → in_progress → implemented/failed |
-| `estimated_context` | string | Estimated context budget for this sub-task |
-| `depends_on` | string[] | Sibling sub-task IDs only |
 | `description` | string | What to implement |
 | `files_to_modify` | string[] | Expected file paths |
+| `estimated_context` | string | Estimated context budget for this sub-task |
+| `depends_on` | string[] | Sibling sub-task IDs only |
 | `summary` | string\|null | Written post-build |
 | `errors` | string[] | Error messages if failed |
-
-## Pre-flight / Post-flight
-
-### Pre-flight (Hook-Based)
-
-Before any task runs, the orchestrator calls hooks programmatically (no Claude session):
-
-1. `health-check` hook — verifies services are running (Docker, databases, etc.)
-2. `run-tests` hook with `scope: "preflight"` — runs BDD tests filtered by all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios
-3. **All checks must pass.** Any failure aborts the build.
-
-This establishes a green baseline. Any failure in the final tests is then guaranteed to be caused by the plan's changes.
-
-### Post-flight (Hook-Based)
-
-After all tasks are implemented and merged:
-
-1. `run-tests` hook with `scope: "final"` — runs BDD suite for all feature tags in the plan scope, excluding `@pending` and `@dirty` scenarios
-2. If all green AND `unaddressed` is empty → PRD status propagation + completion report
-3. If all green BUT `unaddressed` is non-empty → report success with warning: list unaddressed scenarios. **Do not propagate `implemented` status** for features/UCs that have unaddressed scenarios. Only propagate status for features/UCs where every scenario was addressed.
-4. If failures → plan-level dev-validate cycle (not bound to any single task, because failures may be caused by interactions between tasks)
-5. Max 7 plan-level fix cycles before marking the plan as failed
 
 ## Task Status Lifecycle
 
@@ -149,24 +116,37 @@ pending -> in_progress -> implemented
 |--------|---------|
 | `pending` | Not started, waiting for dependencies or dispatch |
 | `in_progress` | Currently being executed |
-| `implemented` | Done signal satisfied, merged to base branch |
+| `implemented` | Done signal satisfied |
 | `failed` | Attempted but could not complete — needs intervention |
 
 Status updates happen in the plan JSON file. The orchestrator (`molcajete.mjs`) handles all status transitions.
 
 ## BDD Command Detection
 
-The `run-tests` hook in `.molcajete/hooks/` handles all BDD test execution. The orchestrator passes tags as an array — the hook itself joins them with the framework's OR syntax (baked in by `/m:setup` as the `__TAG_JOIN__` placeholder). The orchestrator calls it with different inputs depending on context:
+The `test` hook in `.molcajete/hooks/` handles all test execution including BDD. The orchestrator passes a `TestHookInput` payload:
 
-| Need | Input |
-|------|-------|
-| Pre-flight env check | `{ "tags": ["(@FEAT-XXXX or @FEAT-YYYY) and not @pending and not @dirty"], "scope": "preflight" }` |
-| Task validation | `{ "tags": ["@SC-XXXX", "@SC-YYYY"], "scope": "task", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` |
-| Final tests | `{ "tags": ["(@FEAT-XXXX or @FEAT-YYYY) and not @pending and not @dirty"], "scope": "final" }` |
+```json
+{
+  "task_id": "T-001",
+  "commit": "abc123...",
+  "files": ["src/auth/register.ts"],
+  "tags": ["@SC-0A1b"],
+  "scope": "task | subtask | final"
+}
+```
 
-The hook has the BDD framework command, tag flag syntax, tag join separator, and output format baked in by `/m:setup`. Users can replace it with any script in any language.
+The hook returns a `TestHookOutput`:
 
-**Fallback** (if `run-tests` hook is missing): the orchestrator aborts with a mandatory hook error. Run `/m:setup` to generate hooks.
+```json
+{
+  "status": "success | failure",
+  "issues": []
+}
+```
+
+The developer controls what runs at each scope level. The hook has the BDD framework command, tag syntax, and output format baked in by `/m:setup`. Users can replace it with any script in any language.
+
+**Fallback** (if `test` hook is missing): the orchestrator aborts with a mandatory hook error. Run `molcajete setup` to generate hooks.
 
 ## Project Configuration
 
@@ -176,155 +156,93 @@ Build behavior is configured in `.molcajete/settings.json`:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `useWorktrees` | boolean | `true` | Worktree mode (per-task isolation) vs serial mode (base branch). Implies parallel support when `true`. |
-| `allowParallelTasks` | boolean | `false` | Allow parallel task execution (requires `useWorktrees: true`) |
-| `startTimeout` | number | `120000` | Milliseconds to poll health-check after `start` hook before aborting |
-
-### Environment Startup
-
-The orchestrator manages environment lifecycle via hooks:
-
-1. `start` hook (optional — if missing, assumes manual start)
-2. Poll `health-check` every 10 seconds, printing per-service status
-3. Continue until all services "ready" or `startTimeout` exceeded
-4. Timeout aborts the build
-
-**Worktree mode:** environment start/stop brackets each task (cwd = worktree). Pre-flight and post-flight get their own start/stop at project root.
-
-**Serial mode:** environment starts once before pre-flight, stops after post-flight.
-
-Project configuration is defined by executable hook scripts in `.molcajete/hooks/`. Each hook handles one checkpoint. Generated by `/m:setup` (Stage 5: Hook Generation), re-generable with `/m:setup` → "Update hooks only".
+| `maxDevCycles` | number | `7` | Maximum dev-test-review cycles per task or sub-task |
 
 ### Hook Protocol
 
-- **Location:** `.molcajete/hooks/{hook-name}.{ext}` (e.g., `health-check.mjs`, `lint.sh`)
+- **Location:** `.molcajete/hooks/{hook-name}.{ext}` (e.g., `test.mjs`, `start.sh`)
 - **Discovery:** The orchestrator scans `.molcajete/hooks/` and matches files by name without extension
 - **Format:** Executable files with shebangs (default: `#!/usr/bin/env node` for `.mjs`, any language works)
 - **Input:** JSON payload via stdin
 - **Output:** JSON to stdout
 - **Exit codes:** 0 = success (read stdout JSON), non-zero = failure (stderr has details)
 
-### Mandatory Hooks
+### Mandatory Hook (1)
 
 | Hook | Purpose | Input | Output |
 |------|---------|-------|--------|
-| `health-check` | Verify dev environment services | `{ "services": [...] }` (optional filter) | `{ "status": "ready"\|"failed", "services": { "postgres": "ready", "redis": "failed" } }` |
-| `run-tests` | Run BDD tests with tag filtering | `{ "tags": ["@SC-001", "@SC-002"], "scope": "task"\|"preflight"\|"final", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail"\|"error", "failures": [], "summary": "" }` |
-| `format` | Run formatter in check mode | `{ "files": [...], "services": ["server", "bdd"], "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail", "issues": [] }` |
-| `lint` | Run linter in report mode | `{ "files": [...], "services": ["server", "bdd"], "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | `{ "status": "pass"\|"fail", "issues": [] }` |
+| `test` | Run all programmatic quality checks | `TestHookInput` (see BDD Command Detection) | `TestHookOutput` |
 
-If a mandatory hook is missing, the orchestrator aborts: `"Missing mandatory hook: {name}. Run /m:setup or provide it manually."`
+If the mandatory hook is missing, the orchestrator aborts: `"Missing mandatory hook: test. Run molcajete setup or provide it manually."`
 
-### Optional Hooks
+### Git Utilities for Hooks
 
-**Generated by setup but not mandatory for build.** Setup creates `start`, `stop`, and `logs` hooks alongside the 4 mandatory hooks (7 total generated by default). The orchestrator calls `start` via `tryHook` in pre-flight — if the user deletes it, manual start is fine. The build does not abort for missing optional hooks.
+The `@molcajeteai/cli` package exports three composable git utility functions that hook authors can use for branching and merging workflows:
+
+```typescript
+import { merge, rebase, resolveConflicts } from '@molcajeteai/cli';
+```
+
+| Function | Purpose |
+|----------|---------|
+| `merge(base, branch, options?)` | Merge `branch` into current HEAD. Defaults to `--ff-only`; set `{ ffOnly: false }` for real merges. Calls `resolveConflicts` on conflicts. |
+| `rebase(onto, branch)` | Rebase `branch` onto `onto`. Calls `resolveConflicts` on conflicts. |
+| `resolveConflicts()` | Raw primitive — assumes git is mid-merge or mid-rebase. Spawns Claude to resolve conflict markers, stage files, and continue. |
+
+All three return `GitResult`: `{ status: 'success', commit: string }` or `{ status: 'failure', error: string }`.
+
+**Example: `before-task` hook with branching:**
+
+```typescript
+import type { HookContext, TaskLifecycleInput, LifecycleOutput } from '@molcajeteai/cli';
+import { execSync } from 'node:child_process';
+
+export default async function(ctx: HookContext<TaskLifecycleInput>): Promise<LifecycleOutput> {
+  execSync(`git checkout -b task/${ctx.input.task_id}`, { stdio: 'pipe' });
+  return { status: 'ok' };
+}
+```
+
+**Example: `after-task` hook with rebase + merge:**
+
+```typescript
+import type { HookContext, TaskLifecycleInput, LifecycleOutput } from '@molcajeteai/cli';
+import { rebase, merge } from '@molcajeteai/cli';
+import { execSync } from 'node:child_process';
+
+export default async function(ctx: HookContext<TaskLifecycleInput>): Promise<LifecycleOutput> {
+  const branch = `task/${ctx.input.task_id}`;
+  await rebase('main', branch);
+  execSync('git checkout main', { stdio: 'pipe' });
+  await merge('main', branch);
+  return { status: 'ok' };
+}
+```
+
+### Optional Hooks (10)
+
+Generated with `molcajete setup --all`. The build does not abort for missing optional hooks.
 
 | Hook | Purpose | Input | Default (without hook) |
 |------|---------|-------|------------------------|
-| `start` | Start dev environment (generated by setup) | `{ }` | No default (user starts manually) |
-| `stop` | Stop dev environment (generated by setup) | `{ }` | No default (user stops manually) |
-| `logs` | Retrieve environment logs (generated by setup) | `{ "service": "...", "lines": 100, "since": "5m" }` | No default (manual inspection) |
-| `restart` | Stop then start dev environment | `{ }` | No default |
-| `create-worktree` | Create a git worktree | `{ "path": "...", "branch": "...", "base_branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
-| `cleanup` | Remove worktree and branch | `{ "path": "...", "branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
-| `merge` | Merge task branch to base | `{ "worktree_path": "...", "branch": "...", "base_branch": "...", "feature_id": "...", "usecase_id": "..." }` | Built-in Node.js in molcajete.mjs |
-| `before-task` / `after-task` | Task lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", ... }` | No-op (skipped) |
-| `before-validate` / `after-validate` | Validation lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", "services": [...], ... }` | No-op (skipped) |
-| `before-commit` / `after-commit` | Commit lifecycle events | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "...", "files": [...], "base_branch": "...", "working_branch": "...", ... }` | No-op (skipped) |
+| `start` | Start dev environment | `{ }` | No default (user starts manually) |
+| `stop` | Stop dev environment | `{ }` | No default (user stops manually) |
+| `before-task` | Pre-task setup | `{ "task_id": "...", "feature_id": "...", "usecase_id": "...", "scenario_id": "..." }` | No-op (skipped) |
+| `after-task` | Post-task teardown or reporting | `{ "task_id": "...", "status": "...", "summary": "..." }` | No-op (skipped) |
+| `before-subtask` | Sub-task-level setup | `{ "task_id": "...", "subtask_id": "..." }` | No-op (skipped) |
+| `after-subtask` | Sub-task-level teardown | `{ "task_id": "...", "subtask_id": "..." }` | No-op (skipped) |
+| `before-review` | Prepare for review | `{ "task_id": "..." }` | No-op (skipped) |
+| `after-review` | Collect review results | `{ "task_id": "...", "issues": [...] }` | No-op (skipped) |
+| `before-documentation` | Prepare for documentation | `{ "task_id": "..." }` | No-op (skipped) |
+| `after-documentation` | Post-documentation actions | `{ "task_id": "..." }` | No-op (skipped) |
 
 ### How the Orchestrator Uses Hooks
 
-**Mechanical gates** (format, lint, BDD tests) run as hook calls — sub-second, no Claude session needed:
-- `format` hook runs in check mode (never writes files)
-- `lint` hook runs in report mode (never auto-fixes)
-- `run-tests` hook runs BDD tests with tag filtering
-- The orchestrator runs format then lint sequentially (both may affect the same files), then BDD
+The orchestrator runs the `test` hook after the dev session commits. The test hook handles all programmatic checks — formatting, linting, BDD tests, whatever the developer configures.
 
-**Claude gates** (code review, completeness) still run as Claude sessions — these require judgment.
+After the test hook passes, the orchestrator spawns a **review session** (Claude Sonnet) for judgment-based gates: code review and completeness.
 
-**Service filtering by intent:**
-- **`wire-bdd` intent:** hooks receive `{ "services": ["bdd"], "files": [...] }`
-- **`implement` intent:** hooks receive `{ "services": ["{service}", "bdd"], "files": [...] }`
-
-When `files` are available (from the dev session's `files_modified` output), they are passed to format/lint hooks for file-aware routing. When not available, the hooks fall back to checking the full service directory.
-
-## Worktree Management
-
-### Creation
-
-Create a worktree for each task (not per sub-task), branching from the plan's base branch:
-
-```bash
-mkdir -p .molcajete/worktrees
-git worktree add -b "dispatch/{FEAT}-{T-NNN}" ".molcajete/worktrees/{FEAT}-{T-NNN}" "{BASE_BRANCH}"
-```
-
-All sub-tasks share the parent task's worktree. The orchestrator attempts creation via Node.js first — on failure, it spawns a resolve-conflicts session (Claude) to diagnose and resolve.
-
-### Cleanup
-
-After a successful merge (or on failure), remove the worktree and its branch:
-
-```bash
-git worktree remove ".molcajete/worktrees/{FEAT}-{T-NNN}"
-git branch -d "dispatch/{FEAT}-{T-NNN}"
-```
-
-### Stale Worktree Handling
-
-Before creating a worktree, check if it already exists:
-
-```bash
-git worktree list --porcelain
-```
-
-If a stale worktree exists for the same task (e.g., from a previous failed run):
-1. Remove it: `git worktree remove --force ".molcajete/worktrees/{FEAT}-{T-NNN}"`
-2. Delete the branch: `git branch -D "dispatch/{FEAT}-{T-NNN}"`
-3. Then create fresh.
-
-### Serial Mode (No Worktrees)
-
-When `useWorktrees` is `false`:
-- No worktree creation, merge, or cleanup
-- Dev/validation sessions run with cwd = project root
-- Commits land directly on the base branch
-- Environment runs once for the entire build
-
-## Merge Procedure
-
-After validation passes, the orchestrator merges the task's worktree branch back to the base branch. Node.js-first, with dev-validate fallback on conflicts.
-
-### Steps
-
-1. **Rebase onto base branch:**
-   ```bash
-   git -C "{worktree_path}" rebase "{BASE_BRANCH}"
-   ```
-
-2. **Fast-forward merge from the main worktree:**
-   ```bash
-   git checkout "{BASE_BRANCH}"
-   git merge --no-edit "dispatch/{FEAT}-{T-NNN}"
-   ```
-
-3. **Update plan file and commit atomically:** Update the task's status to `implemented`, write the `summary` field in the plan JSON, then commit the plan file on the base branch:
-   ```bash
-   git add .molcajete/plans/{plan_dir}/plan.json
-   git commit -m "plan: mark {T-NNN} implemented"
-   ```
-
-4. **Cleanup worktree and branch:** (see Worktree Management → Cleanup)
-
-### Conflict Resolution
-
-If rebase fails with conflicts:
-
-1. Abort the failed rebase
-2. Launch a **dev session** with conflict details, worktree path, and task context — it resolves conflicts, stages, and commits
-3. Launch a **validation session** (with BDD) to verify the resolution
-4. If validation fails → loop back to dev session (same 7-cycle limit)
-5. Once validation passes → retry the rebase and merge
+If either test or review fails, issues are collected and fed back to the next dev session.
 
 ## Implementation: `implement` Intent
 
@@ -338,7 +256,7 @@ Forward path — specs drive code creation.
 4. Write unit tests for the implemented code
 5. Run unit tests and fix failures. **If tests fail due to setup errors** (missing dependencies, services not running, database unreachable), apply the **hard stop rule** from the BDD Tests gate — stop immediately, do not continue.
 6. Self-review: `git diff` — check for debug statements, commented-out code, hardcoded secrets, TODO placeholders, obvious logic errors
-7. Do not commit — the commit step handles this after validation. Proceed to Phase B.
+7. Proceed to Phase B.
 
 ### Phase B: Step Definitions
 
@@ -352,7 +270,7 @@ Forward path — specs drive code creation.
 5. Implement each step definition with real assertion logic referencing real code
 6. Follow the gherkin skill's step writing rules
 7. Update `bdd/steps/INDEX.md`
-8. All files are now ready for validation. Do not commit — the commit step handles this after validation.
+8. Commit all changes using the git-committing skill.
 
 ## Implementation: `wire-bdd` Intent
 
@@ -372,29 +290,25 @@ Reverse path — BDD wiring for existing code.
 7. Follow the gherkin skill's step writing rules
 8. **Do NOT modify production code** — only step definitions
 9. Update `bdd/steps/INDEX.md`
-10. All files are now ready for validation. Do not commit — the commit step handles this after validation.
+10. Commit all changes using the git-committing skill.
 
 ## Quality Gates
 
-Quality gates run in two phases: **hook gates** (mechanical, sub-second) then **Claude gates** (judgment, Claude session).
+Quality gates run in two phases: **test hook** (mechanical, developer-defined) then **Claude review** (judgment, Claude session).
 
-### Phase 1: Hook Gates (Orchestrator, No Claude)
+### Phase 1: Test Hook (Orchestrator, No Claude)
 
-The orchestrator calls these hooks programmatically — no Claude session needed:
+The orchestrator calls the `test` hook after the dev session commits:
 
-| Gate | Hook | Mode | When |
-|------|------|------|------|
-| Formatting | `format` | Check/dry-run (no writes) | Always |
-| Linting | `lint` | Report only (no --fix) | Always |
-| BDD Tests | `run-tests` | Run tests | Task-level only (skipped for sub-tasks) |
+| Gate | Scope | What it checks |
+|------|-------|----------------|
+| Test hook | subtask | Developer decides — typically format + lint |
+| Test hook | task | Developer decides — typically format + lint + BDD tests |
+| Test hook | final | Full suite for all features in plan scope |
 
-Format and lint run **sequentially** (both may affect the same files). BDD runs after both.
+The developer controls what runs at each scope level via the hook implementation.
 
-The orchestrator passes service and file information based on intent:
-- **`wire-bdd` intent:** `{ "services": ["bdd"], "files": [...] }`
-- **`implement` intent:** `{ "services": ["{service}", "bdd"], "files": [...] }`
-
-### Phase 2: Claude Gates (Validation Session)
+### Phase 2: Claude Gates (Review Session)
 
 The validation coordinator session spawns parallel sub-agents for gates that require Claude judgment:
 
@@ -403,13 +317,12 @@ The validation coordinator session spawns parallel sub-agents for gates that req
 | Code Review | Step defs match specs, code meets requirements | Read + analysis |
 | Completeness | All requirements traced to code, no stubs/TODOs | Read + Grep |
 
-### BDD Tests (via `run-tests` Hook)
+### BDD Tests (via `test` Hook)
 
-**MANDATORY at task level — skipped for sub-tasks.**
-
-The orchestrator calls the `run-tests` hook:
-- If `scenario` is non-null: `{ "tags": ["@SC-XXXX"], "scope": "task" }` (derived by prepending `@` to `scenario`)
-- If `scenario` is null: BDD hook is not called
+**The developer controls when BDD tests run** via the `scope` field in the test hook input. Typical patterns:
+- `scope: "subtask"` — format + lint only (scenario isn't complete yet)
+- `scope: "task"` — format + lint + BDD tests for the task's scenarios
+- `scope: "final"` — full BDD suite for all features in plan scope
 
 #### Setup Errors vs Test Failures — HARD STOP RULE
 
@@ -421,9 +334,9 @@ The orchestrator calls the `run-tests` hook:
 - BDD runner not installed / command not found
 - Missing Python/Node/Go dependencies required by the test runner
 
-**If a setup error is detected:** The `run-tests` hook returns `status: "error"`. The orchestrator immediately hard-stops the task — skips Claude gates, does NOT retry, marks the task as `failed` with errors `["Setup error: {description}"]`.
+**If a setup error is detected:** The orchestrator immediately hard-stops the task — skips Claude gates, does NOT retry, marks the task as `failed` with errors `["Setup error: {description}"]`.
 
-**Test failure (FIX IT):** Tests ran but assertions failed. The `run-tests` hook returns `status: "fail"`. The dev-validate cycle handles this — issues are fed back to the dev session.
+**Test failure (FIX IT):** Tests ran but assertions failed. The dev-test-review cycle handles this — issues are fed back to the dev session.
 
 ### Code Review (Intent-Aware)
 
@@ -438,43 +351,41 @@ The orchestrator calls the `run-tests` hook:
 
 ### Gate Results Format
 
-The orchestrator collects results from both hook gates and Claude gates into a unified structure:
+The orchestrator collects results from test hook and Claude gates:
 
 ```json
 {
-  "formatting": [],
-  "linting": ["src/auth/register.ts:14: missing trailing comma"],
-  "bdd_tests": ["@SC-0A1b: expected 200 got 422 on POST /auth/register"],
+  "test_issues": ["src/auth/register.ts:14: missing trailing comma"],
   "code_review": [],
   "completeness": []
 }
 ```
 
-- `formatting`, `linting`, `bdd_tests` — populated by hooks (sub-second)
+- `test_issues` — populated by the test hook
 - `code_review`, `completeness` — populated by Claude session
 
 Empty array = gate passed. Non-empty = issues for that gate. The orchestrator checks: if all arrays empty → pass. Otherwise → feed all issues to the next dev session.
 
 ### Retry Policy
 
-- **Max cycles:** 7 (dev-validate cycles per task or sub-task)
-- Each cycle: dev session fixes ALL issues, validation session re-checks ALL gates
+- **Max cycles:** 7 (dev-test-review cycles per task or sub-task)
+- Each cycle: dev session fixes ALL issues, test hook + review re-check ALL gates
 - After 7 failed cycles, the task is marked `failed` — NOT `implemented`
 - **A task with failing tests is NEVER marked as done.**
 - When a task fails, the build stops.
 
 ### Null `scenario` Behavior
 
-When a task has `scenario: null`, the BDD gate is **skipped**. Only format, lint, code review, and completeness gates run. Null `scenario` is only valid for sub-tasks and chores tasks (documentation).
+When a task has `scenario: null`, the test hook still runs but receives empty `tags`. The developer can use this to skip BDD tests while still running format and lint checks. Only Claude gates (code review, completeness) always run.
 
-## Documentation Session (Post-Commit, Pre-Merge)
+## Documentation Session (Post-Validation)
 
-After the code commit passes, a dedicated doc session runs before the merge. This replaces inline docs updates — the dev session focuses purely on code.
+After all validation passes, a dedicated doc session runs. This replaces inline docs updates — the dev session focuses purely on code.
 
 ### Task Flow
 
 ```
-Dev → Validate → Code Commit → Doc Session → Doc Commit → Merge
+Dev → Test → Review → Doc Session → Doc Commit
 ```
 
 ### Doc Session
@@ -490,7 +401,7 @@ After the doc session completes, the orchestrator stages doc files and commits w
 
 ### Non-Blocking
 
-Doc session failures are non-blocking warnings — the code still merges. The orchestrator logs the warning and proceeds to merge.
+Doc session failures are non-blocking warnings — the orchestrator logs the warning and proceeds.
 
 ### PRD Status Propagation
 
@@ -526,7 +437,6 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
   "status": "pending",
   "scope": ["FEAT-0F3y"],
   "base_branch": "main",
-  "bdd_command": "npx cucumber-js",
   "tasks": [
     {
       "id": "T-001",
@@ -557,7 +467,6 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
 | `status` | string | Plan-level status from lifecycle |
 | `scope` | string[] | FEAT-XXXX and UC-XXXX IDs covered by this plan |
 | `base_branch` | string | Branch to merge completed tasks into |
-| `bdd_command` | string\|null | BDD runner command |
 | `tasks[].id` | string | Task ID (T-001, T-002, ...) |
 | `tasks[].title` | string | Human-readable task title |
 | `tasks[].use_case` | string | UC-XXXX ID this task advances |
@@ -575,22 +484,11 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
 | `tasks[].summary` | string\|null | Written post-build, null until then |
 | `tasks[].errors` | string[] | Error messages if failed |
 
-## Worktree Naming
-
-Each task gets its own worktree (sub-tasks share the parent's):
-
-- **Path:** `.molcajete/worktrees/{FEAT-XXXX}-{T-NNN}`
-- **Branch:** `dispatch/{FEAT-XXXX}-{T-NNN}`
-
-Examples:
-- `.molcajete/worktrees/FEAT-0F3y-T-001` on branch `dispatch/FEAT-0F3y-T-001`
-- `.molcajete/worktrees/FEAT-0G2a-T-003` on branch `dispatch/FEAT-0G2a-T-003`
-
 ## Session Naming
 
 - **Dev session:** `dev-{T-NNN}` or `dev-{T-NNN-M}`
-- **Validation session:** `validate-{T-NNN}` or `validate-{T-NNN-M}`
-- **Single-task (via marketplace plugin):** No named session — runs in current session
+- **Review session:** `review-{T-NNN}` or `review-{T-NNN-M}`
+- **Doc session:** `doc-{T-NNN}`
 
 ## Summary Writing
 
