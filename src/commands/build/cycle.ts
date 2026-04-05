@@ -1,9 +1,9 @@
-import type { HookMap, TaskContext, DevTestReviewResult, PlanData, BuildContext, BuildStage } from '../../types.js';
+import type { HookMap, TaskContext, DevTestReviewResult, PlanData, BuildContext, BuildStage, Settings } from '../../types.js';
 import { MAX_DEV_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { readPlan, findTask } from './plan-data.js';
 import { writeReport } from './reports.js';
-import { runDevSession, runTestHook, runReviewSession } from './sessions.js';
+import { runDevSession, runTestHook, runReviewSession, maybePushAfterCommit } from './sessions.js';
 
 /**
  * Build a task context object from plan data for passing to hooks.
@@ -98,6 +98,7 @@ export async function runDevTestReviewCycle(
   priorSummaries: string[],
   planDir: string | null,
   scope: 'task' | 'subtask',
+  settings: Settings,
   planName?: string,
 ): Promise<DevTestReviewResult> {
   let issues: string[] = [];
@@ -115,6 +116,8 @@ export async function runDevTestReviewCycle(
         error: dev.structured?.error || 'Dev session failed',
       };
     }
+
+    maybePushAfterCommit(settings, `dev ${taskId}`);
 
     const filesModified = dev.structured.files_modified || [];
 
@@ -174,6 +177,7 @@ export async function runTaskLevelValidation(
   taskId: string,
   priorSummaries: string[],
   planDir: string | null,
+  settings: Settings,
   planName?: string,
 ): Promise<DevTestReviewResult> {
   // First pass: test + review only (no dev session needed)
@@ -196,7 +200,7 @@ export async function runTaskLevelValidation(
 
     // Review failed — need a dev fix
     log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
-    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', planName);
+    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName);
   }
 
   // Test failed — need a dev fix
@@ -217,6 +221,8 @@ export async function runTaskLevelValidation(
         error: dev.structured?.error || 'Dev session failed',
       };
     }
+
+    maybePushAfterCommit(settings, `dev ${taskId}`);
 
     const filesModified = dev.structured.files_modified || [];
 

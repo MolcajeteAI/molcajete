@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
-import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, RecoverySessionOutput, RecoveryContext, Task, TestHookOutput, BuildStage } from '../../types.js';
+import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, RecoverySessionOutput, RecoveryContext, Task, TestHookOutput, BuildStage, Settings } from '../../types.js';
+import { pushCurrentBranch } from '../../lib/git.js';
 import {
   DEV_SESSION_SCHEMA,
   REVIEW_SESSION_SCHEMA,
@@ -14,6 +15,24 @@ import { invokeClaude, extractStructuredOutput } from '../lib/claude.js';
 import { runHook, tryHook } from '../lib/hooks.js';
 import { readPlan, findTask } from './plan-data.js';
 import { buildBuildContext } from './cycle.js';
+
+// ── Remote Push ──
+
+/**
+ * Push the current branch to the configured remote after a commit.
+ * Non-fatal: logs a warning on failure, skipped silently when disabled.
+ */
+export function maybePushAfterCommit(settings: Settings, label: string): void {
+  if (settings.push === false) return;
+  const result = pushCurrentBranch(settings.remote);
+  if (result.ok) {
+    log(`Push ${label}: ok`);
+  } else if (result.skipped) {
+    log(`Push ${label}: skipped — ${result.error}`);
+  } else {
+    log(`Push ${label}: warning — ${result.error}`);
+  }
+}
 
 // ── Dev Session ──
 

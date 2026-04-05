@@ -69,6 +69,8 @@ export interface PlanData {
 
 export interface Settings {
   maxDevCycles: number;
+  remote: string;
+  push: boolean;
 }
 
 export interface HookResult {

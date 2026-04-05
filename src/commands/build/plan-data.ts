@@ -27,12 +27,16 @@ export function readSettings(projectRoot: string): Settings {
   const settingsPath = join(projectRoot, '.molcajete', 'settings.json');
   const defaults: Settings = {
     maxDevCycles: 7,
+    remote: 'origin',
+    push: true,
   };
   if (!existsSync(settingsPath)) return defaults;
   try {
     const raw = JSON.parse(readFileSync(settingsPath, 'utf8'));
     return {
       maxDevCycles: raw.maxDevCycles ?? defaults.maxDevCycles,
+      remote: raw.remote ?? defaults.remote,
+      push: raw.push ?? defaults.push,
     };
   } catch {
     return defaults;

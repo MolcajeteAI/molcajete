@@ -59,6 +59,62 @@ async function spawnClaudeResolve(cwd: string, payload: Record<string, unknown>)
   return extractStructuredOutput(result.output) as unknown as ResolveConflictsOutput;
 }
 
+export interface PushResult {
+  ok: boolean;
+  skipped?: boolean;
+  error?: string;
+}
+
+/**
+ * Push the current branch to the given remote.
+ *
+ * - Detached HEAD → skip (warning)
+ * - Remote missing → skip (warning)
+ * - Missing upstream → retry once with `-u`
+ * - Other failures → { ok: false, error }
+ *
+ * Never throws.
+ */
+export function pushCurrentBranch(remote: string): PushResult {
+  // Resolve current branch
+  let branch: string;
+  try {
+    branch = execSync('git rev-parse --abbrev-ref HEAD', { stdio: 'pipe' }).toString().trim();
+  } catch (err) {
+    return { ok: false, skipped: true, error: `could not resolve HEAD: ${(err as Error).message}` };
+  }
+
+  if (branch === 'HEAD') {
+    return { ok: false, skipped: true, error: 'detached HEAD' };
+  }
+
+  // Verify remote exists
+  try {
+    execSync(`git remote get-url ${remote}`, { stdio: 'pipe' });
+  } catch {
+    return { ok: false, skipped: true, error: `no remote '${remote}'` };
+  }
+
+  // Attempt push
+  try {
+    execSync(`git push ${remote} HEAD`, { stdio: 'pipe' });
+    return { ok: true };
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+    // Retry once with -u for missing upstream
+    if (/has no upstream branch|set-upstream|--set-upstream/i.test(msg)) {
+      try {
+        execSync(`git push -u ${remote} HEAD`, { stdio: 'pipe' });
+        return { ok: true };
+      } catch (err2) {
+        const msg2 = ((err2 as { stderr?: Buffer }).stderr?.toString() ?? (err2 as Error).message).trim();
+        return { ok: false, error: msg2 };
+      }
+    }
+    return { ok: false, error: msg };
+  }
+}
+
 // ── Public API ──
 
 export async function merge(base: string, branch: string, options?: MergeOptions): Promise<GitResult> {

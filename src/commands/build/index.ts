@@ -1,15 +1,15 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname, basename, join } from 'node:path';
 import { log, run } from '../../lib/utils.js';
-import { readPlan, findTask, updatePlanJson, updatePlanLevelStatus, resolvePlanFile } from './plan-data.js';
+import { readPlan, findTask, updatePlanJson, updatePlanLevelStatus, resolvePlanFile, readSettings } from './plan-data.js';
 import { discoverHooks, validateMandatoryHooks, tryHook } from '../lib/hooks.js';
 import { buildStats, formatDuration } from '../lib/claude.js';
 import { writeReport } from './reports.js';
 import { buildTaskContext, buildBuildContext } from './cycle.js';
-import { runDocSession, commitDocChanges, runTestHook, runRecoverySession } from './sessions.js';
+import { runDocSession, commitDocChanges, runTestHook, runRecoverySession, maybePushAfterCommit } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
 import { updatePrdStatuses } from './prd.js';
-import type { HookMap, BuildStage, RecoveryContext } from '../../types.js';
+import type { HookMap, BuildStage, RecoveryContext, Settings } from '../../types.js';
 import { MAX_DEV_CYCLES } from '../../lib/config.js';
 
 /**
@@ -42,7 +42,9 @@ export async function runBuild(planName: string, opts: { resume?: boolean }): Pr
   const hooks = await discoverHooks(projectRoot);
   validateMandatoryHooks(hooks);
 
-  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, opts.resume);
+  const settings = readSettings(projectRoot);
+
+  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, settings, opts.resume);
 }
 
 // ── Main Orchestrator Loop ──
@@ -53,6 +55,7 @@ async function runAllTasksMode(
   planName: string,
   planFile: string,
   planDir: string,
+  settings: Settings,
   resume?: boolean,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
@@ -145,9 +148,9 @@ async function runAllTasksMode(
 
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, planName);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, planName);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName);
     }
 
     if (result.ok) {
@@ -202,6 +205,7 @@ async function runAllTasksMode(
       const recovery = await runRecoverySession(projectRoot, recoveryContext);
 
       if (recovery.ok) {
+        maybePushAfterCommit(settings, `recovery ${taskId}`);
         log(`Recovery succeeded for ${taskId} — resetting task to pending`);
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
@@ -253,7 +257,9 @@ async function runAllTasksMode(
       );
       if (doc.ok && doc.structured?.files_modified?.length > 0) {
         const docCommit = await commitDocChanges(lastTask.id, doc.structured.files_modified);
-        if (!docCommit.ok) {
+        if (docCommit.ok) {
+          maybePushAfterCommit(settings, `doc ${lastTask.id}`);
+        } else {
           log('Warning: doc commit failed — proceeding');
         }
       } else if (!doc.ok) {
