@@ -1,14 +1,18 @@
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { setDebug } from './lib/utils.js';
 import { getActiveChild } from './commands/lib/claude.js';
 import { runBuild } from './commands/build/index.js';
 import { runSetup } from './commands/setup/index.js';
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { version: string };
+
 const program = new Command();
 
 program
   .name('molcajete')
-  .version('3.9.0')
+  .version(pkg.version)
   .description('Spec-driven software development CLI powered by Claude Code')
   .option('--debug', 'Print spawned claude commands to stderr')
   .hook('preAction', (thisCommand) => {
