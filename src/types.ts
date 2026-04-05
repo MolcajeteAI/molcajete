@@ -71,6 +71,7 @@ export interface Settings {
   maxDevCycles: number;
   remote: string;
   push: boolean;
+  startTimeout?: number;
 }
 
 export interface HookResult {
@@ -161,9 +162,9 @@ export interface DevTestReviewResult {
   error?: string;
 }
 
-// ── Test Hook Types ──
+// ── Verify Hook Types ──
 
-export interface TestHookInput {
+export interface VerifyHookInput {
   task_id: string;
   commit: string;
   files: string[];
@@ -172,7 +173,7 @@ export interface TestHookInput {
   build?: BuildContext;
 }
 
-export interface TestHookOutput {
+export interface VerifyHookOutput {
   status: 'success' | 'failure';
   issues: string[];
 }
@@ -208,6 +209,22 @@ export interface SubtaskLifecycleInput {
   usecase_id?: string;
   scenario_id?: string;
   status?: string;
+  build?: BuildContext;
+}
+
+export interface ReviewLifecycleInput {
+  task_id: string;
+  feature_id?: string;
+  usecase_id?: string;
+  scenario_id?: string;
+  build?: BuildContext;
+}
+
+export interface DocumentationLifecycleInput {
+  task_id: string;
+  feature_id?: string;
+  usecase_id?: string;
+  scenario_id?: string;
   build?: BuildContext;
 }
 

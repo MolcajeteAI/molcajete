@@ -31,15 +31,15 @@ program
 
 program
   .command('setup')
-  .description('Detect project tooling and generate hook scripts')
-  .option('--overwrite', 'Overwrite existing hooks')
-  .option('--all', 'Generate all hooks (default + lifecycle)')
-  .option('--yes', 'Skip confirmation')
+  .description('Detect tooling and generate hook scripts')
+  .option('--overwrite', 'Overwrite existing hooks without asking')
+  .option('--hook <name>', 'Generate a single specific hook (optional, overrides default)')
+  .option('-p, --prompt <text>', 'Setup/hook guidance as a quoted string (skips interactive prompt)')
   .action(async (opts) => {
     await runSetup({
       overwrite: opts.overwrite ?? false,
-      all: opts.all ?? false,
-      yes: opts.yes ?? false,
+      hook: opts.hook ?? null,
+      prompt: opts.prompt,
     });
   });
 

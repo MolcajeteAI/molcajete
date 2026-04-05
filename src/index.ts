@@ -10,8 +10,8 @@ export type {
   HookInfo,
 
   // Mandatory hook
-  TestHookInput,
-  TestHookOutput,
+  VerifyHookInput,
+  VerifyHookOutput,
 
   // Environment hooks
   StartInput,
@@ -22,6 +22,8 @@ export type {
   // Lifecycle hooks
   TaskLifecycleInput,
   SubtaskLifecycleInput,
+  ReviewLifecycleInput,
+  DocumentationLifecycleInput,
   LifecycleOutput,
 } from './types.js';
 

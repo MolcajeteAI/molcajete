@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, RecoverySessionOutput, RecoveryContext, Task, TestHookOutput, BuildStage, Settings } from '../../types.js';
+import type { HookMap, DevSessionOutput, ReviewSessionOutput, DocSessionOutput, RecoverySessionOutput, RecoveryContext, Task, VerifyHookOutput, BuildStage, Settings } from '../../types.js';
 import { pushCurrentBranch } from '../../lib/git.js';
 import {
   DEV_SESSION_SCHEMA,
@@ -74,9 +74,9 @@ export async function runDevSession(
   return { ok: false, structured: out };
 }
 
-// ── Test Hook ──
+// ── Verify Hook ──
 
-export async function runTestHook(
+export async function runVerifyHook(
   hooks: HookMap,
   taskId: string,
   planFile: string,
@@ -85,7 +85,7 @@ export async function runTestHook(
   planName?: string,
   stage?: BuildStage,
 ): Promise<{ ok: boolean; issues: string[] }> {
-  log(`Test hook: ${taskId} (scope: ${scope})`);
+  log(`Verify hook: ${taskId} (scope: ${scope})`);
 
   const data = readPlan(planFile);
   const isSub = isSubTaskId(taskId);
@@ -113,21 +113,21 @@ export async function runTestHook(
     input.build = buildBuildContext(planFile, planName, stage || 'development');
   }
 
-  const result = await runHook(hooks['test'], input, { timeout: 300000 });
+  const result = await runHook(hooks['verify'], input, { timeout: 300000 });
 
   if (!result.ok) {
-    return { ok: false, issues: [`Test hook failed: ${result.stderr}`] };
+    return { ok: false, issues: [`Verify hook failed: ${result.stderr}`] };
   }
 
-  const output = result.data as unknown as TestHookOutput;
+  const output = result.data as unknown as VerifyHookOutput;
 
   if (output.status === 'success') {
-    log(`Test hook ${taskId}: passed`);
+    log(`Verify hook ${taskId}: passed`);
     return { ok: true, issues: [] };
   }
 
-  const issues = output.issues || ['Test hook reported failure'];
-  log(`Test hook ${taskId}: ${issues.length} issues`);
+  const issues = output.issues || ['Verify hook reported failure'];
+  log(`Verify hook ${taskId}: ${issues.length} issues`);
   return { ok: false, issues };
 }
 

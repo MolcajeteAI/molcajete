@@ -6,7 +6,7 @@ import { discoverHooks, validateMandatoryHooks, tryHook } from '../lib/hooks.js'
 import { buildStats, formatDuration } from '../lib/claude.js';
 import { writeReport } from './reports.js';
 import { buildTaskContext, buildBuildContext } from './cycle.js';
-import { runDocSession, commitDocChanges, runTestHook, runRecoverySession, maybePushAfterCommit } from './sessions.js';
+import { runDocSession, commitDocChanges, runRecoverySession, maybePushAfterCommit } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
 import { updatePrdStatuses } from './prd.js';
 import type { HookMap, BuildStage, RecoveryContext, Settings } from '../../types.js';

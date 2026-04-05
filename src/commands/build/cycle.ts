@@ -3,7 +3,7 @@ import { MAX_DEV_CYCLES } from '../../lib/config.js';
 import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
 import { readPlan, findTask } from './plan-data.js';
 import { writeReport } from './reports.js';
-import { runDevSession, runTestHook, runReviewSession, maybePushAfterCommit } from './sessions.js';
+import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from './sessions.js';
 
 /**
  * Build a task context object from plan data for passing to hooks.
@@ -122,7 +122,7 @@ export async function runDevTestReviewCycle(
     const filesModified = dev.structured.files_modified || [];
 
     // 2. Test hook — mandatory programmatic checks
-    const test = await runTestHook(hooks, taskId, planFile, filesModified, scope, planName, 'development');
+    const test = await runVerifyHook(hooks, taskId, planFile, filesModified, scope, planName, 'development');
 
     if (planDir) {
       writeReport(planDir, `${taskId}-test-${cycle}`, { issues: test.issues });
@@ -183,7 +183,7 @@ export async function runTaskLevelValidation(
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
 
-  const test = await runTestHook(hooks, taskId, planFile, [], 'task', planName, 'validation');
+  const test = await runVerifyHook(hooks, taskId, planFile, [], 'task', planName, 'validation');
   if (planDir) {
     writeReport(planDir, `${taskId}-task-test-1`, { issues: test.issues });
   }
@@ -226,7 +226,7 @@ export async function runTaskLevelValidation(
 
     const filesModified = dev.structured.files_modified || [];
 
-    const reTest = await runTestHook(hooks, taskId, planFile, filesModified, 'task', planName, 'validation');
+    const reTest = await runVerifyHook(hooks, taskId, planFile, filesModified, 'task', planName, 'validation');
     if (planDir) {
       writeReport(planDir, `${taskId}-task-test-${cycle + 1}`, { issues: reTest.issues });
     }

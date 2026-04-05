@@ -18,7 +18,7 @@ export const BUDGET_RECOVERY = process.env.MOLCAJETE_BUDGET_RECOVERY ?? '8.00';
 
 // ── Hook Constants ──
 
-export const MANDATORY_HOOKS = ['test'];
+export const MANDATORY_HOOKS = ['verify'];
 export const ALL_HOOKS = [
   ...MANDATORY_HOOKS,
   'start', 'stop',
