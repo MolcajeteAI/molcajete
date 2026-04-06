@@ -75,8 +75,7 @@ export interface Settings {
   maxDevCycles: number;
   remote: string;
   push: boolean;
-  startTimeout?: number;
-  verifyTimeout?: number;
+  hookTimeout?: number;
 }
 
 export interface HookResult {

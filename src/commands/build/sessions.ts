@@ -125,7 +125,7 @@ export async function runVerifyHook(
     input.build = buildBuildContext(planFile, planName, stage || 'development');
   }
 
-  const result = await runHook(hooks['verify'], input, { timeout: settings.verifyTimeout ?? 300000, cwd });
+  const result = await runHook(hooks['verify'], input, { timeout: settings.hookTimeout ?? 180000, cwd });
 
   if (!result.ok) {
     return { ok: false, issues: [`Verify hook failed: ${result.stderr}`] };
@@ -149,6 +149,7 @@ export async function runReviewSession(
   hooks: HookMap,
   planFile: string,
   taskId: string,
+  settings: Settings,
   planName?: string,
   cwd?: string,
   branch?: string,
@@ -160,7 +161,7 @@ export async function runReviewSession(
   if (cwd) beforeReviewInput.cwd = cwd;
   if (branch) beforeReviewInput.branch = branch;
   if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, 'validation');
-  await tryHook(hooks, 'before-review', beforeReviewInput);
+  await tryHook(hooks, 'before-review', beforeReviewInput, { timeout: settings.hookTimeout });
 
   const sessionLabel = `review-${taskId}`;
   const payload = JSON.stringify({
@@ -186,7 +187,7 @@ export async function runReviewSession(
   if (cwd) afterReviewInput.cwd = cwd;
   if (branch) afterReviewInput.branch = branch;
   if (planName) afterReviewInput.build = buildBuildContext(planFile, planName, 'validation');
-  await tryHook(hooks, 'after-review', afterReviewInput);
+  await tryHook(hooks, 'after-review', afterReviewInput, { timeout: settings.hookTimeout });
 
   if (allIssues.length === 0) {
     log(`Review session ${taskId}: all clear`);

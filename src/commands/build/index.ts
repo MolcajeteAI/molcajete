@@ -99,7 +99,7 @@ async function runAllTasksMode(
   // Start hook (optional) — developer sets up environment
   const startResult = await tryHook(hooks, 'start', {
     build: buildBuildContext(planFile, planName, 'start'),
-  });
+  }, { timeout: settings.hookTimeout });
   if (startResult && !startResult.ok) {
     log(`BUILD ABORTED: start hook failed — ${startResult.stderr}`);
     updatePlanJson(planFile, (d) => { d.status = 'failed'; });
@@ -166,7 +166,7 @@ async function runAllTasksMode(
     let taskCwd: string | undefined;
 
     if (useWorktrees) {
-      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile);
+      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile, settings);
       if (!worktree) {
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
@@ -200,7 +200,7 @@ async function runAllTasksMode(
         ...(taskCwd && { cwd: taskCwd }),
         ...(taskBranch && { branch: taskBranch }),
         build: buildBuildContext(planFile, planName, 'documentation'),
-      });
+      }, { timeout: settings.hookTimeout });
 
       const doc = await runDocSession(
         projectRoot, planFile, freshTask,
@@ -217,7 +217,7 @@ async function runAllTasksMode(
         ...(taskCwd && { cwd: taskCwd }),
         ...(taskBranch && { branch: taskBranch }),
         build: buildBuildContext(planFile, planName, 'documentation'),
-      });
+      }, { timeout: settings.hookTimeout });
 
       // 3. Merge worktree (doc commit now included in the branch)
       if (worktree) {
@@ -289,7 +289,7 @@ async function runAllTasksMode(
       // Fire halted hook (informational)
       await tryHook(hooks, 'stop', {
         build: buildBuildContext(planFile, planName, 'halted'),
-      });
+      }, { timeout: settings.hookTimeout });
 
       const recovery = await runRecoverySession(projectRoot, recoveryContext);
 
@@ -330,7 +330,7 @@ async function runAllTasksMode(
   const stopStage: BuildStage = failedCount > 0 ? 'failed' : 'stop';
   await tryHook(hooks, 'stop', {
     build: buildBuildContext(planFile, planName, stopStage),
-  });
+  }, { timeout: settings.hookTimeout });
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 

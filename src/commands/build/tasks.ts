@@ -30,7 +30,7 @@ export async function runSimpleTask(
     ...(cwd && { cwd }),
     ...(branch && { branch }),
     ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
-  });
+  }, { timeout: settings.hookTimeout });
 
   const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName, cwd, branch);
 
@@ -40,7 +40,7 @@ export async function runSimpleTask(
       ...(cwd && { cwd }),
       ...(branch && { branch }),
       ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
-    });
+    }, { timeout: settings.hookTimeout });
     return { ok: false, error: result.error, devResult: result.devResult };
   }
 
@@ -49,7 +49,7 @@ export async function runSimpleTask(
     ...(cwd && { cwd }),
     ...(branch && { branch }),
     ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
-  });
+  }, { timeout: settings.hookTimeout });
 
   return { ok: true, devResult: result.devResult };
 }
@@ -82,7 +82,7 @@ export async function runTaskWithSubTasks(
     ...(cwd && { cwd }),
     ...(branch && { branch }),
     ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
-  });
+  }, { timeout: settings.hookTimeout });
 
   // Run each sub-task sequentially
   for (const st of subTasks) {
@@ -116,7 +116,7 @@ export async function runTaskWithSubTasks(
       ...(cwd && { cwd }),
       ...(branch && { branch }),
       ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
-    });
+    }, { timeout: settings.hookTimeout });
 
     updateSubTaskStatus(planFile, stId, 'in_progress');
 
@@ -130,7 +130,7 @@ export async function runTaskWithSubTasks(
         ...(cwd && { cwd }),
         ...(branch && { branch }),
         ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
-      });
+      }, { timeout: settings.hookTimeout });
 
       return { ok: false, error: `Sub-task ${stId} failed: ${result.error}` };
     }
@@ -147,7 +147,7 @@ export async function runTaskWithSubTasks(
       ...(cwd && { cwd }),
       ...(branch && { branch }),
       ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
-    });
+    }, { timeout: settings.hookTimeout });
   }
 
   // Task-level validation — test + review only (code already written by sub-tasks)
@@ -160,7 +160,7 @@ export async function runTaskWithSubTasks(
       ...(cwd && { cwd }),
       ...(branch && { branch }),
       ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
-    });
+    }, { timeout: settings.hookTimeout });
     return { ok: false, error: taskResult.error };
   }
 
@@ -169,7 +169,7 @@ export async function runTaskWithSubTasks(
     ...(cwd && { cwd }),
     ...(branch && { branch }),
     ...(planName && { build: buildBuildContext(planFile, planName, 'after-task') }),
-  });
+  }, { timeout: settings.hookTimeout });
 
   return { ok: true };
 }

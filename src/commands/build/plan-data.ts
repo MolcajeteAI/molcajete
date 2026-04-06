@@ -29,7 +29,7 @@ export function readSettings(projectRoot: string): Settings {
     maxDevCycles: 7,
     remote: 'origin',
     push: true,
-    verifyTimeout: 300000,
+    hookTimeout: 180000,
   };
   if (!existsSync(settingsPath)) return defaults;
   try {
@@ -38,7 +38,7 @@ export function readSettings(projectRoot: string): Settings {
       maxDevCycles: raw.maxDevCycles ?? defaults.maxDevCycles,
       remote: raw.remote ?? defaults.remote,
       push: raw.push ?? defaults.push,
-      verifyTimeout: raw.verifyTimeout ?? defaults.verifyTimeout,
+      hookTimeout: raw.hookTimeout ?? defaults.hookTimeout,
     };
   } catch {
     return defaults;

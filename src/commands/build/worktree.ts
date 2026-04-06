@@ -22,6 +22,7 @@ export async function setupWorktree(
   taskId: string,
   baseBranch: string,
   planFile: string,
+  settings: Settings,
 ): Promise<WorktreeInfo | null> {
   const branchName = `${planName}--${taskId}`;
   const worktreePath = resolve(projectRoot, '.worktrees', branchName);
@@ -32,7 +33,7 @@ export async function setupWorktree(
     base_branch: baseBranch,
     worktree_path: worktreePath,
     build: buildBuildContext(planFile, planName, 'before-worktree-create'),
-  });
+  }, { timeout: settings.hookTimeout });
 
   log(`Creating worktree: ${branchName}`);
   const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch);
@@ -48,7 +49,7 @@ export async function setupWorktree(
     base_branch: baseBranch,
     worktree_path: worktreePath,
     build: buildBuildContext(planFile, planName, 'after-worktree-create'),
-  });
+  }, { timeout: settings.hookTimeout });
 
   return { branchName, worktreePath, baseBranch };
 }
@@ -76,7 +77,7 @@ export async function mergeWorktree(
     base_branch: baseBranch,
     worktree_path: worktreePath,
     build: buildBuildContext(planFile, planName, 'before-worktree-merge'),
-  });
+  }, { timeout: settings.hookTimeout });
 
   log(`Merging worktree branch ${branchName} into ${baseBranch}`);
   const mergeResult = mergeWorktreeBranch(projectRoot, branchName, baseBranch);
@@ -91,7 +92,7 @@ export async function mergeWorktree(
       base_branch: baseBranch,
       worktree_path: worktreePath,
       build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
-    });
+    }, { timeout: settings.hookTimeout });
 
     return { ok: true };
   }
@@ -126,7 +127,7 @@ export async function mergeWorktree(
       base_branch: baseBranch,
       worktree_path: worktreePath,
       build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
-    });
+    }, { timeout: settings.hookTimeout });
 
     return { ok: false, error: sideLoopResult.error || 'Merge conflict resolution failed' };
   }
@@ -192,7 +193,7 @@ async function runMergeConflictSideLoop(
 
     if (verify.ok) {
       // 3. Review session
-      const review = await runReviewSession(hooks, planFile, taskId, planName);
+      const review = await runReviewSession(hooks, planFile, taskId, settings, planName);
 
       if (review.ok) {
         return { ok: true };
