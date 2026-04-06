@@ -16,6 +16,7 @@ export async function runSimpleTask(
   planDir: string | null,
   settings: Settings,
   planName?: string,
+  cwd?: string,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
   const taskId = task.id;
 
@@ -28,7 +29,7 @@ export async function runSimpleTask(
     ...(planName && { build: buildBuildContext(planFile, planName, 'before-task') }),
   });
 
-  const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName);
+  const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName, cwd);
 
   if (!result.ok) {
     await tryHook(hooks, 'after-task', {
@@ -58,6 +59,7 @@ export async function runTaskWithSubTasks(
   planDir: string | null,
   settings: Settings,
   planName?: string,
+  cwd?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const taskId = task.id;
   const subTasks = task.sub_tasks!;
@@ -106,7 +108,7 @@ export async function runTaskWithSubTasks(
 
     updateSubTaskStatus(planFile, stId, 'in_progress');
 
-    const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, stId, subSummaries, planDir, 'subtask', settings, planName);
+    const result = await runDevTestReviewCycle(hooks, projectRoot, planFile, stId, subSummaries, planDir, 'subtask', settings, planName, cwd);
 
     if (!result.ok) {
       updateSubTaskStatus(planFile, stId, 'failed', { errors: [result.error] });
@@ -134,7 +136,7 @@ export async function runTaskWithSubTasks(
 
   // Task-level validation — test + review only (code already written by sub-tasks)
   // If test or review fails, a dev fix session is launched automatically
-  const taskResult = await runTaskLevelValidation(hooks, projectRoot, planFile, taskId, subSummaries, planDir, settings, planName);
+  const taskResult = await runTaskLevelValidation(hooks, projectRoot, planFile, taskId, subSummaries, planDir, settings, planName, cwd);
 
   if (!taskResult.ok) {
     await tryHook(hooks, 'after-task', {

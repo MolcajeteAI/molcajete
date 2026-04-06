@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { PLUGIN_DIR } from '../../lib/config.js';
+import { ALL_HOOKS, PLUGIN_DIR } from '../../lib/config.js';
 import { log } from '../../lib/utils.js';
 import { readMultiline, confirm } from './prompt.js';
 
@@ -16,27 +16,13 @@ export interface SetupOptions {
   prompt?: string;
 }
 
-const VALID_HOOKS = [
-  'verify',
-  'start',
-  'stop',
-  'before-task',
-  'after-task',
-  'before-subtask',
-  'after-subtask',
-  'before-review',
-  'after-review',
-  'before-documentation',
-  'after-documentation',
-];
-
 export async function runSetup(options: SetupOptions): Promise<void> {
   const { overwrite, hook } = options;
 
   // Validate --hook name
-  if (hook !== null && !VALID_HOOKS.includes(hook)) {
+  if (hook !== null && !ALL_HOOKS.includes(hook)) {
     process.stderr.write(
-      `Error: unknown hook "${hook}".\nValid hooks: ${VALID_HOOKS.join(', ')}\n`,
+      `Error: unknown hook "${hook}".\nValid hooks: ${ALL_HOOKS.join(', ')}\n`,
     );
     process.exit(1);
   }

@@ -116,7 +116,7 @@ When `guidance` is non-empty, also log what you interpreted from it.
 Read the template for whichever hook(s) you are generating from `${CLAUDE_PLUGIN_ROOT}/setup/templates/hooks/`:
 
 - Default flow (`hook === null`): read `verify.ts`.
-- `hook === "<name>"`: read `<name>.ts` (one of `verify`, `start`, `stop`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-documentation`, `after-documentation`).
+- `hook === "<name>"`: read `<name>.ts` (one of `verify`, `start`, `stop`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-worktree-create`, `after-worktree-create`, `before-worktree-merge`, `after-worktree-merge`, `before-documentation`, `after-documentation`).
 
 Use the template as the base — fill in detected values where you see placeholder comments (`// __FORMATTERS__`, `// __LINTERS__`) or placeholder strings (`__BDD_COMMAND__`, `__TAGS_FLAG__`, `__TAG_JOIN__`, `__START_COMMAND__`, `__STOP_COMMAND__`).
 

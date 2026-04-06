@@ -14,6 +14,7 @@ export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? '50';
 export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? '5.00';
 export const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? '897', 10) * 1000;
 export const MAX_DEV_CYCLES = 7;
+export const MAX_MERGE_FIX_CYCLES = 3;
 export const BUDGET_RECOVERY = process.env.MOLCAJETE_BUDGET_RECOVERY ?? '8.00';
 
 // ── Hook Constants ──
@@ -25,6 +26,8 @@ export const ALL_HOOKS = [
   'before-task', 'after-task',
   'before-subtask', 'after-subtask',
   'before-review', 'after-review',
+  'before-worktree-create', 'after-worktree-create',
+  'before-worktree-merge', 'after-worktree-merge',
   'before-documentation', 'after-documentation',
 ];
 export const HOOK_TIMEOUT = parseInt(process.env.MOLCAJETE_HOOK_TIMEOUT ?? '30000', 10);

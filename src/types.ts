@@ -6,6 +6,10 @@ export type BuildStage =
   | 'development'
   | 'validation'
   | 'after-task'
+  | 'before-worktree-create'
+  | 'after-worktree-create'
+  | 'before-worktree-merge'
+  | 'after-worktree-merge'
   | 'documentation'
   | 'stop'
   | 'halted'
@@ -164,12 +168,35 @@ export interface DevTestReviewResult {
 
 // ── Verify Hook Types ──
 
+export interface WorktreeInfo {
+  branchName: string;
+  worktreePath: string;
+  baseBranch: string;
+}
+
+export interface WorktreeCreateInput {
+  task_id: string;
+  branch: string;
+  base_branch: string;
+  worktree_path: string;
+  build?: BuildContext;
+}
+
+export interface WorktreeMergeInput {
+  task_id: string;
+  branch: string;
+  base_branch: string;
+  worktree_path: string;
+  build?: BuildContext;
+}
+
 export interface VerifyHookInput {
   task_id: string;
   commit: string;
   files: string[];
   tags: string[];
   scope: 'task' | 'subtask' | 'final';
+  cwd?: string;
   build?: BuildContext;
 }
 

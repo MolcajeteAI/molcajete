@@ -8,14 +8,15 @@ import { writeReport } from './reports.js';
 import { buildTaskContext, buildBuildContext } from './cycle.js';
 import { runDocSession, commitDocChanges, runRecoverySession, maybePushAfterCommit } from './sessions.js';
 import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
+import { setupWorktree, mergeWorktree } from './worktree.js';
 import { updatePrdStatuses } from './prd.js';
-import type { HookMap, BuildStage, RecoveryContext, Settings } from '../../types.js';
+import type { HookMap, BuildStage, RecoveryContext, Settings, WorktreeInfo } from '../../types.js';
 import { MAX_DEV_CYCLES } from '../../lib/config.js';
 
 /**
  * Build command entry point.
  */
-export async function runBuild(planName: string, opts: { resume?: boolean }): Promise<void> {
+export async function runBuild(planName: string, opts: { resume?: boolean; noWorktrees?: boolean }): Promise<void> {
   // Resolve plan file
   const plansDir = resolve('.molcajete', 'plans');
   if (!existsSync(plansDir)) {
@@ -44,7 +45,7 @@ export async function runBuild(planName: string, opts: { resume?: boolean }): Pr
 
   const settings = readSettings(projectRoot);
 
-  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, settings, opts.resume);
+  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, settings, opts.resume, opts.noWorktrees);
 }
 
 // ── Main Orchestrator Loop ──
@@ -57,6 +58,7 @@ async function runAllTasksMode(
   planDir: string,
   settings: Settings,
   resume?: boolean,
+  noWorktrees?: boolean,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
 
@@ -146,14 +148,54 @@ async function runAllTasksMode(
       }
     }
 
+    // Worktree setup
+    const useWorktrees = !noWorktrees;
+    const baseBranch = freshData.base_branch || 'main';
+    let worktree: WorktreeInfo | null = null;
+    let taskCwd: string | undefined;
+
+    if (useWorktrees) {
+      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile);
+      if (!worktree) {
+        updatePlanJson(planFile, (d) => {
+          const t = findTask(d, taskId);
+          if (t) {
+            t.status = 'failed';
+            t.errors = ['Failed to create worktree'];
+          }
+        });
+        failedCount++;
+        break;
+      }
+      taskCwd = worktree.worktreePath;
+    }
+
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd);
     }
 
     if (result.ok) {
+      // Merge worktree back before marking implemented
+      if (worktree) {
+        const mergeResult = await mergeWorktree(hooks, projectRoot, worktree, planFile, taskId, settings, planName);
+        if (!mergeResult.ok) {
+          log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
+          updatePlanJson(planFile, (d) => {
+            const t = findTask(d, taskId);
+            if (t) {
+              t.status = 'failed';
+              t.errors = [mergeResult.error || 'Worktree merge failed'];
+            }
+          });
+          failedCount++;
+          break;
+        }
+        maybePushAfterCommit(settings, `merge ${taskId}`);
+      }
+
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
@@ -168,6 +210,11 @@ async function runAllTasksMode(
       doneCount++;
       log(`Task ${taskId}: implemented`);
     } else {
+      // Preserve worktree on failure for debugging
+      if (worktree) {
+        log(`Task ${taskId}: failed — worktree preserved at ${worktree.worktreePath}`);
+      }
+
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {

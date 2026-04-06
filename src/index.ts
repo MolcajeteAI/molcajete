@@ -23,6 +23,8 @@ export type {
   TaskLifecycleInput,
   SubtaskLifecycleInput,
   ReviewLifecycleInput,
+  WorktreeCreateInput,
+  WorktreeMergeInput,
   DocumentationLifecycleInput,
   LifecycleOutput,
 } from './types.js';

@@ -25,8 +25,9 @@ program
   .description('Execute all pending tasks in a plan')
   .argument('<plan-name>', 'Plan name, path, timestamp, or slug')
   .option('--resume', 'Resume from where a previous build left off (skip implemented tasks)')
+  .option('--no-worktrees', 'Run all tasks in the main working directory (no worktree isolation)')
   .action(async (planName, opts) => {
-    await runBuild(planName, { resume: opts.resume });
+    await runBuild(planName, { resume: opts.resume, noWorktrees: !opts.worktrees });
   });
 
 program

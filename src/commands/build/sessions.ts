@@ -22,9 +22,9 @@ import { buildBuildContext } from './cycle.js';
  * Push the current branch to the configured remote after a commit.
  * Non-fatal: logs a warning on failure, skipped silently when disabled.
  */
-export function maybePushAfterCommit(settings: Settings, label: string): void {
+export function maybePushAfterCommit(settings: Settings, label: string, cwd?: string): void {
   if (settings.push === false) return;
-  const result = pushCurrentBranch(settings.remote);
+  const result = pushCurrentBranch(settings.remote, cwd);
   if (result.ok) {
     log(`Push ${label}: ok`);
   } else if (result.skipped) {
@@ -42,6 +42,7 @@ export async function runDevSession(
   taskId: string,
   priorSummaries: string[],
   issues: string[],
+  cwd?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
   const sessionLabel = `dev-${taskId}`;
   log(`Dev session: ${taskId}${issues.length ? ` (retry, ${issues.length} issues)` : ''}`);
@@ -53,7 +54,7 @@ export async function runDevSession(
     issues,
   });
 
-  const result = await invokeClaude(projectRoot, [
+  const result = await invokeClaude(cwd || projectRoot, [
     '--model', 'opus',
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash',
     '--max-turns', MAX_TURNS_AGENT,
@@ -84,6 +85,7 @@ export async function runVerifyHook(
   scope: 'task' | 'subtask' | 'final',
   planName?: string,
   stage?: BuildStage,
+  cwd?: string,
 ): Promise<{ ok: boolean; issues: string[] }> {
   log(`Verify hook: ${taskId} (scope: ${scope})`);
 
@@ -96,7 +98,7 @@ export async function runVerifyHook(
   // Get the latest commit SHA
   let commit = '';
   try {
-    commit = execSync('git rev-parse HEAD', { stdio: 'pipe' }).toString().trim();
+    commit = execSync('git rev-parse HEAD', { stdio: 'pipe', ...(cwd && { cwd }) }).toString().trim();
   } catch {
     // non-fatal
   }
@@ -109,11 +111,13 @@ export async function runVerifyHook(
     scope,
   };
 
+  if (cwd) input.cwd = cwd;
+
   if (planName) {
     input.build = buildBuildContext(planFile, planName, stage || 'development');
   }
 
-  const result = await runHook(hooks['verify'], input, { timeout: 300000 });
+  const result = await runHook(hooks['verify'], input, { timeout: 300000, cwd });
 
   if (!result.ok) {
     return { ok: false, issues: [`Verify hook failed: ${result.stderr}`] };
@@ -138,6 +142,7 @@ export async function runReviewSession(
   planFile: string,
   taskId: string,
   planName?: string,
+  cwd?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
   log(`Review session: ${taskId}`);
 
@@ -152,7 +157,7 @@ export async function runReviewSession(
     task_id: taskId,
   });
 
-  const result = await invokeClaude(process.cwd(), [
+  const result = await invokeClaude(cwd || process.cwd(), [
     '--model', 'sonnet',
     '--allowedTools', 'Read,Glob,Grep,Bash,Agent',
     '--max-turns', '30',

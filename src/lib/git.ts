@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { RESOLVE_CONFLICTS_SCHEMA } from './config.js';
+import { log } from './utils.js';
 import type { ResolveConflictsOutput } from '../types.js';
 
 export interface GitResult {
@@ -59,6 +60,127 @@ async function spawnClaudeResolve(cwd: string, payload: Record<string, unknown>)
   return extractStructuredOutput(result.output) as unknown as ResolveConflictsOutput;
 }
 
+// ── Worktree Operations ──
+
+export interface WorktreeResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface MergeWorktreeResult {
+  ok: boolean;
+  hasConflicts?: boolean;
+  error?: string;
+}
+
+/**
+ * Create a git worktree with a new branch.
+ * If the branch already exists (prior failed run), reuses it.
+ */
+export function createWorktree(
+  projectRoot: string,
+  branchName: string,
+  worktreePath: string,
+  baseBranch: string,
+): WorktreeResult {
+  try {
+    execSync(
+      `git worktree add -b ${branchName} ${worktreePath} ${baseBranch}`,
+      { cwd: projectRoot, stdio: 'pipe' },
+    );
+    return { ok: true };
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+
+    // Branch already exists — reuse it
+    if (/already exists/i.test(msg)) {
+      try {
+        execSync(
+          `git worktree add ${worktreePath} ${branchName}`,
+          { cwd: projectRoot, stdio: 'pipe' },
+        );
+        return { ok: true };
+      } catch (err2) {
+        const msg2 = ((err2 as { stderr?: Buffer }).stderr?.toString() ?? (err2 as Error).message).trim();
+        return { ok: false, error: msg2 };
+      }
+    }
+
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Remove a git worktree and delete its branch (safe delete).
+ * Non-fatal: logs warnings on failure.
+ */
+export function removeWorktree(
+  projectRoot: string,
+  worktreePath: string,
+  branchName: string,
+): void {
+  try {
+    execSync(`git worktree remove ${worktreePath} --force`, {
+      cwd: projectRoot,
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+    log(`Warning: failed to remove worktree ${worktreePath}: ${msg}`);
+  }
+
+  try {
+    execSync(`git branch -d ${branchName}`, {
+      cwd: projectRoot,
+      stdio: 'pipe',
+    });
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+    log(`Warning: failed to delete local branch ${branchName}: ${msg}`);
+  }
+
+  // Delete the remote branch if it exists
+  try {
+    execSync(`git push origin --delete ${branchName}`, {
+      cwd: projectRoot,
+      stdio: 'pipe',
+    });
+  } catch {
+    // Remote branch may not exist (push was never enabled) — ignore silently
+  }
+}
+
+/**
+ * Merge a worktree branch back into the base branch with --no-ff.
+ * Does NOT auto-resolve conflicts — returns conflict status for caller to orchestrate.
+ */
+export function mergeWorktreeBranch(
+  projectRoot: string,
+  branchName: string,
+  baseBranch: string,
+): MergeWorktreeResult {
+  try {
+    execSync(`git checkout ${baseBranch}`, { cwd: projectRoot, stdio: 'pipe' });
+  } catch (err) {
+    return { ok: false, error: `Failed to checkout ${baseBranch}: ${(err as Error).message}` };
+  }
+
+  try {
+    execSync(`git merge --no-ff ${branchName}`, { cwd: projectRoot, stdio: 'pipe' });
+    return { ok: true };
+  } catch {
+    // Check if it's a conflict or a hard failure
+    try {
+      const status = execSync('git status --porcelain', { cwd: projectRoot, stdio: 'pipe' }).toString();
+      if (/^(UU|AA|DD|AU|UA|DU|UD) /m.test(status)) {
+        return { ok: false, hasConflicts: true };
+      }
+    } catch { /* fall through */ }
+
+    return { ok: false, error: 'Merge failed (no conflicts detected)' };
+  }
+}
+
 export interface PushResult {
   ok: boolean;
   skipped?: boolean;
@@ -75,11 +197,13 @@ export interface PushResult {
  *
  * Never throws.
  */
-export function pushCurrentBranch(remote: string): PushResult {
+export function pushCurrentBranch(remote: string, cwd?: string): PushResult {
+  const execOpts = { stdio: 'pipe' as const, ...(cwd && { cwd }) };
+
   // Resolve current branch
   let branch: string;
   try {
-    branch = execSync('git rev-parse --abbrev-ref HEAD', { stdio: 'pipe' }).toString().trim();
+    branch = execSync('git rev-parse --abbrev-ref HEAD', execOpts).toString().trim();
   } catch (err) {
     return { ok: false, skipped: true, error: `could not resolve HEAD: ${(err as Error).message}` };
   }
@@ -90,21 +214,21 @@ export function pushCurrentBranch(remote: string): PushResult {
 
   // Verify remote exists
   try {
-    execSync(`git remote get-url ${remote}`, { stdio: 'pipe' });
+    execSync(`git remote get-url ${remote}`, execOpts);
   } catch {
     return { ok: false, skipped: true, error: `no remote '${remote}'` };
   }
 
   // Attempt push
   try {
-    execSync(`git push ${remote} HEAD`, { stdio: 'pipe' });
+    execSync(`git push ${remote} HEAD`, execOpts);
     return { ok: true };
   } catch (err) {
     const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
     // Retry once with -u for missing upstream
     if (/has no upstream branch|set-upstream|--set-upstream/i.test(msg)) {
       try {
-        execSync(`git push -u ${remote} HEAD`, { stdio: 'pipe' });
+        execSync(`git push -u ${remote} HEAD`, execOpts);
         return { ok: true };
       } catch (err2) {
         const msg2 = ((err2 as { stderr?: Buffer }).stderr?.toString() ?? (err2 as Error).message).trim();
