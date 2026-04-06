@@ -57,6 +57,8 @@ Also detect:
 
 If using `behave` with a virtual environment, prefix command with `.venv/bin/` if `.venv/` exists.
 
+**Hook Input Context:** The verify hook receives `ctx.input.branch` (worktree branch name) and `ctx.input.cwd` (worktree working directory), both optional. These are useful for container-based test execution where the BDD runner needs to know which branch to test or which directory to operate in.
+
 ## Step 3: Per-Domain Tooling Detection (only when generating `verify.ts`)
 
 ### 3a. Domain Discovery

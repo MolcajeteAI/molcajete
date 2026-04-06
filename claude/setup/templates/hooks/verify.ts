@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 export default async function verify(
   ctx: HookContext<VerifyHookInput>,
 ): Promise<VerifyHookOutput> {
-  const { scope, files, tags } = ctx.input;
+  const { scope, files, tags, cwd } = ctx.input;
   const issues: string[] = [];
 
   // 1. Format — __FORMATTERS__ (filled by setup)
@@ -20,7 +20,7 @@ export default async function verify(
   for (const fmt of formatters) {
     const cmd = files.length > 0 ? fmt.command.replace('{files}', files.join(' ')) : fmt.fallback;
     try {
-      execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000 });
+      execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 60000, ...(cwd && { cwd }) });
     } catch (err) {
       const out =
         ((err as { stdout?: string }).stdout ?? '') +
@@ -38,7 +38,7 @@ export default async function verify(
   for (const lnt of linters) {
     const cmd = files.length > 0 ? lnt.command.replace('{files}', files.join(' ')) : lnt.fallback;
     try {
-      execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 120000 });
+      execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 120000, ...(cwd && { cwd }) });
     } catch (err) {
       const out =
         ((err as { stdout?: string }).stdout ?? '') +
@@ -60,7 +60,7 @@ export default async function verify(
         cmd += ` ${tagsFlag} "${tags.join(tagJoin)}"`;
       }
       try {
-        execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 300000 });
+        execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 300000, ...(cwd && { cwd }) });
       } catch (err) {
         const out =
           ((err as { stdout?: string }).stdout ?? '') +

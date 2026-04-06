@@ -48,6 +48,17 @@ export async function runBuild(planName: string, opts: { resume?: boolean; noWor
   await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, settings, opts.resume, opts.noWorktrees);
 }
 
+// ── Helpers ──
+
+function extractSummary(result: Record<string, unknown>, planFile: string, taskId: string): string {
+  const devResult = result.devResult as { summary?: string } | undefined;
+  if (devResult?.summary) return devResult.summary;
+  const data = readPlan(planFile);
+  const task = findTask(data, taskId);
+  if (!task?.sub_tasks) return '';
+  return task.sub_tasks.filter(st => st.summary).map(st => st.summary!).join('\n');
+}
+
 // ── Main Orchestrator Loop ──
 
 async function runAllTasksMode(
@@ -170,15 +181,45 @@ async function runAllTasksMode(
       taskCwd = worktree.worktreePath;
     }
 
+    const taskBranch = worktree?.branchName;
+
     let result;
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd);
+      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd, taskBranch);
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd);
+      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd, taskBranch);
     }
 
     if (result.ok) {
-      // Merge worktree back before marking implemented
+      // 1. Extract summary for doc session
+      const taskSummary = extractSummary(result as Record<string, unknown>, planFile, taskId);
+
+      // 2. Doc session — in worktree, before merge
+      await tryHook(hooks, 'before-documentation', {
+        task_id: taskId,
+        ...(taskCwd && { cwd: taskCwd }),
+        ...(taskBranch && { branch: taskBranch }),
+        build: buildBuildContext(planFile, planName, 'documentation'),
+      });
+
+      const doc = await runDocSession(
+        projectRoot, planFile, freshTask,
+        [...priorSummaries, taskSummary].join('\n'), [],
+        taskCwd,
+      );
+      if (doc.ok && doc.structured?.files_modified?.length > 0) {
+        await commitDocChanges(freshTask.id, doc.structured.files_modified, taskCwd);
+        maybePushAfterCommit(settings, `doc ${taskId}`, taskCwd);
+      }
+
+      await tryHook(hooks, 'after-documentation', {
+        task_id: taskId,
+        ...(taskCwd && { cwd: taskCwd }),
+        ...(taskBranch && { branch: taskBranch }),
+        build: buildBuildContext(planFile, planName, 'documentation'),
+      });
+
+      // 3. Merge worktree (doc commit now included in the branch)
       if (worktree) {
         const mergeResult = await mergeWorktree(hooks, projectRoot, worktree, planFile, taskId, settings, planName);
         if (!mergeResult.ok) {
@@ -196,6 +237,7 @@ async function runAllTasksMode(
         maybePushAfterCommit(settings, `merge ${taskId}`);
       }
 
+      // 4. Mark implemented
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
@@ -279,46 +321,8 @@ async function runAllTasksMode(
     }
   }
 
-  // Doc session — updates ARCHITECTURE.md after all tasks pass
+  // PRD status update after all tasks pass
   if (failedCount === 0 && doneCount === taskCount) {
-    log('━━━ Documentation Session ━━━');
-
-    // before-documentation hook
-    await tryHook(hooks, 'before-documentation', {
-      build: buildBuildContext(planFile, planName, 'documentation'),
-    });
-
-    const finalData = readPlan(planFile);
-    const allFiles: string[] = [];
-    const allSummaries: string[] = [];
-
-    for (const t of finalData.tasks) {
-      if (t.summary) allSummaries.push(t.summary);
-    }
-
-    const lastTask = finalData.tasks[finalData.tasks.length - 1];
-    if (lastTask) {
-      const doc = await runDocSession(
-        projectRoot, planFile, lastTask,
-        allSummaries.join('\n'), allFiles,
-      );
-      if (doc.ok && doc.structured?.files_modified?.length > 0) {
-        const docCommit = await commitDocChanges(lastTask.id, doc.structured.files_modified);
-        if (docCommit.ok) {
-          maybePushAfterCommit(settings, `doc ${lastTask.id}`);
-        } else {
-          log('Warning: doc commit failed — proceeding');
-        }
-      } else if (!doc.ok) {
-        log('Warning: doc session failed — proceeding');
-      }
-    }
-
-    // after-documentation hook
-    await tryHook(hooks, 'after-documentation', {
-      build: buildBuildContext(planFile, planName, 'documentation'),
-    });
-
     updatePrdStatuses(projectRoot, planFile);
   }
 

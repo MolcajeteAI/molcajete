@@ -77,16 +77,23 @@ export async function runDevSession(
 
 // ── Verify Hook ──
 
+export interface VerifyHookOptions {
+  taskId: string;
+  planFile: string;
+  filesModified: string[];
+  scope: 'task' | 'subtask' | 'final';
+  settings: Settings;
+  planName?: string;
+  stage?: BuildStage;
+  cwd?: string;
+  branch?: string;
+}
+
 export async function runVerifyHook(
   hooks: HookMap,
-  taskId: string,
-  planFile: string,
-  filesModified: string[],
-  scope: 'task' | 'subtask' | 'final',
-  planName?: string,
-  stage?: BuildStage,
-  cwd?: string,
+  opts: VerifyHookOptions,
 ): Promise<{ ok: boolean; issues: string[] }> {
+  const { taskId, planFile, filesModified, scope, settings, planName, stage, cwd, branch } = opts;
   log(`Verify hook: ${taskId} (scope: ${scope})`);
 
   const data = readPlan(planFile);
@@ -112,12 +119,13 @@ export async function runVerifyHook(
   };
 
   if (cwd) input.cwd = cwd;
+  if (branch) input.branch = branch;
 
   if (planName) {
     input.build = buildBuildContext(planFile, planName, stage || 'development');
   }
 
-  const result = await runHook(hooks['verify'], input, { timeout: 300000, cwd });
+  const result = await runHook(hooks['verify'], input, { timeout: settings.verifyTimeout ?? 300000, cwd });
 
   if (!result.ok) {
     return { ok: false, issues: [`Verify hook failed: ${result.stderr}`] };
@@ -143,11 +151,14 @@ export async function runReviewSession(
   taskId: string,
   planName?: string,
   cwd?: string,
+  branch?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
   log(`Review session: ${taskId}`);
 
   // Lifecycle hook: before-review
   const beforeReviewInput: Record<string, unknown> = { task_id: taskId };
+  if (cwd) beforeReviewInput.cwd = cwd;
+  if (branch) beforeReviewInput.branch = branch;
   if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, 'validation');
   await tryHook(hooks, 'before-review', beforeReviewInput);
 
@@ -172,6 +183,8 @@ export async function runReviewSession(
 
   // Lifecycle hook: after-review
   const afterReviewInput: Record<string, unknown> = { task_id: taskId, issues: allIssues };
+  if (cwd) afterReviewInput.cwd = cwd;
+  if (branch) afterReviewInput.branch = branch;
   if (planName) afterReviewInput.build = buildBuildContext(planFile, planName, 'validation');
   await tryHook(hooks, 'after-review', afterReviewInput);
 
@@ -225,6 +238,7 @@ export async function runDocSession(
   task: Task,
   devSummary: string,
   filesModified: string[],
+  cwd?: string,
 ): Promise<{ ok: boolean; structured: DocSessionOutput }> {
   const taskId = task.id;
   const sessionLabel = `doc-${taskId}`;
@@ -238,7 +252,7 @@ export async function runDocSession(
     dev_summary: devSummary,
   });
 
-  const result = await invokeClaude(projectRoot, [
+  const result = await invokeClaude(cwd || projectRoot, [
     '--model', 'claude-haiku-4-5',
     '--max-turns', '30',
     '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash,Agent',
@@ -264,16 +278,17 @@ export async function runDocSession(
 export async function commitDocChanges(
   taskId: string,
   docFiles: string[],
+  cwd?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!docFiles || docFiles.length === 0) return { ok: true };
 
   try {
     for (const f of docFiles) {
-      execSync(`git add "${f}"`, { stdio: 'pipe' });
+      execSync(`git add "${f}"`, { stdio: 'pipe', ...(cwd && { cwd }) });
     }
 
     try {
-      execSync('git diff --cached --quiet', { stdio: 'pipe' });
+      execSync('git diff --cached --quiet', { stdio: 'pipe', ...(cwd && { cwd }) });
       log(`Doc commit ${taskId}: no changes to commit`);
       return { ok: true };
     } catch {
@@ -282,7 +297,7 @@ export async function commitDocChanges(
 
     execSync(
       `git commit -m "docs: update documentation for ${taskId}"`,
-      { stdio: 'pipe' },
+      { stdio: 'pipe', ...(cwd && { cwd }) },
     );
     log(`Doc commit ${taskId}: committed`);
     return { ok: true };

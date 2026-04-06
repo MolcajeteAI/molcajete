@@ -101,6 +101,7 @@ export async function runDevTestReviewCycle(
   settings: Settings,
   planName?: string,
   cwd?: string,
+  branch?: string,
 ): Promise<DevTestReviewResult> {
   let issues: string[] = [];
 
@@ -123,7 +124,7 @@ export async function runDevTestReviewCycle(
     const filesModified = dev.structured.files_modified || [];
 
     // 2. Test hook — mandatory programmatic checks
-    const test = await runVerifyHook(hooks, taskId, planFile, filesModified, scope, planName, 'development', cwd);
+    const test = await runVerifyHook(hooks, { taskId, planFile, filesModified, scope, settings, planName, stage: 'development', cwd, branch });
 
     if (planDir) {
       writeReport(planDir, `${taskId}-test-${cycle}`, { issues: test.issues });
@@ -136,7 +137,7 @@ export async function runDevTestReviewCycle(
     }
 
     // 3. Review session — AI code review + completeness
-    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd);
+    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd, branch);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -181,17 +182,18 @@ export async function runTaskLevelValidation(
   settings: Settings,
   planName?: string,
   cwd?: string,
+  branch?: string,
 ): Promise<DevTestReviewResult> {
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
 
-  const test = await runVerifyHook(hooks, taskId, planFile, [], 'task', planName, 'validation', cwd);
+  const test = await runVerifyHook(hooks, { taskId, planFile, filesModified: [], scope: 'task', settings, planName, stage: 'validation', cwd, branch });
   if (planDir) {
     writeReport(planDir, `${taskId}-task-test-1`, { issues: test.issues });
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd);
+    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
@@ -202,7 +204,7 @@ export async function runTaskLevelValidation(
 
     // Review failed — need a dev fix
     log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
-    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName, cwd);
+    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName, cwd, branch);
   }
 
   // Test failed — need a dev fix
@@ -228,7 +230,7 @@ export async function runTaskLevelValidation(
 
     const filesModified = dev.structured.files_modified || [];
 
-    const reTest = await runVerifyHook(hooks, taskId, planFile, filesModified, 'task', planName, 'validation', cwd);
+    const reTest = await runVerifyHook(hooks, { taskId, planFile, filesModified, scope: 'task', settings, planName, stage: 'validation', cwd, branch });
     if (planDir) {
       writeReport(planDir, `${taskId}-task-test-${cycle + 1}`, { issues: reTest.issues });
     }
@@ -239,7 +241,7 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd);
+    const review = await runReviewSession(hooks, planFile, taskId, planName, cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
     }

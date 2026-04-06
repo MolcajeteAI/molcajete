@@ -186,9 +186,9 @@ async function runMergeConflictSideLoop(
     }
 
     // 2. Verify with plan-scoped regression (scope: 'final', on base branch)
-    const verify = await runVerifyHook(
-      hooks, taskId, planFile, [], 'final', planName, 'validation',
-    );
+    const verify = await runVerifyHook(hooks, {
+      taskId, planFile, filesModified: [], scope: 'final', settings, planName, stage: 'validation',
+    });
 
     if (verify.ok) {
       // 3. Review session

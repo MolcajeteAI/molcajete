@@ -76,6 +76,7 @@ export interface Settings {
   remote: string;
   push: boolean;
   startTimeout?: number;
+  verifyTimeout?: number;
 }
 
 export interface HookResult {
@@ -197,6 +198,7 @@ export interface VerifyHookInput {
   tags: string[];
   scope: 'task' | 'subtask' | 'final';
   cwd?: string;
+  branch?: string;
   build?: BuildContext;
 }
 
@@ -226,6 +228,8 @@ export interface TaskLifecycleInput {
   scenario_id?: string;
   status?: string;
   summary?: string;
+  cwd?: string;
+  branch?: string;
   build?: BuildContext;
 }
 
@@ -236,6 +240,8 @@ export interface SubtaskLifecycleInput {
   usecase_id?: string;
   scenario_id?: string;
   status?: string;
+  cwd?: string;
+  branch?: string;
   build?: BuildContext;
 }
 
@@ -244,6 +250,8 @@ export interface ReviewLifecycleInput {
   feature_id?: string;
   usecase_id?: string;
   scenario_id?: string;
+  cwd?: string;
+  branch?: string;
   build?: BuildContext;
 }
 
@@ -252,6 +260,8 @@ export interface DocumentationLifecycleInput {
   feature_id?: string;
   usecase_id?: string;
   scenario_id?: string;
+  cwd?: string;
+  branch?: string;
   build?: BuildContext;
 }
 
