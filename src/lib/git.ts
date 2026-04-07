@@ -89,6 +89,20 @@ export function createWorktree(
   worktreePath: string,
   baseBranch: string,
 ): WorktreeResult {
+  // Check if worktree already exists (e.g. resumed after a failed build)
+  const existing = findRegisteredWorktree(projectRoot, worktreePath);
+  if (existing) {
+    if (existing === branchName) {
+      return { ok: true };
+    }
+    // Wrong branch — remove and recreate below
+    try {
+      execSync(`git worktree remove --force ${worktreePath}`, { cwd: projectRoot, stdio: "pipe" });
+    } catch {
+      /* best-effort removal */
+    }
+  }
+
   try {
     execSync(`git worktree add -b ${branchName} ${worktreePath} ${baseBranch}`, { cwd: projectRoot, stdio: "pipe" });
     return { ok: true };
@@ -108,6 +122,33 @@ export function createWorktree(
 
     return { ok: false, error: msg };
   }
+}
+
+/**
+ * Parse `git worktree list --porcelain` and return the branch name
+ * if the given path is already registered, or null if not found.
+ */
+function findRegisteredWorktree(projectRoot: string, worktreePath: string): string | null {
+  let output: string;
+  try {
+    output = execSync("git worktree list --porcelain", { cwd: projectRoot, stdio: "pipe" }).toString();
+  } catch {
+    return null;
+  }
+
+  const absPath = resolve(worktreePath);
+  for (const block of output.split("\n\n")) {
+    const lines = block.trim().split("\n");
+    const wtLine = lines.find((l) => l.startsWith("worktree "));
+    if (!wtLine) continue;
+    const wtPath = resolve(wtLine.slice("worktree ".length));
+    if (wtPath !== absPath) continue;
+
+    const branchLine = lines.find((l) => l.startsWith("branch "));
+    if (!branchLine) return null; // detached HEAD — treat as wrong branch
+    return branchLine.slice("branch refs/heads/".length);
+  }
+  return null;
 }
 
 /**
