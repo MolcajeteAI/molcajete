@@ -1,17 +1,17 @@
-import { readFileSync, writeFileSync, renameSync, existsSync, readdirSync } from 'node:fs';
-import { join, resolve, isAbsolute } from 'node:path';
-import type { PlanData, Settings, Task, SubTask } from '../../types.js';
-import { parentTaskId } from '../../lib/utils.js';
+import { readFileSync, writeFileSync, renameSync, existsSync, readdirSync } from "node:fs";
+import { join, resolve, isAbsolute } from "node:path";
+import type { PlanData, Settings, Task, SubTask } from "../../types.js";
+import { parentTaskId } from "../../lib/utils.js";
 
 // ── Plan JSON I/O ──
 
 export function readPlan(planPath: string): PlanData {
-  return JSON.parse(readFileSync(planPath, 'utf8'));
+  return JSON.parse(readFileSync(planPath, "utf8"));
 }
 
 export function writePlan(planPath: string, data: PlanData): void {
   const tmp = `${planPath}.tmp`;
-  writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
+  writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
   renameSync(tmp, planPath);
 }
 
@@ -24,16 +24,16 @@ export function updatePlanJson(planPath: string, mutator: (data: PlanData) => vo
 // ── Settings ──
 
 export function readSettings(projectRoot: string): Settings {
-  const settingsPath = join(projectRoot, '.molcajete', 'settings.json');
+  const settingsPath = join(projectRoot, ".molcajete", "settings.json");
   const defaults: Settings = {
     maxDevCycles: 7,
-    remote: 'origin',
+    remote: "origin",
     push: true,
     hookTimeout: 180000,
   };
   if (!existsSync(settingsPath)) return defaults;
   try {
-    const raw = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    const raw = JSON.parse(readFileSync(settingsPath, "utf8"));
     return {
       maxDevCycles: raw.maxDevCycles ?? defaults.maxDevCycles,
       remote: raw.remote ?? defaults.remote,
@@ -54,20 +54,20 @@ export function findTask(data: PlanData, taskId: string): Task | undefined {
 export function findSubTask(data: PlanData, subTaskId: string): SubTask | null {
   const pId = parentTaskId(subTaskId);
   const task = findTask(data, pId);
-  if (!task || !task.sub_tasks) return null;
+  if (!task?.sub_tasks) return null;
   return task.sub_tasks.find((st) => st.id === subTaskId) ?? null;
 }
 
 export function updateSubTaskStatus(
   planPath: string,
   subTaskId: string,
-  status: SubTask['status'],
+  status: SubTask["status"],
   extra: Record<string, unknown> = {},
 ): void {
   updatePlanJson(planPath, (data) => {
     const pId = parentTaskId(subTaskId);
     const task = findTask(data, pId);
-    if (!task || !task.sub_tasks) return;
+    if (!task?.sub_tasks) return;
     const st = task.sub_tasks.find((s) => s.id === subTaskId);
     if (st) {
       st.status = status;
@@ -90,8 +90,8 @@ export function checkDependencies(data: PlanData, taskId: string): number {
   for (const depId of deps) {
     const dep = findTask(data, depId);
     if (!dep) continue;
-    if (dep.status === 'implemented') continue;
-    if (dep.status === 'failed') return 1;
+    if (dep.status === "implemented") continue;
+    if (dep.status === "failed") return 1;
     return 2;
   }
   return 0;
@@ -110,8 +110,8 @@ export function checkSubTaskDeps(task: Task, subTaskId: string): number {
   for (const depId of deps) {
     const dep = task.sub_tasks.find((s) => s.id === depId);
     if (!dep) continue;
-    if (dep.status === 'implemented') continue;
-    if (dep.status === 'failed') return 1;
+    if (dep.status === "implemented") continue;
+    if (dep.status === "failed") return 1;
     return 2;
   }
   return 0;
@@ -125,17 +125,17 @@ export function updatePlanLevelStatus(
   doneCount: number,
   failedCount: number,
 ): void {
-  let newStatus: string | undefined;
+  let newStatus: string;
   if (doneCount === taskCount) {
-    newStatus = 'implemented';
+    newStatus = "implemented";
   } else if (failedCount > 0) {
-    newStatus = 'failed';
+    newStatus = "failed";
   } else {
     return;
   }
 
   updatePlanJson(planFile, (data) => {
-    data.status = newStatus!;
+    data.status = newStatus;
   });
 }
 
@@ -149,22 +149,22 @@ export function resolvePlanFile(plansDir: string, name: string): string | null {
   // Absolute path
   if (isAbsolute(name)) {
     if (existsSync(name)) return name;
-    const asJson = join(name, 'plan.json');
+    const asJson = join(name, "plan.json");
     if (existsSync(asJson)) return asJson;
     return null;
   }
 
   // file:// URI
-  if (name.startsWith('file://')) {
+  if (name.startsWith("file://")) {
     const filePath = name.slice(7);
     if (existsSync(filePath)) return filePath;
-    const asJson = join(filePath, 'plan.json');
+    const asJson = join(filePath, "plan.json");
     if (existsSync(asJson)) return asJson;
     return null;
   }
 
   // URL (https://)
-  if (name.startsWith('https://') || name.startsWith('http://')) {
+  if (name.startsWith("https://") || name.startsWith("http://")) {
     // URLs are not resolved locally — return null (caller handles fetch)
     return null;
   }
@@ -172,37 +172,35 @@ export function resolvePlanFile(plansDir: string, name: string): string | null {
   // Relative path that exists
   const asRelative = resolve(name);
   if (existsSync(asRelative)) {
-    if (asRelative.endsWith('.json')) return asRelative;
-    const asJson = join(asRelative, 'plan.json');
+    if (asRelative.endsWith(".json")) return asRelative;
+    const asJson = join(asRelative, "plan.json");
     if (existsSync(asJson)) return asJson;
   }
 
   // Directory-based resolution in plansDir
   const entries = readdirSync(plansDir, { withFileTypes: true });
   const dirs = entries
-    .filter((e) => e.isDirectory() && existsSync(join(plansDir, e.name, 'plan.json')))
+    .filter((e) => e.isDirectory() && existsSync(join(plansDir, e.name, "plan.json")))
     .map((e) => e.name);
 
   // Exact match
-  if (dirs.includes(name)) return join(plansDir, name, 'plan.json');
+  if (dirs.includes(name)) return join(plansDir, name, "plan.json");
 
   // Strip .json suffix if user passed old-style name
-  const stripped = name.replace(/\.json$/, '');
-  if (dirs.includes(stripped)) return join(plansDir, stripped, 'plan.json');
+  const stripped = name.replace(/\.json$/, "");
+  if (dirs.includes(stripped)) return join(plansDir, stripped, "plan.json");
 
   // Prefix match (timestamp)
   const byPrefix = dirs.filter((d) => d.startsWith(stripped));
-  if (byPrefix.length === 1) return join(plansDir, byPrefix[0], 'plan.json');
+  if (byPrefix.length === 1) return join(plansDir, byPrefix[0], "plan.json");
 
   // Substring match (slug)
   const bySlug = dirs.filter((d) => d.includes(stripped));
-  if (bySlug.length === 1) return join(plansDir, bySlug[0], 'plan.json');
+  if (bySlug.length === 1) return join(plansDir, bySlug[0], "plan.json");
 
   if (byPrefix.length > 1 || bySlug.length > 1) {
     const matches = [...new Set([...byPrefix, ...bySlug])];
-    process.stderr.write(
-      `Error: ambiguous plan name "${name}". Matches:\n  ${matches.join('\n  ')}\n`,
-    );
+    process.stderr.write(`Error: ambiguous plan name "${name}". Matches:\n  ${matches.join("\n  ")}\n`);
     process.exit(1);
   }
 

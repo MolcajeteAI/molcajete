@@ -8,9 +8,9 @@
  * This file is a separate tsup entry point — it runs as its own process.
  */
 
-import { createServer, type Socket } from 'node:net';
-import { existsSync, mkdirSync, unlinkSync, writeFileSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { createServer, type Socket } from "node:net";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
   SOCKET_PATH,
   PID_FILE,
@@ -20,13 +20,8 @@ import {
   DEFAULT_PORT_RANGE_END,
   encodeLine,
   parseLine,
-} from './registry-protocol.js';
-import type {
-  RegistryRequest,
-  RegistryState,
-  RegistryInstance,
-  RegistryMessage,
-} from './registry-protocol.js';
+} from "./registry-protocol.js";
+import type { RegistryRequest, RegistryState } from "./registry-protocol.js";
 
 // ── In-Memory State ──
 
@@ -44,7 +39,7 @@ let graceTimer: ReturnType<typeof setTimeout> | null = null;
 // ── Socket Helpers ──
 
 function broadcast(exclude?: Socket): void {
-  const push = encodeLine({ type: 'push', event: 'state', data: state });
+  const push = encodeLine({ type: "push", event: "state", data: state });
   for (const client of clients) {
     if (client !== exclude && !client.destroyed) {
       client.write(push);
@@ -54,20 +49,25 @@ function broadcast(exclude?: Socket): void {
 
 function respond(socket: Socket, id: string, result: Record<string, unknown>): void {
   if (!socket.destroyed) {
-    socket.write(encodeLine({ id, type: 'res', result }));
+    socket.write(encodeLine({ id, type: "res", result }));
   }
 }
 
 function respondError(socket: Socket, id: string, error: string): void {
   if (!socket.destroyed) {
-    socket.write(encodeLine({ id, type: 'res', error }));
+    socket.write(encodeLine({ id, type: "res", error }));
   }
 }
 
 // ── Request Handlers ──
 
 function handleRegister(socket: Socket, req: RegistryRequest): void {
-  const { id: instanceId, cwd, planId, pid } = req.params as {
+  const {
+    id: instanceId,
+    cwd,
+    planId,
+    pid,
+  } = req.params as {
     id: string;
     cwd: string;
     planId: string;
@@ -92,7 +92,7 @@ function handleRegister(socket: Socket, req: RegistryRequest): void {
 
   respond(socket, req.id, { ok: true });
   // Send full state to newly registered client
-  socket.write(encodeLine({ type: 'push', event: 'state', data: state }));
+  socket.write(encodeLine({ type: "push", event: "state", data: state }));
   broadcast(socket);
 }
 
@@ -124,7 +124,7 @@ function handleAllocatePort(socket: Socket, req: RegistryRequest): void {
   const instanceId = socketToInstance.get(socket);
 
   if (!instanceId) {
-    respondError(socket, req.id, 'Instance not registered');
+    respondError(socket, req.id, "Instance not registered");
     return;
   }
 
@@ -163,36 +163,36 @@ function pruneInstance(instanceId: string): void {
 function handleConnection(socket: Socket): void {
   clients.add(socket);
 
-  let buffer = '';
+  let buffer = "";
 
-  socket.on('data', (chunk) => {
+  socket.on("data", (chunk) => {
     buffer += chunk.toString();
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || ""; // Keep incomplete line in buffer
 
     for (const line of lines) {
       const msg = parseLine(line);
-      if (!msg || msg.type !== 'req') continue;
+      if (!msg || msg.type !== "req") continue;
 
       const req = msg as RegistryRequest;
 
       switch (req.method) {
-        case 'register':
+        case "register":
           handleRegister(socket, req);
           break;
-        case 'deregister':
+        case "deregister":
           handleDeregister(socket, req);
           break;
-        case 'get':
+        case "get":
           handleGet(socket, req);
           break;
-        case 'set':
+        case "set":
           handleSet(socket, req);
           break;
-        case 'allocate-port':
+        case "allocate-port":
           handleAllocatePort(socket, req);
           break;
-        case 'list-instances':
+        case "list-instances":
           handleListInstances(socket, req);
           break;
         default:
@@ -201,7 +201,7 @@ function handleConnection(socket: Socket): void {
     }
   });
 
-  socket.on('close', () => {
+  socket.on("close", () => {
     clients.delete(socket);
 
     const instanceId = socketToInstance.get(socket);
@@ -220,7 +220,7 @@ function handleConnection(socket: Socket): void {
     }
   });
 
-  socket.on('error', () => {
+  socket.on("error", () => {
     // Handled by close event
   });
 }
@@ -257,7 +257,7 @@ if (existsSync(SOCKET_PATH)) {
   // Check if another daemon is running
   if (existsSync(PID_FILE)) {
     try {
-      const pid = parseInt(readFileSync(PID_FILE, 'utf8').trim(), 10);
+      const pid = parseInt(readFileSync(PID_FILE, "utf8").trim(), 10);
       if (isProcessAlive(pid)) {
         // Another daemon is running — exit gracefully
         process.exit(0);
@@ -272,8 +272,8 @@ if (existsSync(SOCKET_PATH)) {
 
 const server = createServer(handleConnection);
 
-server.on('error', (err) => {
-  if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+server.on("error", (err) => {
+  if ((err as NodeJS.ErrnoException).code === "EADDRINUSE") {
     // Another daemon won the race — exit gracefully
     process.exit(0);
   }
@@ -295,12 +295,12 @@ server.listen(SOCKET_PATH, () => {
 });
 
 // Cleanup on exit signals
-process.on('SIGINT', () => {
+process.on("SIGINT", () => {
   cleanup();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on("SIGTERM", () => {
   cleanup();
   process.exit(0);
 });

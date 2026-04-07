@@ -1,15 +1,15 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
-import { readPlan } from './plan-data.js';
-import { log } from '../../lib/utils.js';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
+import { readPlan } from "./plan-data.js";
+import { log } from "../../lib/utils.js";
 
 /**
  * Update PRD statuses based on implemented tasks in the plan.
  */
 export function updatePrdStatuses(projectRoot: string, planFile: string): void {
-  const prdDir = join(projectRoot, 'prd');
+  const prdDir = join(projectRoot, "prd");
   if (!existsSync(prdDir)) {
-    log('Warning: prd/ directory not found — skipping PRD status update');
+    log("Warning: prd/ directory not found — skipping PRD status update");
     return;
   }
 
@@ -18,8 +18,8 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
   const doneTags = new Set<string>();
   const implementedUcs = new Set<string>();
   for (const task of data.tasks) {
-    if (task.status === 'implemented') {
-      if (task.scenario) doneTags.add('@' + task.scenario);
+    if (task.status === "implemented") {
+      if (task.scenario) doneTags.add(`@${task.scenario}`);
       if (task.use_case) implementedUcs.add(task.use_case);
     }
   }
@@ -27,7 +27,7 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
   if (doneTags.size === 0 || implementedUcs.size === 0) return;
 
   const affectedFeatures = new Set<string>();
-  const domainsDir = join(prdDir, 'domains');
+  const domainsDir = join(prdDir, "domains");
   if (!existsSync(domainsDir)) return;
 
   for (const ucId of implementedUcs) {
@@ -37,7 +37,7 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
       continue;
     }
 
-    const ucContent = readFileSync(ucFile, 'utf8');
+    const ucContent = readFileSync(ucFile, "utf8");
     const scenarioIds: string[] = [];
     for (const match of ucContent.matchAll(/^### (SC-[A-Za-z0-9]+)/gm)) {
       scenarioIds.push(match[1]);
@@ -47,16 +47,16 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
     const allCovered = scenarioIds.every((sc) => doneTags.has(`@${sc}`));
     if (!allCovered) continue;
 
-    let ucText = readFileSync(ucFile, 'utf8');
-    ucText = ucText.replace(/^status: (pending|dirty)$/m, 'status: implemented');
+    let ucText = readFileSync(ucFile, "utf8");
+    ucText = ucText.replace(/^status: (pending|dirty)$/m, "status: implemented");
     writeFileSync(ucFile, ucText);
 
     const featureDir = dirname(dirname(ucFile));
-    const useCasesIndex = join(featureDir, 'USE-CASES.md');
+    const useCasesIndex = join(featureDir, "USE-CASES.md");
     if (existsSync(useCasesIndex)) {
-      let indexContent = readFileSync(useCasesIndex, 'utf8');
+      let indexContent = readFileSync(useCasesIndex, "utf8");
       const ucPattern = new RegExp(`(\\| *${ucId} .*)\\| *(pending|dirty) *\\|`);
-      indexContent = indexContent.replace(ucPattern, '$1| implemented |');
+      indexContent = indexContent.replace(ucPattern, "$1| implemented |");
       writeFileSync(useCasesIndex, indexContent);
     }
 
@@ -68,29 +68,25 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
     const useCasesIndex = findFile(domainsDir, `${featDirName}/USE-CASES.md`);
     if (!useCasesIndex) continue;
 
-    const indexContent = readFileSync(useCasesIndex, 'utf8');
+    const indexContent = readFileSync(useCasesIndex, "utf8");
     const ucRows = indexContent.match(/^\| *UC-.*$/gm) || [];
-    const allImplemented = ucRows.every((row) =>
-      /\| *implemented *\|/.test(row),
-    );
+    const allImplemented = ucRows.every((row) => /\| *implemented *\|/.test(row));
 
     if (!allImplemented) continue;
 
     const domainDir = dirname(dirname(dirname(useCasesIndex)));
     const domainName = basename(domainDir);
 
-    if (domainName === 'global') {
-      log('Skipping feature status update for global domain (spec-only)');
+    if (domainName === "global") {
+      log("Skipping feature status update for global domain (spec-only)");
       continue;
     }
 
-    const featuresMd = join(projectRoot, 'prd', 'FEATURES.md');
+    const featuresMd = join(projectRoot, "prd", "FEATURES.md");
     if (existsSync(featuresMd)) {
-      let featContent = readFileSync(featuresMd, 'utf8');
-      const featPattern = new RegExp(
-        `(\\| *${featDirName} .*)\\| *(pending|dirty) *\\|`,
-      );
-      featContent = featContent.replace(featPattern, '$1| implemented |');
+      let featContent = readFileSync(featuresMd, "utf8");
+      const featPattern = new RegExp(`(\\| *${featDirName} .*)\\| *(pending|dirty) *\\|`);
+      featContent = featContent.replace(featPattern, "$1| implemented |");
       writeFileSync(featuresMd, featContent);
       log(`PRD updated: ${featDirName} → implemented (all UCs done)`);
     }

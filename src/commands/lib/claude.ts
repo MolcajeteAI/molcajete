@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process';
-import type { ClaudeResult, BuildStats, SessionStats } from '../../types.js';
-import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT } from '../../lib/config.js';
-import { log, sleep, shellQuote, isDebug } from '../../lib/utils.js';
+import { spawn } from "node:child_process";
+import type { ClaudeResult, BuildStats, SessionStats } from "../../types.js";
+import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT } from "../../lib/config.js";
+import { log, sleep, shellQuote, isDebug } from "../../lib/utils.js";
 
 // ── Active Child Process ──
 
@@ -25,7 +25,7 @@ export function formatDuration(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
-  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 // ── Session Stats ──
@@ -34,7 +34,7 @@ export function extractSessionStats(rawOutput: string, realMs: number): SessionS
   try {
     const events = JSON.parse(rawOutput.trim());
     if (!Array.isArray(events)) return null;
-    const result = events.find((e: Record<string, unknown>) => e.type === 'result');
+    const result = events.find((e: Record<string, unknown>) => e.type === "result");
     if (!result) return null;
 
     const apiMs = (result.duration_api_ms as number) ?? 0;
@@ -86,8 +86,8 @@ export async function invokeClaude(workdir: string, args: string[]): Promise<Cla
     return result;
   }
 
-  log('Rate limit retries exhausted.');
-  return { output: '', stderr: '', exitCode: 1, realMs: 0 };
+  log("Rate limit retries exhausted.");
+  return { output: "", stderr: "", exitCode: 1, realMs: 0 };
 }
 
 export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResult> {
@@ -99,31 +99,34 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
     const flagArgs = args.slice(0, -1);
 
     const fullArgs = [
-      '--output-format', 'json',
-      '--plugin-dir', PLUGIN_DIR,
-      '--dangerously-skip-permissions',
+      "--output-format",
+      "json",
+      "--plugin-dir",
+      PLUGIN_DIR,
+      "--dangerously-skip-permissions",
       ...flagArgs,
-      '-p', prompt,
+      "-p",
+      prompt,
     ];
 
     if (isDebug()) {
-      const YELLOW = '\x1b[33m';
-      const RESET = '\x1b[0m';
-      const quotedArgs = fullArgs.map(shellQuote).join(' ');
-      process.stderr.write('\n');
+      const YELLOW = "\x1b[33m";
+      const RESET = "\x1b[0m";
+      const quotedArgs = fullArgs.map(shellQuote).join(" ");
+      process.stderr.write("\n");
       log(`${YELLOW}$ claude ${quotedArgs}${RESET}`);
       log(`${YELLOW}cwd: ${workdir}${RESET}`);
-      process.stderr.write('\n');
+      process.stderr.write("\n");
     }
 
-    const child = spawn('claude', fullArgs, {
+    const child = spawn("claude", fullArgs, {
       cwd: workdir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, CLAUDE_CODE_DISABLE_1M_CONTEXT: '1' },
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CLAUDE_CODE_DISABLE_1M_CONTEXT: "1" },
     });
 
     const stderrChunks: Buffer[] = [];
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
       process.stderr.write(chunk);
     });
@@ -131,15 +134,15 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
     activeChild = child;
 
     const chunks: Buffer[] = [];
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout.on("data", (chunk: Buffer) => {
       chunks.push(chunk);
     });
 
     const timer = setTimeout(() => {
-      child.kill('SIGTERM');
+      child.kill("SIGTERM");
     }, TIMEOUT);
 
-    child.on('close', (code) => {
+    child.on("close", (code) => {
       clearTimeout(timer);
       activeChild = null;
       resolveP({
@@ -159,20 +162,24 @@ export function extractStructuredOutput(rawOutput: string): Record<string, unkno
   try {
     const events = JSON.parse(trimmed);
     if (Array.isArray(events)) {
-      const result = events.find((e: Record<string, unknown>) => e.type === 'result');
+      const result = events.find((e: Record<string, unknown>) => e.type === "result");
       if (result?.structured_output) return result.structured_output as Record<string, unknown>;
       // Fall back to assistant text content (when no --json-schema)
       const textParts: string[] = [];
       for (const e of events) {
-        if (e.type === 'assistant' && e.message?.content) {
+        if (e.type === "assistant" && e.message?.content) {
           for (const c of e.message.content) {
-            if (c.type === 'text') textParts.push(c.text);
+            if (c.type === "text") textParts.push(c.text);
           }
         }
       }
       if (textParts.length) {
-        const text = textParts.join('\n').trim();
-        try { return JSON.parse(text); } catch { /* not JSON text */ }
+        const text = textParts.join("\n").trim();
+        try {
+          return JSON.parse(text);
+        } catch {
+          /* not JSON text */
+        }
       }
       return {};
     }

@@ -3,22 +3,18 @@ export type {
   // Build context
   BuildContext,
   BuildStage,
-
   // Context
   HookContext,
   HookFn,
   HookInfo,
-
   // Mandatory hook
   VerifyHookInput,
   VerifyHookOutput,
-
   // Environment hooks
   StartInput,
   StartOutput,
   StopInput,
   StopOutput,
-
   // Lifecycle hooks
   TaskLifecycleInput,
   SubtaskLifecycleInput,
@@ -27,8 +23,8 @@ export type {
   WorktreeMergeInput,
   DocumentationLifecycleInput,
   LifecycleOutput,
-} from './types.js';
+} from "./types.js";
 
 // Git utilities
-export { merge, rebase, resolveConflicts } from './lib/git.js';
-export type { GitResult, MergeOptions } from './lib/git.js';
+export { merge, rebase, resolveConflicts } from "./lib/git.js";
+export type { GitResult, MergeOptions } from "./lib/git.js";

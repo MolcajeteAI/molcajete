@@ -1,4 +1,4 @@
-import * as readline from 'node:readline';
+import * as readline from "node:readline";
 
 /**
  * Multi-line editor-style reader. Prints the banner, accumulates lines
@@ -11,10 +11,10 @@ export async function readMultiline(banner: string): Promise<string> {
     process.stderr.write(
       'Warning: stdin is not a TTY — skipping interactive prompt. Pass -p "..." to provide guidance.\n',
     );
-    return '';
+    return "";
   }
 
-  process.stderr.write(banner + '\n');
+  process.stderr.write(`${banner}\n`);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -26,18 +26,18 @@ export async function readMultiline(banner: string): Promise<string> {
     const lines: string[] = [];
 
     const onLine = (line: string) => {
-      if (line === '') {
-        rl.removeListener('line', onLine);
+      if (line === "") {
+        rl.removeListener("line", onLine);
         rl.close();
-        resolve(lines.join('\n'));
+        resolve(lines.join("\n"));
         return;
       }
       lines.push(line);
     };
 
-    rl.on('line', onLine);
-    rl.on('close', () => {
-      resolve(lines.join('\n'));
+    rl.on("line", onLine);
+    rl.on("close", () => {
+      resolve(lines.join("\n"));
     });
   });
 }

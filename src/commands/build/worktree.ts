@@ -1,13 +1,13 @@
-import { resolve } from 'node:path';
-import { execSync } from 'node:child_process';
-import type { HookMap, Settings, WorktreeInfo } from '../../types.js';
-import { MAX_MERGE_FIX_CYCLES } from '../../lib/config.js';
-import { log } from '../../lib/utils.js';
-import { createWorktree, removeWorktree, mergeWorktreeBranch, resolveConflicts } from '../../lib/git.js';
-import { tryHook } from '../lib/hooks.js';
-import { readPlan } from './plan-data.js';
-import { buildBuildContext } from './cycle.js';
-import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from './sessions.js';
+import { resolve } from "node:path";
+import { execSync } from "node:child_process";
+import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
+import { MAX_MERGE_FIX_CYCLES } from "../../lib/config.js";
+import { log } from "../../lib/utils.js";
+import { createWorktree, removeWorktree, mergeWorktreeBranch, resolveConflicts } from "../../lib/git.js";
+import { tryHook } from "../lib/hooks.js";
+import { readPlan } from "./plan-data.js";
+import { buildBuildContext } from "./cycle.js";
+import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from "./sessions.js";
 
 /**
  * Set up a git worktree for a task.
@@ -25,15 +25,20 @@ export async function setupWorktree(
   settings: Settings,
 ): Promise<WorktreeInfo | null> {
   const branchName = `${planName}--${taskId}`;
-  const worktreePath = resolve(projectRoot, '.worktrees', branchName);
+  const worktreePath = resolve(projectRoot, ".worktrees", branchName);
 
-  await tryHook(hooks, 'before-worktree-create', {
-    task_id: taskId,
-    branch: branchName,
-    base_branch: baseBranch,
-    worktree_path: worktreePath,
-    build: buildBuildContext(planFile, planName, 'before-worktree-create'),
-  }, { timeout: settings.hookTimeout });
+  await tryHook(
+    hooks,
+    "before-worktree-create",
+    {
+      task_id: taskId,
+      branch: branchName,
+      base_branch: baseBranch,
+      worktree_path: worktreePath,
+      build: buildBuildContext(planFile, planName, "before-worktree-create"),
+    },
+    { timeout: settings.hookTimeout },
+  );
 
   log(`Creating worktree: ${branchName}`);
   const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch);
@@ -43,13 +48,18 @@ export async function setupWorktree(
     return null;
   }
 
-  await tryHook(hooks, 'after-worktree-create', {
-    task_id: taskId,
-    branch: branchName,
-    base_branch: baseBranch,
-    worktree_path: worktreePath,
-    build: buildBuildContext(planFile, planName, 'after-worktree-create'),
-  }, { timeout: settings.hookTimeout });
+  await tryHook(
+    hooks,
+    "after-worktree-create",
+    {
+      task_id: taskId,
+      branch: branchName,
+      base_branch: baseBranch,
+      worktree_path: worktreePath,
+      build: buildBuildContext(planFile, planName, "after-worktree-create"),
+    },
+    { timeout: settings.hookTimeout },
+  );
 
   return { branchName, worktreePath, baseBranch };
 }
@@ -71,13 +81,18 @@ export async function mergeWorktree(
   const { branchName, worktreePath, baseBranch } = worktree;
 
   // Fire before-worktree-merge hook
-  await tryHook(hooks, 'before-worktree-merge', {
-    task_id: taskId,
-    branch: branchName,
-    base_branch: baseBranch,
-    worktree_path: worktreePath,
-    build: buildBuildContext(planFile, planName, 'before-worktree-merge'),
-  }, { timeout: settings.hookTimeout });
+  await tryHook(
+    hooks,
+    "before-worktree-merge",
+    {
+      task_id: taskId,
+      branch: branchName,
+      base_branch: baseBranch,
+      worktree_path: worktreePath,
+      build: buildBuildContext(planFile, planName, "before-worktree-merge"),
+    },
+    { timeout: settings.hookTimeout },
+  );
 
   log(`Merging worktree branch ${branchName} into ${baseBranch}`);
   const mergeResult = mergeWorktreeBranch(projectRoot, branchName, baseBranch);
@@ -86,13 +101,18 @@ export async function mergeWorktree(
     // Clean merge — remove worktree and branch
     removeWorktree(projectRoot, worktreePath, branchName);
 
-    await tryHook(hooks, 'after-worktree-merge', {
-      task_id: taskId,
-      branch: branchName,
-      base_branch: baseBranch,
-      worktree_path: worktreePath,
-      build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
-    }, { timeout: settings.hookTimeout });
+    await tryHook(
+      hooks,
+      "after-worktree-merge",
+      {
+        task_id: taskId,
+        branch: branchName,
+        base_branch: baseBranch,
+        worktree_path: worktreePath,
+        build: buildBuildContext(planFile, planName, "after-worktree-merge"),
+      },
+      { timeout: settings.hookTimeout },
+    );
 
     return { ok: true };
   }
@@ -100,19 +120,17 @@ export async function mergeWorktree(
   if (mergeResult.hasConflicts) {
     log(`Merge conflicts detected for ${branchName} — entering conflict resolution`);
 
-    const sideLoopResult = await runMergeConflictSideLoop(
-      hooks, projectRoot, planFile, taskId, settings, planName,
-    );
+    const sideLoopResult = await runMergeConflictSideLoop(hooks, projectRoot, planFile, taskId, settings, planName);
 
     if (sideLoopResult.ok) {
       removeWorktree(projectRoot, worktreePath, branchName);
 
-      await tryHook(hooks, 'after-worktree-merge', {
+      await tryHook(hooks, "after-worktree-merge", {
         task_id: taskId,
         branch: branchName,
         base_branch: baseBranch,
         worktree_path: worktreePath,
-        build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
+        build: buildBuildContext(planFile, planName, "after-worktree-merge"),
       });
 
       return { ok: true };
@@ -121,32 +139,39 @@ export async function mergeWorktree(
     // Side-loop failed — preserve worktree for debugging
     log(`Merge conflict resolution failed — worktree preserved at ${worktreePath}`);
 
-    await tryHook(hooks, 'after-worktree-merge', {
-      task_id: taskId,
-      branch: branchName,
-      base_branch: baseBranch,
-      worktree_path: worktreePath,
-      build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
-    }, { timeout: settings.hookTimeout });
+    await tryHook(
+      hooks,
+      "after-worktree-merge",
+      {
+        task_id: taskId,
+        branch: branchName,
+        base_branch: baseBranch,
+        worktree_path: worktreePath,
+        build: buildBuildContext(planFile, planName, "after-worktree-merge"),
+      },
+      { timeout: settings.hookTimeout },
+    );
 
-    return { ok: false, error: sideLoopResult.error || 'Merge conflict resolution failed' };
+    return { ok: false, error: sideLoopResult.error || "Merge conflict resolution failed" };
   }
 
   // Merge failed without conflicts — abort
   log(`Merge failed (no conflicts): ${mergeResult.error}`);
   try {
-    execSync('git merge --abort', { cwd: projectRoot, stdio: 'pipe' });
-  } catch { /* already clean */ }
+    execSync("git merge --abort", { cwd: projectRoot, stdio: "pipe" });
+  } catch {
+    /* already clean */
+  }
 
-  await tryHook(hooks, 'after-worktree-merge', {
+  await tryHook(hooks, "after-worktree-merge", {
     task_id: taskId,
     branch: branchName,
     base_branch: baseBranch,
     worktree_path: worktreePath,
-    build: buildBuildContext(planFile, planName, 'after-worktree-merge'),
+    build: buildBuildContext(planFile, planName, "after-worktree-merge"),
   });
 
-  return { ok: false, error: mergeResult.error || 'Merge failed' };
+  return { ok: false, error: mergeResult.error || "Merge failed" };
 }
 
 /**
@@ -168,7 +193,7 @@ async function runMergeConflictSideLoop(
   const data = readPlan(planFile);
   const regressionTags: string[] = [];
   for (const t of data.tasks) {
-    if ((t.status === 'implemented' || t.id === taskId) && t.scenario) {
+    if ((t.status === "implemented" || t.id === taskId) && t.scenario) {
       regressionTags.push(`@${t.scenario}`);
     }
   }
@@ -178,17 +203,25 @@ async function runMergeConflictSideLoop(
 
     // 1. Resolve conflicts (Claude resolves + commits)
     const resolveResult = await resolveConflicts();
-    if (resolveResult.status === 'failure') {
+    if (resolveResult.status === "failure") {
       log(`Conflict resolution failed: ${resolveResult.error}`);
       try {
-        execSync('git merge --abort', { cwd: projectRoot, stdio: 'pipe' });
-      } catch { /* already clean */ }
-      return { ok: false, error: resolveResult.error || 'Conflict resolution failed' };
+        execSync("git merge --abort", { cwd: projectRoot, stdio: "pipe" });
+      } catch {
+        /* already clean */
+      }
+      return { ok: false, error: resolveResult.error || "Conflict resolution failed" };
     }
 
     // 2. Verify with plan-scoped regression (scope: 'final', on base branch)
     const verify = await runVerifyHook(hooks, {
-      taskId, planFile, filesModified: [], scope: 'final', settings, planName, stage: 'validation',
+      taskId,
+      planFile,
+      filesModified: [],
+      scope: "final",
+      settings,
+      planName,
+      stage: "validation",
     });
 
     if (verify.ok) {
@@ -221,5 +254,5 @@ async function runMergeConflictSideLoop(
     return { ok: false, error: `Post-merge verify failed after ${MAX_MERGE_FIX_CYCLES} cycles` };
   }
 
-  return { ok: false, error: 'Merge conflict side-loop exhausted' };
+  return { ok: false, error: "Merge conflict side-loop exhausted" };
 }

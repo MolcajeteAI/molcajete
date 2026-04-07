@@ -16,7 +16,9 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write src/",
+    "lint": "biome lint src/"
   },
   "files": [
     "dist/",
@@ -26,10 +28,10 @@
     "node": ">=20"
   },
   "dependencies": {
-    "commander": "~13.1.0",
-    "jiti": "^2.4.0"
+    "commander": "~13.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
     "@types/node": "^22.15.3",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"

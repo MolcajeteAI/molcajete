@@ -1,9 +1,17 @@
-import type { HookMap, TaskContext, DevTestReviewResult, PlanData, BuildContext, BuildStage, Settings } from '../../types.js';
-import { MAX_DEV_CYCLES } from '../../lib/config.js';
-import { log, isSubTaskId, parentTaskId } from '../../lib/utils.js';
-import { readPlan, findTask } from './plan-data.js';
-import { writeReport } from './reports.js';
-import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from './sessions.js';
+import type {
+  HookMap,
+  TaskContext,
+  DevTestReviewResult,
+  PlanData,
+  BuildContext,
+  BuildStage,
+  Settings,
+} from "../../types.js";
+import { MAX_DEV_CYCLES } from "../../lib/config.js";
+import { log, isSubTaskId, parentTaskId } from "../../lib/utils.js";
+import { readPlan, findTask } from "./plan-data.js";
+import { writeReport } from "./reports.js";
+import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from "./sessions.js";
 
 /**
  * Build a task context object from plan data for passing to hooks.
@@ -36,17 +44,17 @@ export function buildBuildContext(planFile: string, planName: string, stage: Bui
     if (task.use_case) {
       const entry = ucTaskCounts.get(task.use_case) || { total: 0, done: 0 };
       entry.total++;
-      if (task.status === 'implemented') entry.done++;
+      if (task.status === "implemented") entry.done++;
       ucTaskCounts.set(task.use_case, entry);
     }
     if (task.feature) {
       const entry = featTaskCounts.get(task.feature) || { total: 0, done: 0 };
       entry.total++;
-      if (task.status === 'implemented') entry.done++;
+      if (task.status === "implemented") entry.done++;
       featTaskCounts.set(task.feature, entry);
     }
 
-    if (task.status === 'implemented') {
+    if (task.status === "implemented") {
       completedTasks.push(task.id);
       if (task.scenario) completedScenarios.push(task.scenario);
     }
@@ -66,7 +74,7 @@ export function buildBuildContext(planFile: string, planName: string, stage: Bui
     plan_path: planFile,
     plan_name: planName,
     plan_status: data.status,
-    base_branch: data.base_branch || 'main',
+    base_branch: data.base_branch || "main",
     scope: data.scope || [],
     stage,
     completed: {
@@ -97,7 +105,7 @@ export async function runDevTestReviewCycle(
   taskId: string,
   priorSummaries: string[],
   planDir: string | null,
-  scope: 'task' | 'subtask',
+  scope: "task" | "subtask",
   settings: Settings,
   planName?: string,
   cwd?: string,
@@ -115,7 +123,7 @@ export async function runDevTestReviewCycle(
         ok: false,
         devResult: dev.structured,
         reviewResult: null,
-        error: dev.structured?.error || 'Dev session failed',
+        error: dev.structured?.error || "Dev session failed",
       };
     }
 
@@ -124,7 +132,17 @@ export async function runDevTestReviewCycle(
     const filesModified = dev.structured.files_modified || [];
 
     // 2. Test hook — mandatory programmatic checks
-    const test = await runVerifyHook(hooks, { taskId, planFile, filesModified, scope, settings, planName, stage: 'development', cwd, branch });
+    const test = await runVerifyHook(hooks, {
+      taskId,
+      planFile,
+      filesModified,
+      scope,
+      settings,
+      planName,
+      stage: "development",
+      cwd,
+      branch,
+    });
 
     if (planDir) {
       writeReport(planDir, `${taskId}-test-${cycle}`, { issues: test.issues });
@@ -132,7 +150,9 @@ export async function runDevTestReviewCycle(
 
     if (!test.ok) {
       issues = test.issues;
-      log(`Cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      log(
+        `Cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
+      );
       continue;
     }
 
@@ -145,7 +165,7 @@ export async function runDevTestReviewCycle(
 
     if (!review.ok) {
       issues = review.issues;
-      log(`Cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      log(`Cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`);
       continue;
     }
 
@@ -161,7 +181,7 @@ export async function runDevTestReviewCycle(
     ok: false,
     devResult: null,
     reviewResult: null,
-    error: `Dev-test-review cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join('; ')}`,
+    error: `Dev-test-review cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join("; ")}`,
   };
 }
 
@@ -187,7 +207,17 @@ export async function runTaskLevelValidation(
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
 
-  const test = await runVerifyHook(hooks, { taskId, planFile, filesModified: [], scope: 'task', settings, planName, stage: 'validation', cwd, branch });
+  const test = await runVerifyHook(hooks, {
+    taskId,
+    planFile,
+    filesModified: [],
+    scope: "task",
+    settings,
+    planName,
+    stage: "validation",
+    cwd,
+    branch,
+  });
   if (planDir) {
     writeReport(planDir, `${taskId}-task-test-1`, { issues: test.issues });
   }
@@ -204,7 +234,19 @@ export async function runTaskLevelValidation(
 
     // Review failed — need a dev fix
     log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
-    return runDevTestReviewCycle(hooks, projectRoot, planFile, taskId, priorSummaries, planDir, 'task', settings, planName, cwd, branch);
+    return runDevTestReviewCycle(
+      hooks,
+      projectRoot,
+      planFile,
+      taskId,
+      priorSummaries,
+      planDir,
+      "task",
+      settings,
+      planName,
+      cwd,
+      branch,
+    );
   }
 
   // Test failed — need a dev fix
@@ -222,7 +264,7 @@ export async function runTaskLevelValidation(
         ok: false,
         devResult: dev.structured,
         reviewResult: null,
-        error: dev.structured?.error || 'Dev session failed',
+        error: dev.structured?.error || "Dev session failed",
       };
     }
 
@@ -230,14 +272,26 @@ export async function runTaskLevelValidation(
 
     const filesModified = dev.structured.files_modified || [];
 
-    const reTest = await runVerifyHook(hooks, { taskId, planFile, filesModified, scope: 'task', settings, planName, stage: 'validation', cwd, branch });
+    const reTest = await runVerifyHook(hooks, {
+      taskId,
+      planFile,
+      filesModified,
+      scope: "task",
+      settings,
+      planName,
+      stage: "validation",
+      cwd,
+      branch,
+    });
     if (planDir) {
       writeReport(planDir, `${taskId}-task-test-${cycle + 1}`, { issues: reTest.issues });
     }
 
     if (!reTest.ok) {
       issues = reTest.issues;
-      log(`Fix cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      log(
+        `Fix cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
+      );
       continue;
     }
 
@@ -248,7 +302,9 @@ export async function runTaskLevelValidation(
 
     if (!review.ok) {
       issues = review.issues;
-      log(`Fix cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? 'retrying' : 'exhausted'}`);
+      log(
+        `Fix cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
+      );
       continue;
     }
 
@@ -259,6 +315,6 @@ export async function runTaskLevelValidation(
     ok: false,
     devResult: null,
     reviewResult: null,
-    error: `Task-level fix cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join('; ')}`,
+    error: `Task-level fix cycle exhausted after ${MAX_DEV_CYCLES} attempts. Last issues: ${issues.slice(0, 5).join("; ")}`,
   };
 }
