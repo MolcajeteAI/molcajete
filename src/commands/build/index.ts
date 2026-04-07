@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { resolve, dirname, basename, join } from "node:path";
 import { log, resolveProjectRoot } from "../../lib/utils.js";
+import { initLogger, closeLogger } from "../../lib/logger.js";
 import {
   readPlan,
   findTask,
@@ -43,6 +44,9 @@ export async function runBuild(planName: string, opts: { resume?: boolean; noWor
   }
   const planDir = dirname(planFile);
   const planRelative = basename(planDir);
+
+  const logPath = initLogger("build", planRelative);
+  log(`Logs: ${logPath}`);
 
   const hooks = await discoverHooks(projectRoot);
   validateMandatoryHooks(hooks);
@@ -420,5 +424,6 @@ async function runAllTasksMode(
     }
   }
 
+  closeLogger();
   process.exit(failedCount === 0 ? 0 : 1);
 }

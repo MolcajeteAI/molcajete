@@ -1,4 +1,6 @@
 import { execSync } from "node:child_process";
+import { clearForLog, isSpinning, redrawAfterLog } from "./spinner.js";
+import { writeLog } from "./logger.js";
 
 // ── Debug Flag ──
 
@@ -16,7 +18,13 @@ export function isDebug(): boolean {
 
 export function log(...args: unknown[]): void {
   const ts = new Date().toISOString().slice(11, 19);
-  process.stderr.write(`[${ts}] ${args.join(" ")}\n`);
+  const line = args.join(" ");
+
+  if (isSpinning()) clearForLog();
+  process.stderr.write(`[${ts}] ${line}\n`);
+  if (isSpinning()) redrawAfterLog();
+
+  writeLog(line);
 }
 
 // ── Sleep ──

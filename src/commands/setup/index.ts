@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ALL_HOOKS, PLUGIN_DIR } from "../../lib/config.js";
 import { log, resolveProjectRoot } from "../../lib/utils.js";
+import { initLogger, closeLogger } from "../../lib/logger.js";
+import { startSpinner, stopSpinner } from "../../lib/spinner.js";
 import { readMultiline, confirm } from "./prompt.js";
 
 export interface SetupOptions {
@@ -31,10 +33,8 @@ export async function runSetup(options: SetupOptions): Promise<void> {
   if (options.prompt !== undefined) {
     guidance = options.prompt;
   } else {
-    const label = hook ? "hook" : "setup";
-    guidance = await readMultiline(
-      `Describe what this ${label} should do. Press Enter for newlines. Submit an empty line to finish. Ctrl+C to cancel.`,
-    );
+    const banner = hook ? `What should the ${hook} hook do?` : "What should the verify hook do?";
+    guidance = await readMultiline(banner);
   }
 
   // Compute target files for this invocation
@@ -65,12 +65,18 @@ export async function runSetup(options: SetupOptions): Promise<void> {
     return;
   }
 
+  // Init logger after user input is collected
+  const logPath = initLogger("setup", hook || "verify");
+  log(`Logs: ${logPath}`);
+
   const payload = JSON.stringify({
     overwrite,
     hook,
     guidance,
     allowedFiles,
   });
+
+  startSpinner("Generating hooks...");
 
   const child = spawn(
     "claude",
@@ -85,6 +91,9 @@ export async function runSetup(options: SetupOptions): Promise<void> {
   const exitCode = await new Promise<number>((resolveP) => {
     child.on("close", (code) => resolveP(code ?? 1));
   });
+
+  stopSpinner();
+  closeLogger();
 
   if (exitCode !== 0) {
     log("Setup failed.");

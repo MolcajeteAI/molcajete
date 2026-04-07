@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import type { ClaudeResult, BuildStats, SessionStats } from "../../types.js";
 import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT } from "../../lib/config.js";
 import { log, sleep, shellQuote, isDebug } from "../../lib/utils.js";
+import { isSpinning, stopSpinner } from "../../lib/spinner.js";
+import { writeLog } from "../../lib/logger.js";
 
 // ── Active Child Process ──
 
@@ -119,6 +121,9 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
       process.stderr.write("\n");
     }
 
+    // Stop spinner before subprocess starts to avoid clashing stderr output
+    if (isSpinning()) stopSpinner();
+
     const child = spawn("claude", fullArgs, {
       cwd: workdir,
       stdio: ["ignore", "pipe", "pipe"],
@@ -129,6 +134,7 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
     child.stderr.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
       process.stderr.write(chunk);
+      writeLog(chunk.toString().trimEnd());
     });
 
     activeChild = child;
