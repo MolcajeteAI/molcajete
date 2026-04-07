@@ -4,7 +4,7 @@ const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
 /**
- * Multi-line raw-mode editor. Enter submits, Shift+Enter inserts a newline.
+ * Multi-line raw-mode editor. Enter inserts a newline, Ctrl+D submits.
  * Supports arrow-key navigation, bracket paste, backspace across lines.
  * Falls back to returning '' when stdin is not a TTY.
  */
@@ -17,7 +17,7 @@ export async function readMultiline(banner: string): Promise<string> {
   }
 
   process.stderr.write(`\n${banner}\n`);
-  process.stderr.write(`${DIM}Enter to submit · Shift+Enter for new line${RESET}\n\n`);
+  process.stderr.write(`${DIM}Ctrl+D to submit · Enter for new line${RESET}\n\n`);
 
   return new Promise<string>((resolve) => {
     const lines: string[] = [""];
@@ -144,20 +144,20 @@ export async function readMultiline(banner: string): Promise<string> {
 
       // ── Normal key handling ──
 
-      // Shift+Enter — CSI u / kitty protocol: ESC[13;2u
-      if (raw === "\x1b[13;2u") {
+      // Ctrl+D — submit
+      if (raw === "\x04") {
+        finish();
+        return;
+      }
+
+      // Enter — insert newline
+      if (raw === "\r" || raw === "\n") {
         const after = lines[row].slice(col);
         lines[row] = lines[row].slice(0, col);
         lines.splice(row + 1, 0, after);
         row++;
         col = 0;
         render();
-        return;
-      }
-
-      // Enter — submit
-      if (raw === "\r" || raw === "\n") {
-        finish();
         return;
       }
 
