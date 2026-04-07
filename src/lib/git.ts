@@ -137,6 +137,7 @@ function findRegisteredWorktree(projectRoot: string, worktreePath: string): stri
   }
 
   const absPath = resolve(worktreePath);
+
   for (const block of output.split("\n\n")) {
     const lines = block.trim().split("\n");
     const wtLine = lines.find((l) => l.startsWith("worktree "));
