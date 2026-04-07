@@ -1,5 +1,5 @@
 ---
-description: Detect project tooling and generate typed TypeScript hook scripts
+description: Detect project tooling and generate hook scripts
 model: claude-sonnet-4-6
 argument-hint: '{"overwrite":false,"hook":null,"guidance":"","allowedFiles":[]}'
 allowed-tools:
@@ -15,15 +15,15 @@ allowed-tools:
 
 **Non-interactive session** — invoked headlessly via `claude -p` by the CLI. No user is present. Never ask questions. The CLI already handled any overwrite confirmation before spawning this session — the `allowedFiles` list tells you exactly which files you are permitted to write.
 
-You are generating typed TypeScript hook scripts for a Molcajete-managed project. Parse `$ARGUMENTS` as JSON to get `{ overwrite, hook, guidance, allowedFiles }`.
+You are generating hook scripts for a Molcajete-managed project. Parse `$ARGUMENTS` as JSON to get `{ overwrite, hook, guidance, allowedFiles }`.
 
 ## Overview
 
 1. Parse arguments.
-2. If generating `verify.ts` (i.e. `hook` is null or `hook === "verify"`), detect BDD framework and per-domain tooling.
+2. If generating `verify.mjs` (i.e. `hook` is null or `hook === "verify"`), detect BDD framework and per-domain tooling.
 3. Read hook templates from `${CLAUDE_PLUGIN_ROOT}/setup/templates/hooks/`.
 4. Generate only the hook file(s) listed in `allowedFiles` — never write anything else.
-5. If `verify.ts` was generated, update `.molcajete/settings.json` with BDD metadata.
+5. If `verify.mjs` was generated, update `.molcajete/settings.json` with BDD metadata.
 
 ## Step 1: Parse Arguments
 
@@ -35,12 +35,12 @@ const guidance    = args.guidance    ?? '';
 const allowedFiles = args.allowedFiles ?? [];
 ```
 
-- `hook === null` → default flow: generate `verify.ts`.
+- `hook === null` → default flow: generate `verify.mjs`.
 - `hook === "<name>"` → generate just that one hook.
-- `guidance` is free-form user text. When non-empty, it should shape the body of the hook(s) you generate. When `hook` is null, apply `guidance` to decisions made while authoring `verify.ts` (e.g. "skip BDD, only run lint" or "use ruff instead of the detected formatter"). When `hook` is set, tailor that hook's body to the intent.
+- `guidance` is free-form user text. When non-empty, it should shape the body of the hook(s) you generate. When `hook` is null, apply `guidance` to decisions made while authoring `verify.mjs` (e.g. "skip BDD, only run lint" or "use ruff instead of the detected formatter"). When `hook` is set, tailor that hook's body to the intent.
 - `allowedFiles` is the list of absolute paths the CLI has pre-confirmed. Never `Write` a file whose absolute path is not in this list.
 
-## Step 2: BDD Detection (only when generating `verify.ts`)
+## Step 2: BDD Detection (only when generating `verify.mjs`)
 
 Check dependency manifests for BDD frameworks:
 
@@ -59,7 +59,7 @@ If using `behave` with a virtual environment, prefix command with `.venv/bin/` i
 
 **Hook Input Context:** The verify hook receives `ctx.input.branch` (worktree branch name) and `ctx.input.cwd` (worktree working directory), both optional. These are useful for container-based test execution where the BDD runner needs to know which branch to test or which directory to operate in.
 
-## Step 3: Per-Domain Tooling Detection (only when generating `verify.ts`)
+## Step 3: Per-Domain Tooling Detection (only when generating `verify.mjs`)
 
 ### 3a. Domain Discovery
 
@@ -117,8 +117,8 @@ When `guidance` is non-empty, also log what you interpreted from it.
 
 Read the template for whichever hook(s) you are generating from `${CLAUDE_PLUGIN_ROOT}/setup/templates/hooks/`:
 
-- Default flow (`hook === null`): read `verify.ts`.
-- `hook === "<name>"`: read `<name>.ts` (one of `verify`, `start`, `stop`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-worktree-create`, `after-worktree-create`, `before-worktree-merge`, `after-worktree-merge`, `before-documentation`, `after-documentation`).
+- Default flow (`hook === null`): read `verify.mjs`.
+- `hook === "<name>"`: read `<name>.mjs` (one of `verify`, `start`, `stop`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-worktree-create`, `after-worktree-create`, `before-worktree-merge`, `after-worktree-merge`, `before-documentation`, `after-documentation`).
 
 Use the template as the base — fill in detected values where you see placeholder comments (`// __FORMATTERS__`, `// __LINTERS__`) or placeholder strings (`__BDD_COMMAND__`, `__TAGS_FLAG__`, `__TAG_JOIN__`, `__START_COMMAND__`, `__STOP_COMMAND__`).
 
@@ -130,7 +130,7 @@ Only write files whose absolute path is in `allowedFiles`. If `allowedFiles` is 
 
 ### Default flow (`hook === null`)
 
-Generate only `.molcajete/hooks/verify.ts` — fill `// __FORMATTERS__` with detected format entries, `// __LINTERS__` with detected lint entries, and the BDD placeholders with the detected framework command, tags flag, and tag join string.
+Generate only `.molcajete/hooks/verify.mjs` — fill `// __FORMATTERS__` with detected format entries, `// __LINTERS__` with detected lint entries, and the BDD placeholders with the detected framework command, tags flag, and tag join string.
 
 When `guidance` is non-empty, let it shape what goes into those blocks (e.g. "skip BDD" → leave `__BDD_COMMAND__` empty so the body short-circuits; "use ruff instead of biome" → replace the detected formatter list).
 
@@ -142,7 +142,7 @@ For `start` / `stop` hooks, detect the environment's start/stop command (`docker
 
 For lifecycle hooks (`before-*`, `after-*`), if `guidance` describes concrete steps, translate them into shell commands or Node code inside the hook body. If `guidance` is empty, emit a minimal stub that preserves the typed signature.
 
-## Step 7: Update Settings (only when `verify.ts` was written)
+## Step 7: Update Settings (only when `verify.mjs` was written)
 
 Read `.molcajete/settings.json` (create if missing). Add/update BDD metadata while preserving existing keys:
 
@@ -160,7 +160,7 @@ Read `.molcajete/settings.json` (create if missing). Add/update BDD metadata whi
 }
 ```
 
-If `verify.ts` was NOT in `allowedFiles` (user skipped overwrite), leave settings alone.
+If `verify.mjs` was NOT in `allowedFiles` (user skipped overwrite), leave settings alone.
 
 ## Step 8: Summary
 

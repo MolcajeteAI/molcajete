@@ -1,19 +1,19 @@
 // ── Build Context ──
 
 export type BuildStage =
-  | 'start'
-  | 'before-task'
-  | 'development'
-  | 'validation'
-  | 'after-task'
-  | 'before-worktree-create'
-  | 'after-worktree-create'
-  | 'before-worktree-merge'
-  | 'after-worktree-merge'
-  | 'documentation'
-  | 'stop'
-  | 'halted'
-  | 'failed';
+  | "start"
+  | "before-task"
+  | "development"
+  | "validation"
+  | "after-task"
+  | "before-worktree-create"
+  | "after-worktree-create"
+  | "before-worktree-merge"
+  | "after-worktree-merge"
+  | "documentation"
+  | "stop"
+  | "halted"
+  | "failed";
 
 export interface BuildContext {
   plan_path: string;
@@ -45,7 +45,7 @@ export interface Task {
   files_to_modify?: string[];
   estimated_context?: string;
   depends_on?: string[];
-  status: 'pending' | 'in_progress' | 'implemented' | 'failed';
+  status: "pending" | "in_progress" | "implemented" | "failed";
   errors?: string[];
   summary?: string;
   sub_tasks?: SubTask[];
@@ -59,7 +59,7 @@ export interface SubTask {
   files_to_modify?: string[];
   estimated_context?: string;
   depends_on?: string[];
-  status: 'pending' | 'in_progress' | 'implemented' | 'failed';
+  status: "pending" | "in_progress" | "implemented" | "failed";
   errors?: string[];
   summary?: string;
 }
@@ -108,7 +108,7 @@ export interface BuildStats {
 }
 
 export interface DevSessionOutput {
-  status: 'done' | 'failed';
+  status: "done" | "failed";
   files_modified: string[];
   summary: string;
   key_decisions?: string[];
@@ -121,20 +121,20 @@ export interface ReviewSessionOutput {
 }
 
 export interface DocSessionOutput {
-  status: 'done' | 'failed';
+  status: "done" | "failed";
   files_modified: string[];
   error?: string | null;
 }
 
 export interface ResolveConflictsOutput {
-  status: 'resolved' | 'failed';
+  status: "resolved" | "failed";
   files_resolved: string[];
   decisions: string[];
   error?: string | null;
 }
 
 export interface RecoverySessionOutput {
-  status: 'recovered' | 'failed';
+  status: "recovered" | "failed";
   actions_taken: string[];
   files_modified: string[];
   summary: string;
@@ -195,14 +195,14 @@ export interface VerifyHookInput {
   commit: string;
   files: string[];
   tags: string[];
-  scope: 'task' | 'subtask' | 'final';
+  scope: "task" | "subtask" | "final";
   cwd?: string;
   branch?: string;
   build?: BuildContext;
 }
 
 export interface VerifyHookOutput {
-  status: 'success' | 'failure';
+  status: "success" | "failure";
   issues: string[];
 }
 
@@ -210,13 +210,13 @@ export interface VerifyHookOutput {
 
 export type StartInput = { build?: BuildContext };
 export interface StartOutput {
-  status: 'ready' | 'failed';
+  status: "ready" | "failed";
   summary?: string;
 }
 
 export type StopInput = { build?: BuildContext };
 export interface StopOutput {
-  status: 'ok' | 'failed';
+  status: "ok" | "failed";
   summary?: string;
 }
 
@@ -265,17 +265,17 @@ export interface DocumentationLifecycleInput {
 }
 
 export interface LifecycleOutput {
-  status: 'ok';
+  status: "ok";
 }
 
 /** v2 hook function signature. */
-export type HookFn<TInput = Record<string, unknown>, TOutput = unknown> =
-  (ctx: HookContext<TInput>) => Promise<TOutput | void>;
+export type HookFn<TInput = Record<string, unknown>, TOutput = unknown> = (
+  ctx: HookContext<TInput>,
+) => Promise<TOutput | undefined>;
 
-/** Hook entry: path + version + optional cached function. */
+/** Hook entry: path + loaded function. */
 export interface HookEntry {
   path: string;
-  version: 1 | 2;
   fn?: HookFn;
 }
 

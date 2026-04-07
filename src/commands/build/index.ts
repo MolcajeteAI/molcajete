@@ -1,42 +1,46 @@
-import { existsSync, readdirSync } from 'node:fs';
-import { resolve, dirname, basename, join } from 'node:path';
-import { log, run } from '../../lib/utils.js';
-import { readPlan, findTask, updatePlanJson, updatePlanLevelStatus, resolvePlanFile, readSettings } from './plan-data.js';
-import { discoverHooks, validateMandatoryHooks, tryHook } from '../lib/hooks.js';
-import { buildStats, formatDuration } from '../lib/claude.js';
-import { writeReport } from './reports.js';
-import { buildTaskContext, buildBuildContext } from './cycle.js';
-import { runDocSession, commitDocChanges, runRecoverySession, maybePushAfterCommit } from './sessions.js';
-import { runSimpleTask, runTaskWithSubTasks } from './tasks.js';
-import { setupWorktree, mergeWorktree } from './worktree.js';
-import { updatePrdStatuses } from './prd.js';
-import type { HookMap, BuildStage, RecoveryContext, Settings, WorktreeInfo } from '../../types.js';
-import { MAX_DEV_CYCLES } from '../../lib/config.js';
+import { existsSync, readdirSync } from "node:fs";
+import { resolve, dirname, basename, join } from "node:path";
+import { log, resolveProjectRoot } from "../../lib/utils.js";
+import {
+  readPlan,
+  findTask,
+  updatePlanJson,
+  updatePlanLevelStatus,
+  resolvePlanFile,
+  readSettings,
+} from "./plan-data.js";
+import { discoverHooks, validateMandatoryHooks, tryHook } from "../lib/hooks.js";
+import { buildStats, formatDuration } from "../lib/claude.js";
+import { buildBuildContext } from "./cycle.js";
+import { runDocSession, commitDocChanges, runRecoverySession, maybePushAfterCommit } from "./sessions.js";
+import { runSimpleTask, runTaskWithSubTasks } from "./tasks.js";
+import { setupWorktree, mergeWorktree } from "./worktree.js";
+import { updatePrdStatuses } from "./prd.js";
+import type { HookMap, BuildStage, RecoveryContext, Settings, WorktreeInfo } from "../../types.js";
+import { MAX_DEV_CYCLES } from "../../lib/config.js";
 
 /**
  * Build command entry point.
  */
 export async function runBuild(planName: string, opts: { resume?: boolean; noWorktrees?: boolean }): Promise<void> {
+  const projectRoot = resolveProjectRoot();
+
   // Resolve plan file
-  const plansDir = resolve('.molcajete', 'plans');
+  const plansDir = resolve(projectRoot, ".molcajete", "plans");
   if (!existsSync(plansDir)) {
-    process.stderr.write('Error: .molcajete/plans/ directory not found\n');
+    process.stderr.write("Error: .molcajete/plans/ directory not found\n");
     process.exit(1);
   }
 
   const planFile = resolvePlanFile(plansDir, planName);
   if (!planFile) {
     const available = readdirSync(plansDir, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && existsSync(join(plansDir, e.name, 'plan.json')))
+      .filter((e) => e.isDirectory() && existsSync(join(plansDir, e.name, "plan.json")))
       .map((e) => e.name)
-      .join('\n  ');
-    process.stderr.write(
-      `Error: plan not found: ${planName}\n\nAvailable plans:\n  ${available || '(none)'}\n`,
-    );
+      .join("\n  ");
+    process.stderr.write(`Error: plan not found: ${planName}\n\nAvailable plans:\n  ${available || "(none)"}\n`);
     process.exit(1);
   }
-
-  const projectRoot = run('git rev-parse --show-toplevel').trim();
   const planDir = dirname(planFile);
   const planRelative = basename(planDir);
 
@@ -55,8 +59,11 @@ function extractSummary(result: Record<string, unknown>, planFile: string, taskI
   if (devResult?.summary) return devResult.summary;
   const data = readPlan(planFile);
   const task = findTask(data, taskId);
-  if (!task?.sub_tasks) return '';
-  return task.sub_tasks.filter(st => st.summary).map(st => st.summary!).join('\n');
+  if (!task?.sub_tasks) return "";
+  return task.sub_tasks
+    .filter((st) => st.summary)
+    .map((st) => st.summary as string)
+    .join("\n");
 }
 
 // ── Main Orchestrator Loop ──
@@ -77,32 +84,39 @@ async function runAllTasksMode(
     // Reset failed tasks back to pending so they are retried
     updatePlanJson(planFile, (d) => {
       for (const t of d.tasks) {
-        if (t.status === 'failed') {
-          t.status = 'pending';
+        if (t.status === "failed") {
+          t.status = "pending";
           t.errors = [];
         }
         if (t.sub_tasks) {
           for (const st of t.sub_tasks) {
-            if (st.status === 'failed') {
-              st.status = 'pending';
+            if (st.status === "failed") {
+              st.status = "pending";
               st.errors = [];
             }
           }
         }
       }
-      if (d.status === 'failed') d.status = 'pending';
+      if (d.status === "failed") d.status = "pending";
     });
   }
 
   const data = readPlan(planFile);
 
   // Start hook (optional) — developer sets up environment
-  const startResult = await tryHook(hooks, 'start', {
-    build: buildBuildContext(planFile, planName, 'start'),
-  }, { timeout: settings.hookTimeout });
+  const startResult = await tryHook(
+    hooks,
+    "start",
+    {
+      build: buildBuildContext(planFile, planName, "start"),
+    },
+    { timeout: settings.hookTimeout },
+  );
   if (startResult && !startResult.ok) {
     log(`BUILD ABORTED: start hook failed — ${startResult.stderr}`);
-    updatePlanJson(planFile, (d) => { d.status = 'failed'; });
+    updatePlanJson(planFile, (d) => {
+      d.status = "failed";
+    });
     process.exit(1);
   }
 
@@ -112,10 +126,12 @@ async function runAllTasksMode(
   let failedCount = 0;
 
   for (const task of data.tasks) {
-    if (task.status === 'implemented') doneCount++;
+    if (task.status === "implemented") doneCount++;
   }
 
-  updatePlanJson(planFile, (d) => { d.status = 'in_progress'; });
+  updatePlanJson(planFile, (d) => {
+    d.status = "in_progress";
+  });
 
   const recoveredTasks = new Set<string>();
   let taskIndex = 0;
@@ -128,12 +144,12 @@ async function runAllTasksMode(
     const freshTask = findTask(freshData, taskId);
     if (!freshTask) continue;
 
-    if (freshTask.status === 'implemented') continue;
+    if (freshTask.status === "implemented") continue;
 
     log(`━━━ Task: ${taskId} — ${freshTask.title} ━━━`);
 
     // Check dependencies
-    const { checkDependencies } = await import('./plan-data.js');
+    const { checkDependencies } = await import("./plan-data.js");
     const depResult = checkDependencies(freshData, taskId);
 
     if (depResult === 1) {
@@ -148,20 +164,20 @@ async function runAllTasksMode(
 
     updatePlanJson(planFile, (d) => {
       const t = findTask(d, taskId);
-      if (t) t.status = 'in_progress';
+      if (t) t.status = "in_progress";
     });
 
     // Collect prior summaries
     const priorSummaries: string[] = [];
     for (const t of freshData.tasks) {
-      if (t.status === 'implemented' && t.summary) {
+      if (t.status === "implemented" && t.summary) {
         priorSummaries.push(t.summary);
       }
     }
 
     // Worktree setup
     const useWorktrees = !noWorktrees;
-    const baseBranch = freshData.base_branch || 'main';
+    const baseBranch = freshData.base_branch || "main";
     let worktree: WorktreeInfo | null = null;
     let taskCwd: string | undefined;
 
@@ -171,8 +187,8 @@ async function runAllTasksMode(
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
           if (t) {
-            t.status = 'failed';
-            t.errors = ['Failed to create worktree'];
+            t.status = "failed";
+            t.errors = ["Failed to create worktree"];
           }
         });
         failedCount++;
@@ -183,11 +199,33 @@ async function runAllTasksMode(
 
     const taskBranch = worktree?.branchName;
 
-    let result;
+    let result: { ok: boolean; error?: string };
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
-      result = await runTaskWithSubTasks(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd, taskBranch);
+      result = await runTaskWithSubTasks(
+        hooks,
+        projectRoot,
+        planFile,
+        freshTask,
+        priorSummaries,
+        planDir,
+        settings,
+        planName,
+        taskCwd,
+        taskBranch,
+      );
     } else {
-      result = await runSimpleTask(hooks, projectRoot, planFile, freshTask, priorSummaries, planDir, settings, planName, taskCwd, taskBranch);
+      result = await runSimpleTask(
+        hooks,
+        projectRoot,
+        planFile,
+        freshTask,
+        priorSummaries,
+        planDir,
+        settings,
+        planName,
+        taskCwd,
+        taskBranch,
+      );
     }
 
     if (result.ok) {
@@ -195,16 +233,24 @@ async function runAllTasksMode(
       const taskSummary = extractSummary(result as Record<string, unknown>, planFile, taskId);
 
       // 2. Doc session — in worktree, before merge
-      await tryHook(hooks, 'before-documentation', {
-        task_id: taskId,
-        ...(taskCwd && { cwd: taskCwd }),
-        ...(taskBranch && { branch: taskBranch }),
-        build: buildBuildContext(planFile, planName, 'documentation'),
-      }, { timeout: settings.hookTimeout });
+      await tryHook(
+        hooks,
+        "before-documentation",
+        {
+          task_id: taskId,
+          ...(taskCwd && { cwd: taskCwd }),
+          ...(taskBranch && { branch: taskBranch }),
+          build: buildBuildContext(planFile, planName, "documentation"),
+        },
+        { timeout: settings.hookTimeout },
+      );
 
       const doc = await runDocSession(
-        projectRoot, planFile, freshTask,
-        [...priorSummaries, taskSummary].join('\n'), [],
+        projectRoot,
+        planFile,
+        freshTask,
+        [...priorSummaries, taskSummary].join("\n"),
+        [],
         taskCwd,
       );
       if (doc.ok && doc.structured?.files_modified?.length > 0) {
@@ -212,12 +258,17 @@ async function runAllTasksMode(
         maybePushAfterCommit(settings, `doc ${taskId}`, taskCwd);
       }
 
-      await tryHook(hooks, 'after-documentation', {
-        task_id: taskId,
-        ...(taskCwd && { cwd: taskCwd }),
-        ...(taskBranch && { branch: taskBranch }),
-        build: buildBuildContext(planFile, planName, 'documentation'),
-      }, { timeout: settings.hookTimeout });
+      await tryHook(
+        hooks,
+        "after-documentation",
+        {
+          task_id: taskId,
+          ...(taskCwd && { cwd: taskCwd }),
+          ...(taskBranch && { branch: taskBranch }),
+          build: buildBuildContext(planFile, planName, "documentation"),
+        },
+        { timeout: settings.hookTimeout },
+      );
 
       // 3. Merge worktree (doc commit now included in the branch)
       if (worktree) {
@@ -227,8 +278,8 @@ async function runAllTasksMode(
           updatePlanJson(planFile, (d) => {
             const t = findTask(d, taskId);
             if (t) {
-              t.status = 'failed';
-              t.errors = [mergeResult.error || 'Worktree merge failed'];
+              t.status = "failed";
+              t.errors = [mergeResult.error || "Worktree merge failed"];
             }
           });
           failedCount++;
@@ -241,7 +292,7 @@ async function runAllTasksMode(
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
-          t.status = 'implemented';
+          t.status = "implemented";
           t.errors = [];
           const devResult = (result as Record<string, unknown>).devResult as { summary?: string } | undefined;
           if (devResult?.summary) {
@@ -260,8 +311,8 @@ async function runAllTasksMode(
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
-          t.status = 'failed';
-          t.errors = [result.error || 'Task failed'];
+          t.status = "failed";
+          t.errors = [result.error || "Task failed"];
         }
       });
 
@@ -279,17 +330,22 @@ async function runAllTasksMode(
         plan_path: planFile,
         plan_name: planName,
         failed_task_id: taskId,
-        failed_stage: 'halted',
-        error: result.error || 'Task failed',
-        build: buildBuildContext(planFile, planName, 'halted'),
+        failed_stage: "halted",
+        error: result.error || "Task failed",
+        build: buildBuildContext(planFile, planName, "halted"),
         prior_summaries: priorSummaries,
         cycle_count: MAX_DEV_CYCLES,
       };
 
       // Fire halted hook (informational)
-      await tryHook(hooks, 'stop', {
-        build: buildBuildContext(planFile, planName, 'halted'),
-      }, { timeout: settings.hookTimeout });
+      await tryHook(
+        hooks,
+        "stop",
+        {
+          build: buildBuildContext(planFile, planName, "halted"),
+        },
+        { timeout: settings.hookTimeout },
+      );
 
       const recovery = await runRecoverySession(projectRoot, recoveryContext);
 
@@ -299,12 +355,12 @@ async function runAllTasksMode(
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
           if (t) {
-            t.status = 'pending';
+            t.status = "pending";
             t.errors = [];
             if (t.sub_tasks) {
               for (const st of t.sub_tasks) {
-                if (st.status === 'failed') {
-                  st.status = 'pending';
+                if (st.status === "failed") {
+                  st.status = "pending";
                   st.errors = [];
                 }
               }
@@ -327,15 +383,20 @@ async function runAllTasksMode(
   }
 
   // Stop hook (optional) — developer tears down environment
-  const stopStage: BuildStage = failedCount > 0 ? 'failed' : 'stop';
-  await tryHook(hooks, 'stop', {
-    build: buildBuildContext(planFile, planName, stopStage),
-  }, { timeout: settings.hookTimeout });
+  const stopStage: BuildStage = failedCount > 0 ? "failed" : "stop";
+  await tryHook(
+    hooks,
+    "stop",
+    {
+      build: buildBuildContext(planFile, planName, stopStage),
+    },
+    { timeout: settings.hookTimeout },
+  );
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 
   // Completion Report
-  log('━━━ Build Complete ━━━');
+  log("━━━ Build Complete ━━━");
   log(`Implemented: ${doneCount} | Failed: ${failedCount} | Total: ${taskCount}`);
   if (buildStats.sessions > 0) {
     log(
@@ -343,17 +404,17 @@ async function runAllTasksMode(
     );
   }
 
-  process.stdout.write('\nTask Status:\n');
+  process.stdout.write("\nTask Status:\n");
   const finalData = readPlan(planFile);
   for (const task of finalData.tasks) {
     const status = task.status.padEnd(12);
-    const error = task.errors?.length ? ` (${task.errors.join('; ')})` : '';
+    const error = task.errors?.length ? ` (${task.errors.join("; ")})` : "";
     process.stdout.write(`  ${task.id.padEnd(10)}  ${status} ${task.title}${error}\n`);
 
     if (task.sub_tasks) {
       for (const st of task.sub_tasks) {
         const stStatus = st.status.padEnd(12);
-        const stError = st.errors?.length ? ` (${st.errors.join('; ')})` : '';
+        const stError = st.errors?.length ? ` (${st.errors.join("; ")})` : "";
         process.stdout.write(`    ${st.id.padEnd(14)}  ${stStatus} ${st.title}${stError}\n`);
       }
     }
