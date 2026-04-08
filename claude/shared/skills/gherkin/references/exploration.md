@@ -8,7 +8,7 @@ Consult all applicable sources in order; do not stop at the first match.
 
 Read all domain FEATURES.md files as the primary discovery source. The feature inventories contain status-tracked lists of all features in the system.
 
-1. Read `prd/DOMAINS.md` to get all domains, then read `prd/FEATURES.md` (the master feature inventory).
+1. Read `prd/MODULES.md` to get all modules, then read `prd/FEATURES.md` (the master feature inventory).
 2. Search for entries where the feature name, description, or slug relates to the argument. Use keyword matching — split the argument into words and look for entries containing those words or close synonyms.
 3. For each matching entry, extract:
    - The feature name, slug, and status
@@ -18,10 +18,10 @@ Read all domain FEATURES.md files as the primary discovery source. The feature i
 
 ## 2-exp-b. Scan Feature Spec Directories
 
-Scan `prd/domains/*/features/` directory names to find feature folders whose slug relates to the argument.
+Scan `prd/modules/*/features/` directory names to find feature folders whose slug relates to the argument.
 
-1. Glob `prd/domains/*/features/*/` to list all feature folder names across all domains.
-2. For each folder, extract the slug (the directory name itself, e.g., `FEAT-0A1b-user-auth`) and the domain from the parent path.
+1. Glob `prd/modules/*/features/*/` to list all feature folder names across all modules.
+2. For each folder, extract the slug (the directory name itself, e.g., `FEAT-0A1b-user-auth`) and the module from the parent path.
 3. Compare each slug against the argument: split both into words (using `_`, `-`, and spaces as delimiters) and check for word overlap. A slug matches if at least one significant word from the argument appears in the slug, or vice versa.
 4. For each matching feature folder, read its spec files and extract:
    - **From REQUIREMENTS.md:** EARS-syntax requirements, fit criteria, non-goals, acceptance checklist

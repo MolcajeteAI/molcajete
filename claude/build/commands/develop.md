@@ -40,9 +40,9 @@ Read skills that govern this session:
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
-3. For sub-tasks: the parent task provides `use_case`, `feature`, `domain`, `architecture`, `intent`, `scenario`
+3. For sub-tasks: the parent task provides `use_case`, `feature`, `module`, `architecture`, `intent`, `scenario`
 4. Read project context files:
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/DOMAINS.md`
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/MODULES.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
    - Feature's REQUIREMENTS.md and ARCHITECTURE.md
    - Use case files and Gherkin feature files for the task's scenarios

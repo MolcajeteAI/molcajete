@@ -27,11 +27,11 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
   if (doneTags.size === 0 || implementedUcs.size === 0) return;
 
   const affectedFeatures = new Set<string>();
-  const domainsDir = join(prdDir, "domains");
-  if (!existsSync(domainsDir)) return;
+  const modulesDir = join(prdDir, "modules");
+  if (!existsSync(modulesDir)) return;
 
   for (const ucId of implementedUcs) {
-    const ucFile = findFile(domainsDir, `use-cases/${ucId}.md`);
+    const ucFile = findFile(modulesDir, `use-cases/${ucId}.md`);
     if (!ucFile) {
       log(`Warning: UC file not found for ${ucId} — skipping`);
       continue;
@@ -65,7 +65,7 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
   }
 
   for (const featDirName of affectedFeatures) {
-    const useCasesIndex = findFile(domainsDir, `${featDirName}/USE-CASES.md`);
+    const useCasesIndex = findFile(modulesDir, `${featDirName}/USE-CASES.md`);
     if (!useCasesIndex) continue;
 
     const indexContent = readFileSync(useCasesIndex, "utf8");
@@ -73,14 +73,6 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
     const allImplemented = ucRows.every((row) => /\| *implemented *\|/.test(row));
 
     if (!allImplemented) continue;
-
-    const domainDir = dirname(dirname(dirname(useCasesIndex)));
-    const domainName = basename(domainDir);
-
-    if (domainName === "global") {
-      log("Skipping feature status update for global domain (spec-only)");
-      continue;
-    }
 
     const featuresMd = join(projectRoot, "prd", "FEATURES.md");
     if (existsSync(featuresMd)) {

@@ -31,7 +31,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
-3. Extract the task's `intent`, `domain`, `scenario`, and `use_case` from the plan
+3. Extract the task's `intent`, `module`, `scenario`, and `use_case` from the plan
 
 ## Step 2: Spawn Sub-Agents (All in Parallel)
 

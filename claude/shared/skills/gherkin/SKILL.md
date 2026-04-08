@@ -96,11 +96,11 @@ Detection results (language, framework, format) are persisted in `.molcajete/set
 
 Determine domain subdirectories under `bdd/features/` using this priority — stop at the first source that yields names:
 
-0. **DOMAINS.md registry:** Read `prd/DOMAINS.md`. If it exists and contains domain entries, use those domain names as `bdd/features/` subdirectories. This is the authoritative source. Add `@{domain}` to feature-level tags.
+0. **MODULES.md registry:** Read `prd/MODULES.md`. If it exists and contains module entries, use those module names as `bdd/features/` subdirectories. This is the authoritative source. Add `@{domain}` to feature-level tags.
 1. **User-defined rules:** Glob `bdd/.claude/rules/*.md` for explicit domain mappings.
 2. **BDD conventions file:** Read `bdd/CLAUDE.md` for domain conventions.
 3. **Existing domain folders:** Glob `bdd/features/*/` — preserve existing domains.
-4. **PRD feature specs:** Glob `prd/domains/*/features/*/` and use domain folder names as domain hints.
+4. **PRD feature specs:** Glob `prd/modules/*/features/*/` and use module folder names as domain hints.
 5. **Codebase structure:** Glob top-level and `server/`/`src/` subdirectories.
 
 If no sources yield domains, create a single `general/` domain folder. Always ensure `cross-domain/` exists. Use kebab-case naming.

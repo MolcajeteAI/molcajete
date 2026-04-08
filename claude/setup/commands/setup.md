@@ -63,15 +63,15 @@ If using `behave` with a virtual environment, prefix command with `.venv/bin/` i
 
 ### 3a. Domain Discovery
 
-Read `prd/DOMAINS.md` for the domain list. Parse the domains table to get domain names and directories.
+Read `prd/MODULES.md` for the module list. Parse the modules table to get module names and directories.
 
-If `prd/DOMAINS.md` doesn't exist, fall back to directory structure detection:
+If `prd/MODULES.md` doesn't exist, fall back to directory structure detection:
 - Check for `apps/*/`, `packages/*/`, `services/*/`, `cmd/*/` patterns
-- Each subdirectory with its own build config is a domain
+- Each subdirectory with its own build config is a module
 
 ### 3b. Tooling Per Domain
 
-For each domain directory, check:
+For each module directory, check:
 
 | Config file | Tool | Format command | Lint command |
 |---|---|---|---|

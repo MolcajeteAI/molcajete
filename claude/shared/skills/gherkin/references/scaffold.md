@@ -28,11 +28,11 @@ mkdir -p bdd/features/cross-domain bdd/steps
 
 Determine which domain subdirectories to create under `bdd/features/`. Follow the domain detection priority from SKILL.md — stop at the first source that yields domain names:
 
-0. **DOMAINS.md registry:** Read `prd/DOMAINS.md`. If it exists and contains domain entries, use those domain names as `bdd/features/` subdirectories. This is the authoritative source.
+0. **MODULES.md registry:** Read `prd/MODULES.md`. If it exists and contains module entries, use those module names as `bdd/features/` subdirectories. This is the authoritative source.
 1. **User-defined rules:** Glob `bdd/.claude/rules/*.md`. If files exist, read them for explicit domain mappings and folder names. Use those domains.
 2. **BDD conventions file:** If `bdd/CLAUDE.md` exists, read it for domain conventions.
 3. **Existing domain folders:** Glob `bdd/features/*/`. If domain folders already exist, preserve them. Do not remove or rename existing domains.
-4. **PRD feature specs:** Glob `prd/domains/*/features/*/`. Use domain folder names as domain hints (e.g., `prd/domains/auth/` → `auth`, `prd/domains/billing/` → `billing`).
+4. **PRD feature specs:** Glob `prd/modules/*/features/*/`. Use module folder names as domain hints (e.g., `prd/modules/auth/` → `auth`, `prd/modules/billing/` → `billing`).
 5. **Codebase structure:** Glob top-level directories and `server/` or `src/` subdirectories. Infer domains from module/package names.
 
 If no sources yield domains, create a single `general/` domain folder.

@@ -34,7 +34,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 1. Read the plan JSON file
 2. Find the task matching `task_id`
-3. Extract `feature`, `use_case`, `domain`, `architecture`, `scenario`
+3. Extract `feature`, `use_case`, `module`, `architecture`, `scenario`
 
 ## Step 2: Spawn Sub-Agents (Parallel)
 
@@ -51,9 +51,9 @@ Spawn with `model: "opus"`. This agent:
    - **Architecture Decisions:** Document non-obvious choices from `dev_summary`
 3. Propagates PRD statuses:
    - **UC Status Rollup:** For the UC-XXXX in the task's `use_case`, find the UC file, read all scenario headings (`### SC-XXXX`), check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan. If all covered → update UC status to `implemented`.
-   - **Feature Status Rollup:** After updating UC status, read the feature's `USE-CASES.md`. If ALL UCs are `implemented` → update feature status in `prd/FEATURES.md`. Skip `global` domain features.
+   - **Feature Status Rollup:** After updating UC status, read the feature's `USE-CASES.md`. If ALL UCs are `implemented` → update feature status in `prd/FEATURES.md`.
 
-Provide the agent with: `plan_path`, `task_id`, `architecture` path, `use_case`, `feature`, `domain`, `scenario`, `files_modified`, `dev_summary`, and the full plan JSON content.
+Provide the agent with: `plan_path`, `task_id`, `architecture` path, `use_case`, `feature`, `module`, `scenario`, `files_modified`, `dev_summary`, and the full plan JSON content.
 
 ### README Agent (model: sonnet, `implement` intent only)
 

@@ -39,7 +39,7 @@ export interface Task {
   feature?: string;
   use_case?: string;
   scenario?: string;
-  domain?: string;
+  module?: string;
   architecture?: string;
   description?: string;
   files_to_modify?: string[];

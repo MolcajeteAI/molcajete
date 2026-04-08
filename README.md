@@ -445,7 +445,7 @@ The plugin's `/m:setup` populates `prd/TECH-STACK.md` with the following section
 
 `FEATURES.md` is a single master index with the global section first (cross-cutting baseline), then one section per domain. Cross-cutting features use the **same FEAT-XXXX ID** across global and all implementing domains — the shared ID makes the relationship explicit. Global holds only baseline REQUIREMENTS.md + ARCHITECTURE.md (no use cases). Each domain that implements the feature gets its own `features/FEAT-XXXX-{slug}/` directory with domain-specific requirements, use cases, and architecture. Domain features declare `refs: [FEAT-XXXX]` in their REQUIREMENTS.md frontmatter to link back to the global baseline (plus any other features they depend on).
 
-When a command receives a global feature ID (e.g., `molcajete plan FEAT-XXXX`), it globs `prd/domains/*/features/FEAT-XXXX-*/` to find all domain implementations, then generates a cross-domain plan. Pass specific use case IDs for narrower scope.
+When a command receives a global feature ID (e.g., `molcajete plan FEAT-XXXX`), it globs `prd/modules/*/features/FEAT-XXXX-*/` to find all module implementations, then generates a cross-module plan. Pass specific use case IDs for narrower scope.
 
 ### Documents
 
@@ -578,9 +578,9 @@ All FEAT/UC/SC IDs are generated via base62 timestamp (4-char uppercase codes).
 
 ### Naming
 
-- Directories: lowercase (`prd/domains/patient/`, `bdd/steps/`)
+- Directories: lowercase (`prd/modules/patient/`, `bdd/steps/`)
 - PRD spec files: UPPERCASE (`PROJECT.md`, `FEATURES.md`, `REQUIREMENTS.md`)
-- Domain directories: lowercase, directly under `prd/domains/` (`global/`, `patient/`, `server/`)
+- Module directories: lowercase, directly under `prd/modules/` (`patient/`, `server/`)
 - Everything else: lowercase
 
 ### Task Statuses

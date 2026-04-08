@@ -77,7 +77,7 @@ Sub-tasks break a large task into sequential steps.
 ### Rules
 
 - Sub-tasks are sequential steps on the same branch.
-- Sub-tasks inherit `use_case`, `feature`, `domain`, `architecture`, `intent`, `scenario` from the parent task.
+- Sub-tasks inherit `use_case`, `feature`, `module`, `architecture`, `intent`, `scenario` from the parent task.
 - Sub-task `depends_on` references sibling sub-task IDs only (e.g., `T-003-1`).
 - Sub-task IDs follow `T-NNN-M` format (parent ID + dash + integer). Never decimal.
 - Sub-task state lives in `tasks[].sub_tasks[]` in the plan JSON.
@@ -448,7 +448,7 @@ Handled by the architecture agent within the doc session.
 
 **UC Status Rollup:**
 For the UC-XXXX in the completed task's `use_case`:
-1. Find the UC file: `prd/domains/*/features/*/use-cases/{UC-XXXX}-*.md`
+1. Find the UC file: `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`
 2. Read all scenario headings (`### SC-XXXX`) from the UC file
 3. Check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan
 4. If all scenarios covered → update UC status to `implemented`
@@ -457,7 +457,7 @@ For the UC-XXXX in the completed task's `use_case`:
 After updating UC statuses:
 1. Read the feature's `USE-CASES.md`
 2. If ALL UCs in the feature are `implemented` → update feature status in `prd/FEATURES.md`
-3. Skip features in the `global` domain (spec-only, no implementation status)
+
 
 ## Rate Limit Backoff
 
@@ -482,8 +482,8 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
       "title": "Auth foundation",
       "use_case": "UC-0F4a",
       "feature": "FEAT-0F3y",
-      "domain": "app",
-      "architecture": "prd/domains/app/features/FEAT-0F3y-auth-foundation/ARCHITECTURE.md",
+      "module": "app",
+      "architecture": "prd/modules/app/features/FEAT-0F3y-auth-foundation/ARCHITECTURE.md",
       "intent": "implement",
       "status": "pending",
       "estimated_context": "~120K tokens",
@@ -510,7 +510,7 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
 | `tasks[].title` | string | Human-readable task title |
 | `tasks[].use_case` | string | UC-XXXX ID this task advances |
 | `tasks[].feature` | string | Parent feature ID (FEAT-XXXX) |
-| `tasks[].domain` | string | Domain name from DOMAINS.md |
+| `tasks[].module` | string | Module name from MODULES.md |
 | `tasks[].architecture` | string | Path to feature's ARCHITECTURE.md |
 | `tasks[].intent` | string | `"implement"` or `"wire-bdd"` |
 | `tasks[].status` | string | Current status from lifecycle |
