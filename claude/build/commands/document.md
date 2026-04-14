@@ -35,6 +35,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 1. Read the plan JSON file
 2. Find the task matching `task_id`
 3. Extract `feature`, `use_case`, `module`, `architecture`, `scenario`
+4. Read the companion `plan.md` when present. Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` that contains both `plan.json` and (when applicable) `plan.md`. Locate the `### T-NNN` section matching `task_id` and forward its "What changes" and "Important snippets" subsections to the Architecture sub-agent so it can lift non-obvious decisions and shapes into `ARCHITECTURE.md` without re-deriving them from diffs. The MD may contain human-authored refinements that are more authoritative than what the diff alone would suggest.
 
 ## Step 2: Spawn Sub-Agents (Parallel)
 

@@ -41,14 +41,18 @@ Read skills that govern this session:
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
 3. For sub-tasks: the parent task provides `use_case`, `feature`, `module`, `architecture`, `intent`, `scenario`
-4. Read project context files:
+4. Read the companion `plan.md`. Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/`, and that directory is expected to contain both `plan.json` and `plan.md` side by side.
+   - **If the task's `intent` is `implement` (spec-first / greenfield):** `plan.md` **must** be present. If it is missing, stop this session and return `{"status": "failed", "files_modified": [], "summary": "", "key_decisions": [], "error": "Companion plan.md missing from the plan directory. Regenerate the plan with /m:plan or restore the file before re-running build."}`. Do not proceed from the JSON alone — the human may have edited implementation intent into `plan.md` that the JSON does not carry.
+   - **If the task's `intent` is `wire-bdd` (reverse):** `plan.md` is optional. If present, read it. If absent, proceed from `plan.json` alone — the reverse plan had no blocking testability prerequisites.
+   - When `plan.md` is loaded, locate the `### T-NNN — {title}` section matching `task_id`. For sub-tasks, use the parent `T-NNN` section and look for the sub-task as a nested bullet under "Files to create/modify". Treat the section's "What changes", "Important snippets", "Files to create/modify", "Non-requirements (task-level)", and "Verification" subsections as authoritative implementation intent — they may reflect human edits made after plan generation. If the MD and JSON disagree on narrative or snippets, trust the MD; if they disagree on flow-control fields (status, intent, dependencies, `files_to_modify` ordering, scenario tag, module), trust the JSON.
+5. Read project context files:
    - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/MODULES.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
    - Feature's REQUIREMENTS.md and ARCHITECTURE.md
    - Use case files and Gherkin feature files for the task's scenarios
    - `bdd/steps/INDEX.md`
-5. Read prior task/sub-task summaries for context continuity
-6. If `issues` is non-empty, these are validation failures from a prior cycle — focus on fixing them
+6. Read prior task/sub-task summaries for context continuity
+7. If `issues` is non-empty, these are validation failures from a prior cycle — focus on fixing them
 
 ## Step 3: Implement
 
@@ -106,3 +110,4 @@ Respond with a structured JSON block:
 - Do NOT run quality gates (formatting, linting, BDD tests). The orchestrator's test hook handles that.
 - If this is a retry, fix ALL reported issues in one pass — do not fix them one at a time.
 - Commit all changes before outputting results.
+- `plan.json` is flow-control authority; `plan.md` is narrative / implementation-intent authority and may contain human edits made after plan generation. Never silently proceed past a missing `plan.md` on an `implement`-intent task — return the structured failure described in Step 2.

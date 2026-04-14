@@ -523,6 +523,50 @@ The plan file at `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/plan.json` is the singl
 | `tasks[].summary` | string\|null | Written post-build, null until then |
 | `tasks[].errors` | string[] | Error messages if failed |
 
+## Companion `plan.md`
+
+Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/`. When the MD exists, that directory contains both `plan.json` and `plan.md` side by side. `plan.md` is the human-readable companion to the JSON — used by build sessions as the authoritative narrative and implementation-intent reference.
+
+### Authorship
+
+`plan.md` is generated from `plan.json` + PRD context by `/m:plan` and `/m:reverse-plan`, but it is **also a human edit surface**. Users routinely tweak snippets, "What changes", and "Non-requirements (task-level)" in `plan.md` between plan generation and `molcajete build` whenever the JSON ordering and dependencies are already correct and only implementation intent needs adjusting. Build sessions must honor those edits and must never rewrite `plan.md`.
+
+### Presence
+
+| Plan type | Generating command | `plan.md` |
+|-----------|--------------------|-----------|
+| Greenfield (`intent: implement`) | `/m:plan` | **Required.** Missing MD is a hard error for the `develop` session (returns `status: "failed"`). |
+| Reverse (`intent: wire-bdd`) | `/m:reverse-plan` | **Optional.** Present only when at least one scoped UC has a surviving `UC-XXXX-{slug}-TEST-ISSUES.md` REC after the `ARCHITECTURE.md#Testing Decisions` filter. Absence is silent and expected. |
+
+### Per-task structure
+
+`plan.md` contains a `### T-NNN — {title}` section per top-level task, in JSON task order. Each section has: References, What changes, Important snippets, Files to create/modify, Non-requirements (task-level), Verification. Sub-tasks appear as nested bullets under their parent's "Files to create/modify" — they do not get their own sections. Sessions locate the task section by matching `T-NNN` (using the parent ID when `task_id` is a sub-task).
+
+### Excluded fields
+
+The following JSON fields are **never** rendered into `plan.md` and must always be read from `plan.json`: `plan.status`, `task.status`, `task.summary`, `task.errors`, `task.estimated_context`, `task.depends_on`.
+
+### Authority rule
+
+`plan.json` is flow-control authority; `plan.md` is narrative / implementation-intent authority.
+
+- Narrative, snippets, verification steps, non-requirements → trust `plan.md` (it may include human refinements).
+- Status, intent, dependencies, scenario tag, module, `files_to_modify` ordering → trust `plan.json`.
+- Sessions must not mutate either file during a build.
+
+### Reverse-specific sections
+
+When `plan.md` is present on a reverse plan, it also contains:
+
+- **Global prerequisites** — `PRE-G-NN` entries, each mapped to a sub-task under `T-001` in `plan.json`.
+- **Per-scenario prerequisites** — `PRE-SC-NN` entries, folded into the owning task's JSON `description` as a `Prerequisites:` paragraph during plan generation (with the prereq paths appended to `files_to_modify`).
+
+The JSON side-effects are already embedded in the task data, so `molcajete build` remains fully driven by `plan.json`. The MD exists to make these prerequisites human-inspectable and human-adjustable before the build runs.
+
+### Loading in sessions
+
+The `develop`, `validate`, and `document` session commands all load the companion `plan.md` in their "Load Context" step (see their respective prompts in `build/commands/`). They derive its location from the same directory that holds `plan.json`.
+
 ## Session Naming
 
 - **Dev session:** `dev-{T-NNN}` or `dev-{T-NNN-M}`
