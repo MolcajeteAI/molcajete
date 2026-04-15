@@ -1,6 +1,6 @@
 {
   "name": "molcajete",
-  "version": "3.9.0",
+  "version": "3.0.0",
   "description": "Session commands and build skills for headless build dispatch",
   "author": {
     "name": "Ivan Torres",

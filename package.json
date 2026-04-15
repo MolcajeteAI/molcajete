@@ -1,8 +1,8 @@
 {
-  "name": "@molcajeteai/cli",
+  "name": "@molcajete/cli",
   "version": "3.0.0",
   "type": "module",
-  "description": "Spec-driven software development CLI powered by Claude Code",
+  "description": "Molcajete CLI, spec-driven development harness with Claude Code",
   "bin": {
     "molcajete": "./dist/molcajete.mjs"
   },
