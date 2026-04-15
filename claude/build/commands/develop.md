@@ -49,7 +49,8 @@ Read skills that govern this session:
    - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/MODULES.md`
    - `CLAUDE.md` and `.claude/rules/*.md`
    - Feature's REQUIREMENTS.md and ARCHITECTURE.md
-   - Use case files and Gherkin feature files for the task's scenarios
+   - The UC file for the task's `use_case`. Locate it with `Glob prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md` — filenames are always `UC-XXXX-{slug}.md`.
+   - The UC's Gherkin feature file. Locate it with `Glob bdd/features/**/{UC-XXXX}-*.feature` (or `*.feature.md` for MDG) — one UC, one feature file, UC-ID-prefixed and slug-tolerant.
    - `bdd/steps/INDEX.md`
 6. Read prior task/sub-task summaries for context continuity
 7. If `issues` is non-empty, these are validation failures from a prior cycle — focus on fixing them
@@ -58,12 +59,12 @@ Read skills that govern this session:
 
 ### 3.0 Activate task scenarios
 
-Before implementing, remove lifecycle tags (`@pending`, `@dirty`) from all scenarios matching this task's `scenario` in `.feature` files:
+Before implementing, remove lifecycle tags (`@pending`, `@dirty`) from this task's scenario in the UC's `.feature` file:
 
 1. If the task's `scenario` is non-null, derive the tag `@SC-XXXX` by prepending `@`:
-   - Grep `bdd/features/` for `@SC-XXXX`
-   - If found, edit the tag line to remove `@pending` and/or `@dirty`
-2. This makes the scenarios "active" for the validation session's BDD gate
+   - Locate the UC's single feature file with `Glob bdd/features/**/{UC-XXXX}-*.feature` (or `*.feature.md`) using the task's `use_case`. The file sits at `bdd/features/{module}/{domain}/{UC-XXXX}-{slug}.feature`.
+   - Within that file, find the `@SC-XXXX` line and edit it to remove `@pending` and/or `@dirty`. Do not touch `@SC-` tags in other UC files — one-UC-per-file means the scope is always the single located file.
+2. This makes the scenario "active" for the validation session's BDD gate
 3. On retry cycles (issues list is non-empty), skip this step — tags were already removed on the first pass
 
 Include the modified `.feature` files in the `files_modified` output.

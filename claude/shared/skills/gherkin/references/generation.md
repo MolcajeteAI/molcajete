@@ -22,7 +22,13 @@ This section runs **only** when the argument matched an existing feature (Step 1
 Before generating any new scenario, compare its proposed name against every existing scenario name in the file:
 
 - **Exact match** (case-insensitive, ignoring leading/trailing whitespace): Inform the user — "Scenario '{name}' already exists at `{file}:{line}`. Skipping." Do not generate this scenario.
-- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Log: "Scenario '{proposed}' may duplicate existing '{existing}' at `{file}:{line}`. Skipping." Do not generate this scenario.
+- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Warn the user — "Scenario '{proposed}' may duplicate existing '{existing}' at `{file}:{line}`." Use AskUserQuestion:
+  - Question: "This scenario name looks similar to an existing one. Add it anyway?"
+  - Header: "Duplicate?"
+  - Options:
+    - "Skip this scenario" — do not generate it
+    - "Add it anyway" — proceed with generation
+  - multiSelect: false
 - **No match**: Proceed with generation.
 
 **Store context for subsequent steps:**
@@ -32,41 +38,47 @@ After the dedup check, carry forward:
 - The list of step patterns already used in the existing feature file (so 3c maximizes step reuse)
 - The file path and line count of the existing feature file (so 3b knows where to append)
 
-## 3a. Determine Domain Folder
+**Key distinction:** Module = first directory segment under `bdd/features/` (from `prd/MODULES.md`). Domain = second directory segment (the single domain from the feature's REQUIREMENTS.md frontmatter). Filename = `{UC-XXXX}-{uc-slug}.feature` — one file per UC. Never use a feature name as the module or filename segment.
 
-Decide which `bdd/features/{domain}/` folder to place the feature file in:
+**One feature → one domain → one BDD directory.** Every scenario in a UC's file tests the same domain. Side effects (emails, notifications, downstream events) are validations of that UC, not evidence of another domain being tested.
 
-1. If the argument was resolved from a UC-ID (Step 1b), infer the domain from the spec's subject area (e.g., an authentication UC goes in `authentication/`).
-2. If the argument matched an existing feature (Step 1c), use the same domain folder as the existing file.
-3. If the argument is a generic name (Step 1d), use the primary domain determined in the exploration procedure.
-4. Check existing domain folders in `bdd/features/`. If a suitable domain already exists, use it.
-5. If no existing domain fits, create a new `bdd/features/{domain}/` folder with a descriptive kebab-case name.
-6. If the feature spans multiple domains, use `cross-domain/`.
+## 3a. Determine Module + Domain Folder
+
+Resolve the `bdd/features/{module}/{domain}/` folder for the target UC's `.feature` file:
+
+1. Identify the owning PRD feature and UC for the argument:
+   - UC-ID (Step 1b): use that UC directly.
+   - Existing feature (Step 1c): the argument resolves to an existing `.feature` file — it already encodes a single UC. Extract the UC from the filename `{UC-XXXX}-{uc-slug}.feature` or from the `@UC-XXXX` feature-level tag.
+   - Generic name (Step 1d): resolve the closest matching UC from exploration context.
+2. Read the owning PRD feature's `REQUIREMENTS.md` frontmatter:
+   - `module:` → `{module}` path segment.
+   - `domain:` → `{domain}` path segment (single value; every feature has exactly one domain).
+3. If no spec exists (generic name with no PRD match), fall back to module detection priority from SKILL.md and prompt the user for the domain.
+4. Verify `bdd/features/{module}/{domain}/` exists. If not, create it with `mkdir -p`.
 
 ## 3b. Generate Feature File
 
-Create the feature file at `bdd/features/{domain}/{feature-name}.feature` (or `.feature.md` if MDG format). Read the matching template: `templates/feature-gherkin.md` for `.feature` files or `templates/feature-mdg.md` for `.feature.md` files.
+One `.feature` file per UC. Create the file at `bdd/features/{module}/{domain}/{UC-XXXX}-{uc-slug}.feature` (or `.feature.md` if MDG format). Read the matching template: `templates/feature-gherkin.md` for `.feature` files or `templates/feature-mdg.md` for `.feature.md` files.
 
 Follow the file naming rules, tagging rules, step writing rules, and Gherkin construct selection rules from SKILL.md.
 
 **Feature-level structure:**
-- Add feature-level tags: `@{domain}` and one priority tag (`@smoke`, `@regression`, or `@critical`)
-- Add `@pending` to every scenario tag line, after `@SC-XXXX` and before classification tags. This marks the scenario as not yet implemented.
-- Write a 1-2 sentence description immediately after the `Feature:` line
-- Use `Background:` only if 2+ scenarios share the same preconditions
+- The `Feature:` line names the UC (from the UC file's `name`). The 1–2 sentence description is the UC objective.
+- Feature-level tags: `@FEAT-XXXX` `@UC-XXXX` `@{domain}` `@{module}` and one priority tag (`@smoke`, `@regression`, or `@critical`).
+- Scenario-level tags: `@SC-XXXX`, `@pending` (on first generation, before step definitions are implemented), and any other classification tags. **Never add a second domain tag on a scenario** — one feature, one domain.
+- Use `Background:` only if 2+ scenarios share the same preconditions.
 
-**Appending to an existing feature (Step 1c path):**
+**Appending new scenarios to an existing UC file (Step 1c path):**
 
-When the feature file already exists (argument matched in Step 1c, after dedup in 3-pre), do NOT create a new file. Instead:
+When the UC's `.feature` file already exists (argument matched in Step 1c, after dedup in 3-pre), do NOT create a new file and do NOT merge scenarios across UCs. Instead:
 
-1. Use the Edit tool to append new scenarios at the end of the existing feature file. Place them after the last existing scenario, maintaining a blank line separator between scenarios.
-2. Preserve all existing content — feature-level tags, `Feature:` line, description, `Background:`, and all existing scenarios. Do not modify any existing content.
-3. New scenarios must follow the same conventions as existing scenarios in the file:
-   - Same format (standard Gherkin or MDG) as the rest of the file.
-   - Same tag style. If existing scenarios use `@regression @auth`, follow that pattern.
-   - If the file has a `Background:`, new scenarios inherit it — do not duplicate the Background block.
-4. Only generate scenarios that passed the dedup check in 3-pre. Skip any that were flagged as duplicates.
+1. Use the Edit tool to append new scenarios at the end of the existing UC's file. Place them after the last existing scenario, with a blank line separator.
+2. Preserve all existing content — feature-level tags, `Feature:` line, description, `Background:`, and all existing scenarios.
+3. New scenarios must follow the same conventions as existing scenarios in the file (format, tag style, Background inheritance).
+4. Only generate scenarios that passed the dedup check in 3-pre. Skip duplicates.
 5. Update the "Action" field in the summary to "Updated" (not "Created").
+
+If the argument resolves to a different UC than the one owning the existing file, do not append — create a new `{UC-XXXX}-{uc-slug}.feature` for that UC.
 
 ## 3c. Generate Step Definitions
 
@@ -95,9 +107,9 @@ After generating the feature file (3b) and step definitions (3c), update both IN
 **Update `bdd/features/INDEX.md`:**
 
 1. Read the current `bdd/features/INDEX.md`.
-2. Find the heading for the target domain (e.g., `## Authentication`). If the heading does not exist, add it.
-3. **New feature:** Add a new feature entry under the domain heading following the Features INDEX.md template format — file path, 1-sentence summary, and all scenario names with brief descriptions.
-4. **Existing feature (Step 1c path):** Find the existing feature entry. Append only the new scenario names to its scenario list — do not re-list existing scenarios. Do not change the file path or summary unless they are inaccurate.
+2. Find or add the module heading (e.g., `## storefront`), then the domain sub-heading (`### identity`). If either is missing, add it.
+3. **New UC file:** Add a new entry under the module → domain sub-heading following the Features INDEX.md template format — UC name, UC-ID, parent feature ID, 1-sentence summary (from UC objective), and all scenario names with brief descriptions.
+4. **Existing UC file (Step 1c path):** Find the existing entry (one entry per UC file). Append only new scenario names to its scenario list — do not re-list existing scenarios. Do not change the file path, UC name, or summary unless inaccurate.
 5. Use the Edit tool to insert or update the entry.
 
 **Update `bdd/steps/INDEX.md`:**

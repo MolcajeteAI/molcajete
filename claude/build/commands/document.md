@@ -51,7 +51,7 @@ Spawn with `model: "opus"`. This agent:
    - **Code Map:** Trace UC-XXXX/SC-XXXX to implementation files
    - **Architecture Decisions:** Document non-obvious choices from `dev_summary`
 3. Propagates PRD statuses:
-   - **UC Status Rollup:** For the UC-XXXX in the task's `use_case`, find the UC file, read all scenario headings (`### SC-XXXX`), check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan. If all covered → update UC status to `implemented`.
+   - **UC Status Rollup:** For the UC-XXXX in the task's `use_case`, find the UC file with `Glob prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md` (filenames are always `UC-XXXX-{slug}.md`). Read all scenario headings (`### SC-XXXX`), check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan. If all covered → update UC status to `implemented`. For cross-referencing scenario implementation against the BDD source, the UC's single feature file is at `bdd/features/**/{UC-XXXX}-*.feature`.
    - **Feature Status Rollup:** After updating UC status, read the feature's `USE-CASES.md`. If ALL UCs are `implemented` → update feature status in `prd/FEATURES.md`.
 
 Provide the agent with: `plan_path`, `task_id`, `architecture` path, `use_case`, `feature`, `module`, `scenario`, `files_modified`, `dev_summary`, and the full plan JSON content.

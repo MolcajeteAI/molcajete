@@ -37,7 +37,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 1. Read the plan JSON file at `plan_path`
 2. Find the failed task matching `failed_task_id`
 3. Read project context: `CLAUDE.md`, `.claude/rules/*.md`
-4. Read the task's related files: feature specs, Gherkin scenarios, any files listed in `files_to_modify`
+4. Read the task's related files: the feature's `REQUIREMENTS.md` and `ARCHITECTURE.md`, the UC markdown at `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`, the UC's single Gherkin file at `bdd/features/**/{UC-XXXX}-*.feature` (or `.feature.md` for MDG) — both located by UC-ID Glob on the failed task's `use_case` — and any files listed in `files_to_modify`.
 
 ## Step 2: Gather Diagnostic Evidence
 

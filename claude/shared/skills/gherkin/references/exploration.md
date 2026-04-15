@@ -8,7 +8,7 @@ Consult all applicable sources in order; do not stop at the first match.
 
 Read all domain FEATURES.md files as the primary discovery source. The feature inventories contain status-tracked lists of all features in the system.
 
-1. Read `prd/MODULES.md` to get all modules, then read `prd/FEATURES.md` (the master feature inventory).
+1. Read `prd/MODULES.md` to get all modules and `prd/DOMAINS.md` to get all domains, then read `prd/FEATURES.md` (the master feature inventory).
 2. Search for entries where the feature name, description, or slug relates to the argument. Use keyword matching — split the argument into words and look for entries containing those words or close synonyms.
 3. For each matching entry, extract:
    - The feature name, slug, and status
@@ -59,11 +59,22 @@ Collect all matches from 2-exp-a through 2-exp-d (`feature_matches`, `spec_match
 
 **No matches found (all lists empty):**
 
-Log: "No matching feature found in the codebase for '{argument}'." Proceed to Step 3 without exploration context — generate skeleton scenarios using the argument as-is for the feature name. Include `# TODO: replace with implementation-specific scenarios` comments to indicate they need manual refinement.
+Inform the user: "No matching feature found in the codebase for '{argument}'." Use AskUserQuestion:
+- Question: "No codebase match found for '{argument}'. How should I proceed?"
+- Header: "No match"
+- Options:
+  - "Try a different name" — user provides a new name via the "Other" option; restart from Step 1d
+  - "Generate skeleton scenarios" — proceed to Step 3 without exploration context; generated scenarios will use the argument as-is for the feature name and include `# TODO: replace with implementation-specific scenarios` comments to indicate they need manual refinement
+  - "Cancel" — stop execution
+- multiSelect: false
 
 **Multiple unrelated matches:**
 
-If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), select the most relevant match autonomously. Priority: feature inventory matches > spec matches > README matches > code matches. If still ambiguous at the same priority level, pick the match with the most detailed context.
+If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), present disambiguation via AskUserQuestion:
+- Question: "'{argument}' matches multiple features. Which one should I generate scenarios for?"
+- Header: "Disambiguate"
+- Options: List up to 4 matched features, each with a label (feature/module name) and description (source and brief summary). If more than 4 matches exist, show the 4 most relevant (prioritizing feature inventory and spec matches over code matches).
+- multiSelect: false
 
 Use the selected match as the sole context for Step 3.
 
@@ -71,7 +82,7 @@ Use the selected match as the sole context for Step 3.
 
 If all matches point to the same feature or closely related aspects of one feature, synthesize them into a unified context:
 1. Combine information from all sources — use spec data (REQUIREMENTS.md, USE-CASES.md, ARCHITECTURE.md) for use cases and acceptance criteria, feature inventory data for status and scope, README data for module structure, and code data for implementation details.
-2. Determine the primary domain this feature belongs to (for domain folder placement in 3a).
+2. Determine the primary module this feature belongs to (for module folder placement in 3a).
 3. Store the synthesized context — it will be used in Step 3 to drive implementation-specific scenarios rather than generic patterns.
 
 After synthesis or disambiguation, proceed to Step 3.

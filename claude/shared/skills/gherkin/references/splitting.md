@@ -1,45 +1,56 @@
-# Feature File Splitting Procedure
+# Per-UC File Size Check
 
-This procedure runs after generation and indexing. It checks whether the target feature file has grown beyond the scenario limit. This applies to both new and existing features.
+This procedure runs after generation and indexing. Each `.feature` file represents exactly one use case; if a UC has grown beyond the scenario budget, the right remedy is usually authoring sub-UCs in the PRD — not auto-splitting the Gherkin file.
 
 ## Count Scenarios
 
-1. Read the target feature file (the one just created or appended to).
+1. Read the target UC's `.feature` file (the one just created or appended to).
 2. Count the total number of `Scenario:` and `Scenario Outline:` blocks.
 3. If the count is **15 or fewer**, skip the rest of this procedure — proceed to the Summary Output.
 
-## Promote to Directory
+## Warn and Offer Remedies
 
-If the count exceeds 15:
+If the count exceeds 15, this UC is likely trying to do too much. Do NOT auto-split. Instead, warn the user and offer remedies via AskUserQuestion:
 
-1. **Group scenarios by logical concern.** Read all scenario names, tags, and step patterns. Apply these heuristics to form groups:
-   - Scenarios sharing a specific tag (e.g., `@login`, `@password-reset`) → same group
-   - Scenarios testing the same user flow (happy path + its error/edge cases) → same group
-   - Scenarios sharing identical Given/Background setup → likely same group
-   - Aim for 5-10 scenarios per group. Avoid single-scenario groups unless the scenario is truly standalone.
+- Question: "UC-XXXX ({UC name}) now has {N} scenarios — more than the 15-scenario guideline. Large UCs usually signal the PRD use case should be decomposed into smaller UCs. What would you like to do?"
+- Header: "Large UC"
+- Options:
+  - "Author sub-UCs in the PRD" — **recommended**. Stop here. Surface this as an action item: the user should run `/m:update-feature` to split the UC into multiple UCs, then regenerate Gherkin. Each resulting UC will get its own `.feature` file at `bdd/features/{module}/{domain}/{UC-XXXX}-{uc-slug}.feature`.
+  - "Promote to a UC subdirectory by concern" — escape hatch for cases where the PRD structure must stay as-is. Execute the promotion below.
+  - "Keep as-is" — no action; proceed.
 
-2. **Create the feature directory:** `bdd/features/{domain}/{feature-name}/` (same name as the original file, without extension).
+## Escape Hatch: Promote a Single UC File to a Subdirectory
 
-3. **Create sub-files:** For each group, create a `.feature` (or `.feature.md`) file inside the new directory:
-   - File name: descriptive kebab-case name reflecting the group's concern (e.g., `login.feature`, `password-reset.feature`, `session-management.feature`).
-   - Each file must have its own `Feature:` line (use a descriptive sub-feature name), feature-level tags, and description.
-   - If scenarios in the group share preconditions, add a `Background:` block to that file.
-   - Preserve all scenario tags, steps, and examples exactly as they were in the original file.
-   - **Prohibited names:** `part-1.feature`, `scenarios-1-to-7.feature`, `misc.feature`, or any name based on numeric ranges or ordering.
+Only run this branch if the user explicitly chooses it. It concedes that the UC stays whole in the PRD but its Gherkin needs internal organization.
 
-4. **Delete the original file:** Remove the single feature file that was promoted.
+1. **Group scenarios by concern.** Read all scenario names, tags, and step patterns. Apply these heuristics:
+   - Scenarios sharing a specific classification tag → same group.
+   - Scenarios testing the same sub-flow (happy path + its edge cases) → same group.
+   - Scenarios sharing identical Given/Background setup → likely same group.
+   - Aim for 5–10 scenarios per group. Avoid single-scenario groups unless the scenario is truly standalone.
 
-5. **Update `bdd/features/INDEX.md`:** Replace the single-file entry for this feature with a directory entry listing each sub-file and its scenarios:
+2. **Create the UC subdirectory:** `bdd/features/{module}/{domain}/{UC-XXXX}-{uc-slug}/` (same name as the original file, without extension).
+
+3. **Create sub-files inside the subdirectory:** one `.feature` (or `.feature.md`) per concern group:
+   - Filename: kebab-case name reflecting the concern (e.g., `happy-path.feature`, `edge-cases.feature`, `error-handling.feature`).
+   - Each sub-file must have its own `Feature:` line (sub-aspect of the UC name), the same feature-level tags as the original (including `@FEAT-XXXX` and `@UC-XXXX`), and a description.
+   - If scenarios in the group share preconditions, add a `Background:` block.
+   - Preserve all scenario tags, steps, and examples exactly.
+   - **Prohibited names:** `part-1.feature`, `scenarios-1-to-7.feature`, `misc.feature`, or any numeric/ordinal name.
+
+4. **Delete the original single UC file:** remove `bdd/features/{module}/{domain}/{UC-XXXX}-{uc-slug}.feature`.
+
+5. **Update `bdd/features/INDEX.md`:** replace the single UC entry with a subdirectory entry listing each sub-file and its scenarios:
    ```markdown
-   ### {Feature Name}
-   - **Directory:** `{domain}/{feature-name}/`
-   - **Summary:** {1-sentence description}
+   #### {UC Name} ({UC-XXXX})
+   - **Directory:** `{module}/{domain}/{UC-XXXX}-{uc-slug}/`
+   - **Parent feature:** {FEAT-XXXX} — {Feature Name}
+   - **Summary:** {UC objective}
    - **Files:**
-     - `{sub-file-name}.feature` — {group description}
+     - `{sub-file}.feature` — {concern description}
        - {Scenario name} — {brief description}
-       - {Scenario name} — {brief description}
-     - `{sub-file-name}.feature` — {group description}
+     - `{sub-file}.feature` — {concern description}
        - {Scenario name} — {brief description}
    ```
 
-6. **Update the summary:** Set the "Action" field to "Split into directory" and list the sub-files created.
+6. **Update the summary:** Set the "Action" field to "Promoted to UC subdirectory" and list the sub-files created. Note that the UC still represents one PRD use case; the subdirectory is a purely organizational Gherkin concession.

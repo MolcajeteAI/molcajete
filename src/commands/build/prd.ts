@@ -31,7 +31,7 @@ export function updatePrdStatuses(projectRoot: string, planFile: string): void {
   if (!existsSync(modulesDir)) return;
 
   for (const ucId of implementedUcs) {
-    const ucFile = findFile(modulesDir, `use-cases/${ucId}.md`);
+    const ucFile = findUcFile(modulesDir, ucId);
     if (!ucFile) {
       log(`Warning: UC file not found for ${ucId} — skipping`);
       continue;
@@ -95,6 +95,29 @@ export function findFile(dir: string, suffixPath: string): string | null {
         const found = findFile(full, suffixPath);
         if (found) return found;
       } else if (full.endsWith(suffixPath)) {
+        return full;
+      }
+    }
+  } catch {
+    // ignore permission errors etc.
+  }
+  return null;
+}
+
+// UC files are named `UC-XXXX-{slug}.md` under a `use-cases/` directory.
+function findUcFile(dir: string, ucId: string): string | null {
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const found = findUcFile(full, ucId);
+        if (found) return found;
+      } else if (
+        basename(dirname(full)) === "use-cases" &&
+        entry.name.startsWith(`${ucId}-`) &&
+        entry.name.endsWith(".md")
+      ) {
         return full;
       }
     }

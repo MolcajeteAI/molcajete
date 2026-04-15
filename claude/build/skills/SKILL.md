@@ -283,13 +283,23 @@ After the test hook passes, the orchestrator spawns a **review session** (Claude
 
 If either test or review fails, issues are collected and fed back to the next dev session.
 
+## PRD and BDD Layout
+
+Every build session assumes the following layout. Read and navigate accordingly — never guess paths or fall back to tag grepping when a deterministic glob is available.
+
+Each PRD use case lives under its parent feature and module, at `prd/modules/{module}/features/FEAT-XXXX-{slug}/use-cases/UC-XXXX-{uc-slug}.md`. The UC filename is always prefixed by its `UC-XXXX` ID and followed by the UC slug. Sibling files in the feature directory include `REQUIREMENTS.md`, `ARCHITECTURE.md`, and `USE-CASES.md`.
+
+Each UC has exactly one Gherkin feature file at `bdd/features/{module}/{domain}/UC-XXXX-{uc-slug}.feature` (or `.feature.md` for MDG projects). One UC, one file — never grouped. The `{domain}` segment is the single domain declared in the parent feature's `REQUIREMENTS.md` frontmatter. Because each `.feature` represents exactly one UC, `@UC-XXXX` lives at the Feature level (top of the file), not on individual scenarios; only `@SC-XXXX` and lifecycle/classification tags remain at scenario level.
+
+**Feature-file discovery is UC-ID-based.** Given a task's `use_case` (e.g., `UC-0F4a`), locate its feature file with `Glob bdd/features/**/UC-0F4a-*.feature` (or `*.feature.md` for MDG). The UC-ID filename prefix makes this match deterministic and slug-tolerant. Do **not** grep `bdd/features/` for `@UC-XXXX` tags — that pattern is obsolete.
+
 ## Implementation: `implement` Intent
 
 Specs First (greenfield) — specs drive code creation.
 
 ### Phase A: Production Code
 
-1. Read Gherkin `.feature` file(s) for this task's scenarios (grep `bdd/features/` for `@UC-XXXX` tag)
+1. Read the Gherkin `.feature` file for this task's use case. Use `Glob bdd/features/**/{UC-XXXX}-*.feature` (or `*.feature.md` for MDG) with the task's `use_case` ID. Each UC has exactly one feature file.
 2. Read the task description and files-to-create/modify list from the plan
 3. Implement production code following project conventions, guided by Gherkin assertions
 4. Write unit tests for the implemented code
@@ -299,7 +309,7 @@ Specs First (greenfield) — specs drive code creation.
 
 ### Phase B: Step Definitions
 
-1. Read Gherkin `.feature` file(s) — extract all Given/When/Then step patterns for this task's `@SC-XXXX` tags
+1. Read the UC's `.feature` file (already located in Phase A) and extract Given/When/Then step patterns. Every scenario in the file belongs to this UC; the task's `@SC-XXXX` identifies the specific scenario(s) in scope for this task.
 2. Read `bdd/steps/INDEX.md` for existing reusable step definitions
 3. For each step pattern:
    - Check INDEX for existing match → reuse
@@ -317,7 +327,7 @@ Code First (brownfield) — BDD wiring for existing code.
 
 ### Single Phase: Step Definitions
 
-1. Read Gherkin `.feature` file(s) for this task's scenarios (grep `bdd/features/` for `@UC-XXXX` tag)
+1. Read the Gherkin `.feature` file for this task's use case. Use `Glob bdd/features/**/{UC-XXXX}-*.feature` (or `*.feature.md` for MDG) with the task's `use_case` ID. Each UC has exactly one feature file.
 2. Extract all Given/When/Then step patterns matching `@SC-XXXX` tags
 3. Read `bdd/steps/INDEX.md` for existing reusable step definitions
 4. For each step pattern:
@@ -448,7 +458,7 @@ Handled by the architecture agent within the doc session.
 
 **UC Status Rollup:**
 For the UC-XXXX in the completed task's `use_case`:
-1. Find the UC file: `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`
+1. Find the UC file with `Glob prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`. The filename is always the UC ID followed by the UC slug (e.g., `UC-0F4a-sign-in-with-password.md`), so the glob is deterministic.
 2. Read all scenario headings (`### SC-XXXX`) from the UC file
 3. Check if all scenario IDs are present in `scenario` fields of `implemented` tasks across the plan
 4. If all scenarios covered → update UC status to `implemented`
