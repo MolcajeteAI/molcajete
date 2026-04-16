@@ -25,7 +25,7 @@ const PLUGIN_DIR = resolve(SCRIPT_DIR, '../..');
 
 const BACKOFF_BASE = parseInt(process.env.MOLCAJETE_BACKOFF_BASE ?? '30', 10);
 const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? '50';
-const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? '5.00';
+const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? '15.00';
 const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? '897', 10) * 1000;
 const MAX_DEV_VALIDATE_CYCLES = 7;
 

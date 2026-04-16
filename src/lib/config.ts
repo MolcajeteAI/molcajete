@@ -11,7 +11,7 @@ export const PLUGIN_DIR = resolve(__dirname, "../claude");
 
 export const BACKOFF_BASE = parseInt(process.env.MOLCAJETE_BACKOFF_BASE ?? "30", 10);
 export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? "50";
-export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? "5.00";
+export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? "15.00";
 export const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? "897", 10) * 1000;
 export const MAX_DEV_CYCLES = 7;
 export const MAX_MERGE_FIX_CYCLES = 3;

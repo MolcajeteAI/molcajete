@@ -543,7 +543,7 @@ Override defaults by setting these before running `molcajete build`:
 |----------|---------|-------------|
 | `MOLCAJETE_BACKOFF_BASE` | `30` | Backoff base in seconds between retries |
 | `MOLCAJETE_MAX_TURNS_AGENT` | `50` | Max conversation turns for task agent |
-| `MOLCAJETE_BUDGET_AGENT` | `5.00` | Token budget for task agent |
+| `MOLCAJETE_BUDGET_AGENT` | `15.00` | Token budget for task agent |
 | `MOLCAJETE_TASK_TIMEOUT` | `897` | Timeout per task in seconds |
 | `MOLCAJETE_HOOK_TIMEOUT` | `30000` | Timeout per hook in milliseconds |
 
