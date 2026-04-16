@@ -1,7 +1,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import { resolve, dirname, basename, join } from "node:path";
-import { log, resolveProjectRoot } from "../../lib/utils.js";
+import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
 import { initLogger, closeLogger } from "../../lib/logger.js";
+import { taskHeading, buildEndHeading, statsLine } from "../../lib/format.js";
 import {
   readPlan,
   findTask,
@@ -46,7 +47,7 @@ export async function runBuild(planName: string, opts: { resume?: boolean; noWor
   const planRelative = basename(planDir);
 
   const logPath = initLogger("build", planRelative);
-  log(`Logs: ${logPath}`);
+  logDetail(`Logs: ${logPath}`);
 
   const hooks = await discoverHooks(projectRoot);
   validateMandatoryHooks(hooks);
@@ -159,7 +160,11 @@ async function runAllTasksMode(
 
     if (freshTask.status === "implemented") continue;
 
-    log(`━━━ Task: ${taskId} — ${freshTask.title} ━━━`);
+    {
+      const h = taskHeading(taskId, freshTask.title);
+      log(h.title);
+      logDetail(h.rule);
+    }
 
     // Check dependencies
     const { checkDependencies } = await import("./plan-data.js");
@@ -410,11 +415,26 @@ async function runAllTasksMode(
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 
   // Completion Report
-  log("━━━ Build Complete ━━━");
-  log(`Implemented: ${doneCount} | Failed: ${failedCount} | Total: ${taskCount}`);
+  {
+    const h = buildEndHeading();
+    log(h.title);
+    logDetail(h.rule);
+  }
+  logDetail(
+    statsLine([
+      ["Implemented", String(doneCount)],
+      ["Failed", String(failedCount)],
+      ["Total", String(taskCount)],
+    ]),
+  );
   if (buildStats.sessions > 0) {
-    log(
-      `Build totals: ${buildStats.sessions} sessions | Elapsed: ${formatDuration(buildStats.totalApiMs)} (Real ${formatDuration(buildStats.totalRealMs)}) | Cost: $${buildStats.totalCostUsd.toFixed(4)}`,
+    logDetail(
+      statsLine([
+        ["Sessions", String(buildStats.sessions)],
+        ["Elapsed", formatDuration(buildStats.totalApiMs)],
+        ["Real", formatDuration(buildStats.totalRealMs)],
+        ["Cost", `$${buildStats.totalCostUsd.toFixed(4)}`],
+      ]),
     );
   }
 

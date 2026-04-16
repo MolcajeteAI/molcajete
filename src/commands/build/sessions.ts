@@ -21,7 +21,8 @@ import {
   BUDGET_AGENT,
   BUDGET_RECOVERY,
 } from "../../lib/config.js";
-import { log, isSubTaskId, parentTaskId, sessionLabel } from "../../lib/utils.js";
+import { log, logDetail, isSubTaskId, parentTaskId, sessionLabel } from "../../lib/utils.js";
+import { phaseLabel, issuesBlock } from "../../lib/format.js";
 import { invokeClaude, extractStructuredOutput, extractFailureReason } from "../lib/claude.js";
 import { runHook, tryHook } from "../lib/hooks.js";
 import { readPlan, findTask } from "./plan-data.js";
@@ -37,11 +38,11 @@ export function maybePushAfterCommit(settings: Settings, label: string, cwd?: st
   if (settings.push === false) return;
   const result = pushCurrentBranch(settings.remote, cwd);
   if (result.ok) {
-    log(`Push ${label}: ok`);
+    logDetail(`Push ${label}: ok`);
   } else if (result.skipped) {
-    log(`Push ${label}: skipped — ${result.error}`);
+    logDetail(`Push ${label}: skipped — ${result.error}`);
   } else {
-    log(`Push ${label}: warning — ${result.error}`);
+    logDetail(`Push ${label}: warning — ${result.error}`);
   }
 }
 
@@ -57,7 +58,8 @@ export async function runDevSession(
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
   const label = sessionLabel(planName, taskId);
-  log(`Dev session: ${taskId}${issues.length ? ` (retry, ${issues.length} issues)` : ""}`);
+  const retrySuffix = issues.length ? ` (retry, ${issues.length} issues)` : "";
+  log(`${phaseLabel("DEV")} session: ${taskId}${retrySuffix}`);
 
   const payload = JSON.stringify({
     plan_path: planFile,
@@ -66,21 +68,25 @@ export async function runDevSession(
     issues,
   });
 
-  const result = await invokeClaude(cwd || projectRoot, [
-    "--model",
-    "opus",
-    "--allowedTools",
-    "Read,Write,Edit,Glob,Grep,Bash",
-    "--max-turns",
-    MAX_TURNS_AGENT,
-    "--max-budget-usd",
-    BUDGET_AGENT,
-    "--json-schema",
-    JSON.stringify(DEV_SESSION_SCHEMA),
-    "--name",
-    label,
-    `/molcajete:develop ${payload}`,
-  ]);
+  const result = await invokeClaude(
+    cwd || projectRoot,
+    [
+      "--model",
+      "opus",
+      "--allowedTools",
+      "Read,Write,Edit,Glob,Grep,Bash",
+      "--max-turns",
+      MAX_TURNS_AGENT,
+      "--max-budget-usd",
+      BUDGET_AGENT,
+      "--json-schema",
+      JSON.stringify(DEV_SESSION_SCHEMA),
+      "--name",
+      label,
+      `/molcajete:develop ${payload}`,
+    ],
+    "DEV",
+  );
 
   const out = extractStructuredOutput(result.output) as unknown as DevSessionOutput;
 
@@ -89,7 +95,7 @@ export async function runDevSession(
   }
 
   const error = out.error || extractFailureReason(result.output, result.stderr) || "Dev session failed";
-  log(`Dev session ${taskId}: failed (${error})`);
+  log(`${phaseLabel("DEV")} session ${taskId}: failed (${error})`);
   return { ok: false, structured: out };
 }
 
@@ -112,7 +118,7 @@ export async function runVerifyHook(
   opts: VerifyHookOptions,
 ): Promise<{ ok: boolean; issues: string[] }> {
   const { taskId, planFile, filesModified, scope, settings, planName, stage, cwd, branch } = opts;
-  log(`Verify hook: ${taskId} (scope: ${scope})`);
+  log(`${phaseLabel("VERIFY")} hook: ${taskId} (scope: ${scope})`);
 
   const data = readPlan(planFile);
   const isSub = isSubTaskId(taskId);
@@ -154,12 +160,13 @@ export async function runVerifyHook(
   const output = result.data as unknown as VerifyHookOutput;
 
   if (output.status === "success") {
-    log(`Verify hook ${taskId}: passed`);
+    log(`${phaseLabel("VERIFY")} hook ${taskId}: passed`);
     return { ok: true, issues: [] };
   }
 
   const issues = output.issues || ["Verify hook reported failure"];
-  log(`Verify hook ${taskId}: ${issues.length} issues`);
+  log(`${phaseLabel("VERIFY")} hook ${taskId}: ${issues.length} issues`);
+  logDetail(issuesBlock(issues));
   return { ok: false, issues };
 }
 
@@ -174,7 +181,7 @@ export async function runReviewSession(
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
-  log(`Review session: ${taskId}`);
+  log(`${phaseLabel("REVIEW")} session: ${taskId}`);
 
   // Lifecycle hook: before-review
   const beforeReviewInput: Record<string, unknown> = { task_id: taskId };
@@ -189,21 +196,25 @@ export async function runReviewSession(
     task_id: taskId,
   });
 
-  const result = await invokeClaude(cwd || process.cwd(), [
-    "--model",
-    "sonnet",
-    "--allowedTools",
-    "Read,Glob,Grep,Bash,Agent",
-    "--max-turns",
-    "30",
-    "--max-budget-usd",
-    BUDGET_AGENT,
-    "--json-schema",
-    JSON.stringify(REVIEW_SESSION_SCHEMA),
-    "--name",
-    label,
-    `/molcajete:validate ${payload}`,
-  ]);
+  const result = await invokeClaude(
+    cwd || process.cwd(),
+    [
+      "--model",
+      "sonnet",
+      "--allowedTools",
+      "Read,Glob,Grep,Bash,Agent",
+      "--max-turns",
+      "30",
+      "--max-budget-usd",
+      BUDGET_AGENT,
+      "--json-schema",
+      JSON.stringify(REVIEW_SESSION_SCHEMA),
+      "--name",
+      label,
+      `/molcajete:validate ${payload}`,
+    ],
+    "REVIEW",
+  );
 
   const out = extractStructuredOutput(result.output) as unknown as ReviewSessionOutput;
   const allIssues = [...(out.code_review || []), ...(out.completeness || [])];
@@ -216,11 +227,12 @@ export async function runReviewSession(
   await tryHook(hooks, "after-review", afterReviewInput, { timeout: settings.hookTimeout });
 
   if (allIssues.length === 0) {
-    log(`Review session ${taskId}: all clear`);
+    log(`${phaseLabel("REVIEW")} session ${taskId}: all clear`);
     return { ok: true, issues: [], structured: out };
   }
 
-  log(`Review session ${taskId}: ${allIssues.length} issues found`);
+  log(`${phaseLabel("REVIEW")} session ${taskId}: ${allIssues.length} issues found`);
+  logDetail(issuesBlock(allIssues));
   return { ok: false, issues: allIssues, structured: out };
 }
 
@@ -231,35 +243,39 @@ export async function runRecoverySession(
   context: RecoveryContext,
 ): Promise<{ ok: boolean; structured: RecoverySessionOutput }> {
   const label = sessionLabel(context.plan_name, context.failed_task_id);
-  log(`Recovery session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
+  log(`${phaseLabel("RECOVERY")} session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
 
   const payload = JSON.stringify(context);
 
-  const result = await invokeClaude(projectRoot, [
-    "--model",
-    "opus",
-    "--allowedTools",
-    "Read,Write,Edit,Glob,Grep,Bash",
-    "--max-turns",
-    MAX_TURNS_AGENT,
-    "--max-budget-usd",
-    BUDGET_RECOVERY,
-    "--json-schema",
-    JSON.stringify(RECOVERY_SESSION_SCHEMA),
-    "--name",
-    label,
-    `/molcajete:recover ${payload}`,
-  ]);
+  const result = await invokeClaude(
+    projectRoot,
+    [
+      "--model",
+      "opus",
+      "--allowedTools",
+      "Read,Write,Edit,Glob,Grep,Bash",
+      "--max-turns",
+      MAX_TURNS_AGENT,
+      "--max-budget-usd",
+      BUDGET_RECOVERY,
+      "--json-schema",
+      JSON.stringify(RECOVERY_SESSION_SCHEMA),
+      "--name",
+      label,
+      `/molcajete:recover ${payload}`,
+    ],
+    "RECOVERY",
+  );
 
   const out = extractStructuredOutput(result.output) as unknown as RecoverySessionOutput;
 
   if (result.exitCode === 0 && out.status === "recovered") {
-    log(`Recovery session ${context.failed_task_id}: recovered — ${out.summary}`);
+    log(`${phaseLabel("RECOVERY")} session ${context.failed_task_id}: recovered — ${out.summary}`);
     return { ok: true, structured: out };
   }
 
   const error = out.error || extractFailureReason(result.output, result.stderr) || "Recovery session failed";
-  log(`Recovery session ${context.failed_task_id}: failed (${error})`);
+  log(`${phaseLabel("RECOVERY")} session ${context.failed_task_id}: failed (${error})`);
   return { ok: false, structured: out };
 }
 
@@ -276,7 +292,7 @@ export async function runDocSession(
 ): Promise<{ ok: boolean; structured: DocSessionOutput }> {
   const taskId = task.id;
   const label = sessionLabel(planName, taskId);
-  log(`Doc session: ${taskId}`);
+  log(`${phaseLabel("DOC")} session: ${taskId}`);
 
   const payload = JSON.stringify({
     plan_path: planFile,
@@ -286,29 +302,33 @@ export async function runDocSession(
     dev_summary: devSummary,
   });
 
-  const result = await invokeClaude(cwd || projectRoot, [
-    "--model",
-    "claude-haiku-4-5",
-    "--max-turns",
-    "30",
-    "--allowedTools",
-    "Read,Write,Edit,Glob,Grep,Bash,Agent",
-    "--json-schema",
-    JSON.stringify(DOC_SESSION_SCHEMA),
-    "--name",
-    label,
-    `/molcajete:document ${payload}`,
-  ]);
+  const result = await invokeClaude(
+    cwd || projectRoot,
+    [
+      "--model",
+      "claude-haiku-4-5",
+      "--max-turns",
+      "30",
+      "--allowedTools",
+      "Read,Write,Edit,Glob,Grep,Bash,Agent",
+      "--json-schema",
+      JSON.stringify(DOC_SESSION_SCHEMA),
+      "--name",
+      label,
+      `/molcajete:document ${payload}`,
+    ],
+    "DOC",
+  );
 
   const out = extractStructuredOutput(result.output) as unknown as DocSessionOutput;
 
   if (result.exitCode === 0 && out.status === "done") {
-    log(`Doc session ${taskId}: ${(out.files_modified || []).length} file(s) updated`);
+    log(`${phaseLabel("DOC")} session ${taskId}: ${(out.files_modified || []).length} file(s) updated`);
     return { ok: true, structured: out };
   }
 
   const error = out.error || extractFailureReason(result.output, result.stderr) || "Doc session failed";
-  log(`Doc session ${taskId}: warning — ${error}`);
+  log(`${phaseLabel("DOC")} session ${taskId}: warning — ${error}`);
   return { ok: false, structured: out };
 }
 
@@ -328,17 +348,17 @@ export async function commitDocChanges(
 
     try {
       execSync("git diff --cached --quiet", { stdio: "pipe", ...(cwd && { cwd }) });
-      log(`Doc commit ${taskId}: no changes to commit`);
+      logDetail(`Doc commit ${taskId}: no changes to commit`);
       return { ok: true };
     } catch {
       // There are staged changes — proceed
     }
 
     execSync(`git commit -m "docs: update documentation for ${taskId}"`, { stdio: "pipe", ...(cwd && { cwd }) });
-    log(`Doc commit ${taskId}: committed`);
+    logDetail(`Doc commit ${taskId}: committed`);
     return { ok: true };
   } catch (err) {
-    log(`Doc commit ${taskId}: warning — ${(err as Error).message}`);
+    logDetail(`Doc commit ${taskId}: warning — ${(err as Error).message}`);
     return { ok: false, error: (err as Error).message };
   }
 }

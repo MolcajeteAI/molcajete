@@ -8,7 +8,8 @@ import type {
   Settings,
 } from "../../types.js";
 import { MAX_DEV_CYCLES } from "../../lib/config.js";
-import { log, isSubTaskId, parentTaskId } from "../../lib/utils.js";
+import { log, logDetail, isSubTaskId, parentTaskId } from "../../lib/utils.js";
+import { phaseSep } from "../../lib/format.js";
 import { readPlan, findTask } from "./plan-data.js";
 import { writeReport } from "./reports.js";
 import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } from "./sessions.js";
@@ -115,6 +116,7 @@ export async function runDevTestReviewCycle(
 
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Dev-test-review cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
+    logDetail(phaseSep());
 
     // 1. Dev session — writes code + commits
     const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
@@ -128,6 +130,7 @@ export async function runDevTestReviewCycle(
     }
 
     maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
+    logDetail(phaseSep());
 
     const filesModified = dev.structured.files_modified || [];
 
@@ -150,11 +153,13 @@ export async function runDevTestReviewCycle(
 
     if (!test.ok) {
       issues = test.issues;
-      log(
+      logDetail(
         `Cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
       );
       continue;
     }
+
+    logDetail(phaseSep());
 
     // 3. Review session — AI code review + completeness
     const review = await runReviewSession(hooks, planFile, taskId, settings, planName, cwd, branch);
@@ -165,7 +170,9 @@ export async function runDevTestReviewCycle(
 
     if (!review.ok) {
       issues = review.issues;
-      log(`Cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`);
+      logDetail(
+        `Cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
+      );
       continue;
     }
 
@@ -206,6 +213,7 @@ export async function runTaskLevelValidation(
 ): Promise<DevTestReviewResult> {
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
+  logDetail(phaseSep());
 
   const test = await runVerifyHook(hooks, {
     taskId,
@@ -233,7 +241,7 @@ export async function runTaskLevelValidation(
     }
 
     // Review failed — need a dev fix
-    log(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
+    logDetail(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
     return runDevTestReviewCycle(
       hooks,
       projectRoot,
@@ -250,7 +258,7 @@ export async function runTaskLevelValidation(
   }
 
   // Test failed — need a dev fix
-  log(`Task-level test failed with ${test.issues.length} issues — launching fix cycle`);
+  logDetail(`Task-level test failed with ${test.issues.length} issues — launching fix cycle`);
 
   // Feed test issues directly into a dev-test-review cycle
   let issues = test.issues;
@@ -289,7 +297,7 @@ export async function runTaskLevelValidation(
 
     if (!reTest.ok) {
       issues = reTest.issues;
-      log(
+      logDetail(
         `Fix cycle ${cycle} test failed with ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
       );
       continue;
@@ -302,7 +310,7 @@ export async function runTaskLevelValidation(
 
     if (!review.ok) {
       issues = review.issues;
-      log(
+      logDetail(
         `Fix cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
       );
       continue;

@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { execSync } from "node:child_process";
 import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
 import { MAX_MERGE_FIX_CYCLES } from "../../lib/config.js";
-import { log } from "../../lib/utils.js";
+import { log, logDetail } from "../../lib/utils.js";
 import { createWorktree, removeWorktree, mergeWorktreeBranch, resolveConflicts } from "../../lib/git.js";
 import { sessionLabel } from "../../lib/utils.js";
 import { tryHook } from "../lib/hooks.js";
@@ -45,7 +45,7 @@ export async function setupWorktree(
     { timeout: settings.hookTimeout },
   );
 
-  log(`Creating worktree: ${branchName}`);
+  logDetail(`Creating worktree: ${branchName}`);
   const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
     resume,
     remote: settings.remote,

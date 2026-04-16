@@ -1,5 +1,7 @@
 import type { HookMap, Task, Settings } from "../../types.js";
-import { log } from "../../lib/utils.js";
+import { log, logDetail } from "../../lib/utils.js";
+import { subTaskHeading, subTaskCloseTitle, subTaskCloseRule, statsLine } from "../../lib/format.js";
+import { buildStats } from "../lib/claude.js";
 import { readPlan, findTask, updateSubTaskStatus, checkSubTaskDeps } from "./plan-data.js";
 import { tryHook } from "../lib/hooks.js";
 import { buildTaskContext, buildBuildContext, runDevTestReviewCycle, runTaskLevelValidation } from "./cycle.js";
@@ -139,13 +141,13 @@ export async function runTaskWithSubTasks(
     const depResult = checkSubTaskDeps(freshTask, stId);
 
     if (depResult === 1) {
-      log(`Sub-task ${stId}: dependency failed — skipping`);
+      logDetail(`Sub-task ${stId}: dependency failed — skipping`);
       updateSubTaskStatus(planFile, stId, "failed", { error: "Dependency failed" });
       return { ok: false, error: `Sub-task ${stId} dependency failed` };
     }
 
     if (depResult === 2) {
-      log(`Sub-task ${stId}: dependency not yet done — skipping`);
+      logDetail(`Sub-task ${stId}: dependency not yet done — skipping`);
       continue;
     }
 
@@ -154,7 +156,14 @@ export async function runTaskWithSubTasks(
       continue;
     }
 
-    log(`── Sub-task: ${stId} — ${st.title} ──`);
+    {
+      const h = subTaskHeading(stId, st.title);
+      log(h.title);
+      logDetail(h.rule);
+    }
+
+    const preSessions = buildStats.sessions;
+    const preCost = buildStats.totalCostUsd;
 
     await tryHook(
       hooks,
@@ -212,7 +221,19 @@ export async function runTaskWithSubTasks(
     });
 
     if (result.devResult?.summary) subSummaries.push(result.devResult.summary);
-    log(`Sub-task ${stId}: implemented`);
+
+    {
+      const sessionsDelta = buildStats.sessions - preSessions;
+      const costDelta = buildStats.totalCostUsd - preCost;
+      log(subTaskCloseTitle(stId, "implemented"));
+      logDetail(
+        statsLine([
+          ["Sessions", String(sessionsDelta)],
+          ["Cost", `$${costDelta.toFixed(4)}`],
+        ]),
+      );
+      logDetail(subTaskCloseRule());
+    }
 
     await tryHook(
       hooks,
