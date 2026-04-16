@@ -22,13 +22,7 @@ This section runs **only** when the argument matched an existing feature (Step 1
 Before generating any new scenario, compare its proposed name against every existing scenario name in the file:
 
 - **Exact match** (case-insensitive, ignoring leading/trailing whitespace): Inform the user — "Scenario '{name}' already exists at `{file}:{line}`. Skipping." Do not generate this scenario.
-- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Warn the user — "Scenario '{proposed}' may duplicate existing '{existing}' at `{file}:{line}`." Use AskUserQuestion:
-  - Question: "This scenario name looks similar to an existing one. Add it anyway?"
-  - Header: "Duplicate?"
-  - Options:
-    - "Skip this scenario" — do not generate it
-    - "Add it anyway" — proceed with generation
-  - multiSelect: false
+- **Near-duplicate** (algorithm: 1. lowercase both names, 2. split into words, 3. remove articles "a", "an", "the", 4. compare remaining word sets — if 80% or more of the words in either set appear in the other): Skip this scenario autonomously — no user prompt, since this session is non-interactive. Do not generate it. Record "Scenario '{proposed}' skipped — near-duplicate of existing '{existing}' at `{file}:{line}`" in the summary output so the decision is visible.
 - **No match**: Proceed with generation.
 
 **Store context for subsequent steps:**
@@ -53,7 +47,7 @@ Resolve the `bdd/features/{module}/{domain}/` folder for the target UC's `.featu
 2. Read the owning PRD feature's `REQUIREMENTS.md` frontmatter:
    - `module:` → `{module}` path segment.
    - `domain:` → `{domain}` path segment (single value; every feature has exactly one domain).
-3. If no spec exists (generic name with no PRD match), fall back to module detection priority from SKILL.md and prompt the user for the domain.
+3. If no spec exists (generic name with no PRD match), fall back to module detection priority from SKILL.md and default the domain autonomously — no user prompt, since this session is non-interactive. Select the domain deterministically using this priority: (a) the module's `REQUIREMENTS.md` frontmatter if another feature in the same module declares a domain, (b) the module name itself if it matches a domain in `prd/DOMAINS.md`, (c) the literal `general` as the final fallback. Record "Domain defaulted to '{chosen}' for '{argument}' — no PRD match" in the summary output.
 4. Verify `bdd/features/{module}/{domain}/` exists. If not, create it with `mkdir -p`.
 
 ## 3b. Generate Feature File

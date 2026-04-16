@@ -59,22 +59,11 @@ Collect all matches from 2-exp-a through 2-exp-d (`feature_matches`, `spec_match
 
 **No matches found (all lists empty):**
 
-Inform the user: "No matching feature found in the codebase for '{argument}'." Use AskUserQuestion:
-- Question: "No codebase match found for '{argument}'. How should I proceed?"
-- Header: "No match"
-- Options:
-  - "Try a different name" — user provides a new name via the "Other" option; restart from Step 1d
-  - "Generate skeleton scenarios" — proceed to Step 3 without exploration context; generated scenarios will use the argument as-is for the feature name and include `# TODO: replace with implementation-specific scenarios` comments to indicate they need manual refinement
-  - "Cancel" — stop execution
-- multiSelect: false
+Proceed autonomously to Step 3 with skeleton scenarios — no user prompt, since this session is non-interactive. Use the argument as-is for the feature name and include `# TODO: replace with implementation-specific scenarios` comments in the generated `.feature` to flag that the output needs manual refinement. Record "No codebase match found for '{argument}' — generated skeleton scenarios" in the summary output.
 
 **Multiple unrelated matches:**
 
-If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), present disambiguation via AskUserQuestion:
-- Question: "'{argument}' matches multiple features. Which one should I generate scenarios for?"
-- Header: "Disambiguate"
-- Options: List up to 4 matched features, each with a label (feature/module name) and description (source and brief summary). If more than 4 matches exist, show the 4 most relevant (prioritizing feature inventory and spec matches over code matches).
-- multiSelect: false
+If matches point to two or more clearly unrelated features or modules (e.g., "notifications" matches both an email notification system and a UI toast component), resolve autonomously — no user prompt, since this session is non-interactive. Select the single most relevant match using this deterministic priority: feature inventory entry > spec directory match > README match > code match. Break ties within the same source by preferring the entry whose slug shares the most significant words with the argument. Record "Multiple matches found for '{argument}' — selected {chosen match} (source: {source})" in the summary output so the choice is visible.
 
 Use the selected match as the sole context for Step 3.
 

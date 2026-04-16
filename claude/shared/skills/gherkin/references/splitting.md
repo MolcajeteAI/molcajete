@@ -8,20 +8,19 @@ This procedure runs after generation and indexing. Each `.feature` file represen
 2. Count the total number of `Scenario:` and `Scenario Outline:` blocks.
 3. If the count is **15 or fewer**, skip the rest of this procedure — proceed to the Summary Output.
 
-## Warn and Offer Remedies
+## Warn and Proceed
 
-If the count exceeds 15, this UC is likely trying to do too much. Do NOT auto-split. Instead, warn the user and offer remedies via AskUserQuestion:
+If the count exceeds 15, this UC is likely trying to do too much. Do NOT auto-split and do NOT auto-promote — this session is non-interactive, so no user prompt is possible, and both remedies require human judgment.
 
-- Question: "UC-XXXX ({UC name}) now has {N} scenarios — more than the 15-scenario guideline. Large UCs usually signal the PRD use case should be decomposed into smaller UCs. What would you like to do?"
-- Header: "Large UC"
-- Options:
-  - "Author sub-UCs in the PRD" — **recommended**. Stop here. Surface this as an action item: the user should run `/m:update-feature` to split the UC into multiple UCs, then regenerate Gherkin. Each resulting UC will get its own `.feature` file at `bdd/features/{module}/{domain}/{UC-XXXX}-{uc-slug}.feature`.
-  - "Promote to a UC subdirectory by concern" — escape hatch for cases where the PRD structure must stay as-is. Execute the promotion below.
-  - "Keep as-is" — no action; proceed.
+Instead, emit a warning as an action item in the summary output and proceed (keep the file as-is):
+
+> "UC-XXXX ({UC name}) now has {N} scenarios — more than the 15-scenario guideline. Large UCs usually signal the PRD use case should be decomposed into smaller UCs. Recommended action: run `/m:update-feature` to split the UC into multiple UCs, then regenerate Gherkin. As an escape hatch, the UC's `.feature` can be promoted to a subdirectory by concern (see 'Escape Hatch' below) — but only when invoked from an interactive session."
+
+Then proceed without mutation.
 
 ## Escape Hatch: Promote a Single UC File to a Subdirectory
 
-Only run this branch if the user explicitly chooses it. It concedes that the UC stays whole in the PRD but its Gherkin needs internal organization.
+This branch is **never** executed from a non-interactive session. It is documented here only as reference for interactive sessions (the `m` plugin) that share this skill. When invoked interactively, the user explicitly chooses this option, conceding that the UC stays whole in the PRD but its Gherkin needs internal organization.
 
 1. **Group scenarios by concern.** Read all scenario names, tags, and step patterns. Apply these heuristics:
    - Scenarios sharing a specific classification tag → same group.
