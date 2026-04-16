@@ -60,6 +60,11 @@ Trace requirements to code:
 - Check `CLAUDE.md` and `.claude/rules/*.md` compliance
 - Report any gaps or stubs found
 
+**Out of scope — do not flag these:**
+
+- **Test execution / invocation evidence.** Running the suite (e.g. `make bdd-test T=@SC-XXXX`, `behave`, `pytest`, `go test`, etc.) is the verify hook's responsibility, and it already ran before this gate. The dev agent never executes tests and cannot leave "test-run artifacts" in the tree. Verify the test *artifacts exist and are wired correctly* (step definitions, fixtures, Gherkin files, production code they exercise) — do not check whether the test command was invoked or produced output. This applies even when the task's `description` or the plan.md `Verification` section says "Run X to verify" — treat that as a hook-fulfilled step, not a dev deliverable.
+- Anything whose subject is the hook, CI, build system, or git workflow rather than the source tree.
+
 ## Step 3: Collect and Output
 
 Wait for all sub-agents to complete. Collect results into a single structured JSON block:
