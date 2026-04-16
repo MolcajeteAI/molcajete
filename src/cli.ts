@@ -1,9 +1,9 @@
 import { createRequire } from "node:module";
 import { Command } from "commander";
-import { setDebug } from "./lib/utils.js";
-import { getActiveChild } from "./commands/lib/claude.js";
 import { runBuild } from "./commands/build/index.js";
+import { getActiveChild } from "./commands/lib/claude.js";
 import { runSetup } from "./commands/setup/index.js";
+import { setDebug } from "./lib/utils.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };

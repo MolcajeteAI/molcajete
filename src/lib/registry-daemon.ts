@@ -8,20 +8,20 @@
  * This file is a separate tsup entry point — it runs as its own process.
  */
 
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
-import { existsSync, mkdirSync, unlinkSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
-import {
-  SOCKET_PATH,
-  PID_FILE,
-  MOLCAJETE_DIR,
-  GRACE_PERIOD_MS,
-  DEFAULT_PORT_RANGE_START,
-  DEFAULT_PORT_RANGE_END,
-  encodeLine,
-  parseLine,
-} from "./registry-protocol.js";
 import type { RegistryRequest, RegistryState } from "./registry-protocol.js";
+import {
+  DEFAULT_PORT_RANGE_END,
+  DEFAULT_PORT_RANGE_START,
+  encodeLine,
+  GRACE_PERIOD_MS,
+  MOLCAJETE_DIR,
+  PID_FILE,
+  parseLine,
+  SOCKET_PATH,
+} from "./registry-protocol.js";
 
 // ── In-Memory State ──
 

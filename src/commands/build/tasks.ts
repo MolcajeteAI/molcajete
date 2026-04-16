@@ -1,10 +1,10 @@
-import type { HookMap, Task, Settings } from "../../types.js";
+import { statsLine, subTaskCloseRule, subTaskCloseTitle, subTaskHeading } from "../../lib/format.js";
 import { log, logDetail } from "../../lib/utils.js";
-import { subTaskHeading, subTaskCloseTitle, subTaskCloseRule, statsLine } from "../../lib/format.js";
+import type { HookMap, Settings, Task } from "../../types.js";
 import { buildStats } from "../lib/claude.js";
-import { readPlan, findTask, updateSubTaskStatus, checkSubTaskDeps } from "./plan-data.js";
 import { tryHook } from "../lib/hooks.js";
-import { buildTaskContext, buildBuildContext, runDevTestReviewCycle, runTaskLevelValidation } from "./cycle.js";
+import { buildBuildContext, buildTaskContext, runDevTestReviewCycle, runTaskLevelValidation } from "./cycle.js";
+import { checkSubTaskDeps, findTask, readPlan, updateSubTaskStatus } from "./plan-data.js";
 
 /**
  * Run a simple task (no sub-tasks): dev → test → review cycle.

@@ -36,6 +36,7 @@ function combine(codes: string[], s: string): string {
 
 // ── ANSI stripping ──
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matches ANSI escape sequences
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 export function stripAnsi(s: string): string {
@@ -120,9 +121,7 @@ export function buildEndHeading(): { title: string; rule: string } {
 export type StatField = [label: string, value: string];
 
 export function statsLine(fields: StatField[]): string {
-  return fields
-    .map(([label, value]) => `${c(TEAL, `[${label}: `)}${c(YELLOW, value)}${c(TEAL, "]")}`)
-    .join(" ");
+  return fields.map(([label, value]) => `${c(TEAL, `[${label}: `)}${c(YELLOW, value)}${c(TEAL, "]")}`).join(" ");
 }
 
 // ── Issues block ──

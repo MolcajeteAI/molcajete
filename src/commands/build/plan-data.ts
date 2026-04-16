@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, renameSync, existsSync, readdirSync } from "node:fs";
-import { join, resolve, isAbsolute } from "node:path";
-import type { PlanData, Settings, Task, SubTask } from "../../types.js";
+import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import { parentTaskId } from "../../lib/utils.js";
+import type { PlanData, Settings, SubTask, Task } from "../../types.js";
 
 // ── Plan JSON I/O ──
 

@@ -1,9 +1,9 @@
 import { existsSync, readdirSync } from "node:fs";
-import { join, basename } from "node:path";
-import type { HookMap, HookEntry, HookResult, HookFn } from "../../types.js";
-import { MANDATORY_HOOKS, HOOK_TIMEOUT } from "../../lib/config.js";
-import { log, logDetail, isDebug } from "../../lib/utils.js";
+import { basename, join } from "node:path";
+import { HOOK_TIMEOUT, MANDATORY_HOOKS } from "../../lib/config.js";
 import { debugHookIn, debugHookOut } from "../../lib/format.js";
+import { isDebug, log, logDetail } from "../../lib/utils.js";
+import type { HookEntry, HookFn, HookMap, HookResult } from "../../types.js";
 
 /**
  * Discover hooks in .molcajete/hooks/.

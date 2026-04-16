@@ -2,10 +2,10 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ALL_HOOKS, PLUGIN_DIR } from "../../lib/config.js";
-import { log, resolveProjectRoot } from "../../lib/utils.js";
-import { initLogger, closeLogger } from "../../lib/logger.js";
+import { closeLogger, initLogger } from "../../lib/logger.js";
 import { startSpinner, stopSpinner } from "../../lib/spinner.js";
-import { readMultiline, confirm } from "./prompt.js";
+import { log, resolveProjectRoot } from "../../lib/utils.js";
+import { confirm, readMultiline } from "./prompt.js";
 
 export interface SetupOptions {
   overwrite: boolean;

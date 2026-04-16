@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
-import { clearForLog, isSpinning, redrawAfterLog } from "./spinner.js";
-import { writeLog } from "./logger.js";
 import { debugCmd, stripAnsi } from "./format.js";
+import { writeLog } from "./logger.js";
+import { clearForLog, isSpinning, redrawAfterLog } from "./spinner.js";
 
 // ── Debug Flag ──
 

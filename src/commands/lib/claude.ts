@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
-import type { ClaudeResult, BuildStats, SessionStats } from "../../types.js";
-import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT, PARALLEL_TOOLS_DIRECTIVE } from "../../lib/config.js";
-import { log, logDetail, sleep, shellQuote, isDebug } from "../../lib/utils.js";
-import { isSpinning, stopSpinner } from "../../lib/spinner.js";
+import { BACKOFF_BASE, PARALLEL_TOOLS_DIRECTIVE, PLUGIN_DIR, TIMEOUT } from "../../lib/config.js";
+import { debugCmd, fmtTokens, type Phase, phaseLabel, statsLine } from "../../lib/format.js";
 import { writeLog } from "../../lib/logger.js";
-import { debugCmd, fmtTokens, phaseLabel, statsLine, type Phase } from "../../lib/format.js";
+import { isSpinning, stopSpinner } from "../../lib/spinner.js";
+import { isDebug, log, logDetail, shellQuote, sleep } from "../../lib/utils.js";
+import type { BuildStats, ClaudeResult, SessionStats } from "../../types.js";
 
 // ── Active Child Process ──
 
@@ -86,10 +86,7 @@ export function logSessionStats(rawOutput: string, realMs: number, phase?: Phase
     statsLine([
       ["Turns", String(stats.turns)],
       ["Tok", `${fmtTokens(stats.inputTokens)}↑/${fmtTokens(stats.outputTokens)}↓`],
-      [
-        "Cache",
-        `${fmtTokens(stats.cacheReadTokens)} read / ${fmtTokens(stats.cacheWriteTokens)} write`,
-      ],
+      ["Cache", `${fmtTokens(stats.cacheReadTokens)} read / ${fmtTokens(stats.cacheWriteTokens)} write`],
       ["Elapsed", stats.apiTime],
       ["Real", stats.realTime],
       ["Cost", stats.cost],
@@ -121,11 +118,7 @@ export function extractFailureReason(rawOutput: string, stderr: string): string 
 
 // ── Claude Invocation ──
 
-export async function invokeClaude(
-  workdir: string,
-  args: string[],
-  phase?: Phase,
-): Promise<ClaudeResult> {
+export async function invokeClaude(workdir: string, args: string[], phase?: Phase): Promise<ClaudeResult> {
   for (let attempt = 0; attempt <= 6; attempt++) {
     const result = await spawnClaude(workdir, args);
 

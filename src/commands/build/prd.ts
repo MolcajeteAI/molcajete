@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
-import { join, dirname, basename } from "node:path";
-import { readPlan } from "./plan-data.js";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { log } from "../../lib/utils.js";
+import { readPlan } from "./plan-data.js";
 
 /**
  * Update PRD statuses based on implemented tasks in the plan.

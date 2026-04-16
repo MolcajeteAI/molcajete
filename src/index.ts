@@ -1,30 +1,31 @@
 // Public API — hook type exports
+
+export type { GitResult, MergeOptions } from "./lib/git.js";
+
+// Git utilities
+export { merge, rebase, resolveConflicts } from "./lib/git.js";
 export type {
   // Build context
   BuildContext,
   BuildStage,
+  DocumentationLifecycleInput,
   // Context
   HookContext,
   HookFn,
   HookInfo,
-  // Mandatory hook
-  VerifyHookInput,
-  VerifyHookOutput,
+  LifecycleOutput,
+  ReviewLifecycleInput,
   // Environment hooks
   StartInput,
   StartOutput,
   StopInput,
   StopOutput,
+  SubtaskLifecycleInput,
   // Lifecycle hooks
   TaskLifecycleInput,
-  SubtaskLifecycleInput,
-  ReviewLifecycleInput,
+  // Mandatory hook
+  VerifyHookInput,
+  VerifyHookOutput,
   WorktreeCreateInput,
   WorktreeMergeInput,
-  DocumentationLifecycleInput,
-  LifecycleOutput,
 } from "./types.js";
-
-// Git utilities
-export { merge, rebase, resolveConflicts } from "./lib/git.js";
-export type { GitResult, MergeOptions } from "./lib/git.js";

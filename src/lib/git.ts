@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import type { ResolveConflictsOutput } from "../types.js";
 import { RESOLVE_CONFLICTS_SCHEMA } from "./config.js";
 import { log } from "./utils.js";
-import type { ResolveConflictsOutput } from "../types.js";
 
 export interface GitResult {
   status: "success" | "failure";
