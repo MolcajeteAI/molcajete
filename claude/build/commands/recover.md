@@ -34,12 +34,16 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 ## Step 1: Load Context
 
+Issue every Read and Glob in this step as part of a parallel batch: group all independent tool calls into a single assistant turn with multiple tool_use blocks. Do not load files one at a time. Split into a new batch only at a true dependency boundary (e.g. you must read `plan.json` first to learn which UC file to load). Within each batch, parallelize everything.
+
 1. Read the plan JSON file at `plan_path`
 2. Find the failed task matching `failed_task_id`
 3. Read project context: `CLAUDE.md`, `.claude/rules/*.md`
 4. Read the task's related files: the feature's `REQUIREMENTS.md` and `ARCHITECTURE.md`, the UC markdown at `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`, the UC's single Gherkin file at `bdd/features/**/{UC-XXXX}-*.feature` (or `.feature.md` for MDG) — both located by UC-ID Glob on the failed task's `use_case` — and any files listed in `files_to_modify`.
 
 ## Step 2: Gather Diagnostic Evidence
+
+Batch the Reads, Globs, and Bash inspections below in parallel wherever possible — issue them as multiple tool_use blocks in a single assistant turn. Only split when a later call depends on output from an earlier one.
 
 1. Look for test/review reports in the plan directory:
    - `{plan_dir}/reports/{task_id}-test-*.json` — test failure reports
@@ -96,6 +100,7 @@ Respond with a structured JSON block:
 
 ## Rules
 
+- Parallelize independent tool calls. Whenever you need to read, grep, glob, or run independent Bash probes, issue them all in a single assistant turn with multiple tool_use blocks. Sequential reads burn the turn budget.
 - This is a one-shot session. Fix ALL issues you find — do not fix them one at a time.
 - Commit all fixes before outputting results.
 - Do NOT modify `plan.json` — the orchestrator manages task status.

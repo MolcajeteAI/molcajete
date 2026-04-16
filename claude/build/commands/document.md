@@ -32,6 +32,8 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 ## Step 1: Load Context
 
+Issue every Read and Glob in this step as part of a parallel batch: group all independent tool calls into a single assistant turn with multiple tool_use blocks. Do not load files one at a time. Split into a new batch only at a true dependency boundary.
+
 1. Read the plan JSON file
 2. Find the task matching `task_id`
 3. Extract `feature`, `use_case`, `module`, `architecture`, `scenario`
@@ -40,6 +42,8 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 ## Step 2: Spawn Sub-Agents (Parallel)
 
 Spawn both agents in parallel using the Agent tool. Each agent receives the full task context.
+
+**Parallel spawn is literal:** emit both Agent tool_use blocks in a single assistant turn. Do not issue them in sequential turns — that serializes the work and wastes the turn budget. (If intent is `wire-bdd`, only the Architecture Agent is spawned — a single tool_use is fine.)
 
 ### Architecture Agent (model: opus)
 
@@ -88,6 +92,8 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 
 ## Rules
 
+- Parallelize independent tool calls. Whenever you need to read, grep, or glob multiple files without inter-dependencies, issue them all in a single assistant turn with multiple tool_use blocks. Sequential reads burn the turn budget.
+- Spawn both sub-agents in the same assistant turn, not in back-to-back turns.
 - This session only modifies documentation files — never production code or step definitions.
 - Doc session failures are **non-blocking** — the orchestrator logs a warning and proceeds.
 - Do NOT stage or commit — the orchestrator handles the doc commit separately.

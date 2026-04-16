@@ -29,6 +29,8 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 ## Step 1: Load Context
 
+Issue every Read and Glob in this step as part of a parallel batch: group all independent tool calls into a single assistant turn with multiple tool_use blocks. Do not load files one at a time. Split into a new batch only at a true dependency boundary (e.g. you must read `plan.json` first to learn which UC file to load). Within each batch, parallelize everything.
+
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
 3. Extract the task's `intent`, `module`, `scenario`, and `use_case` from the plan
@@ -38,6 +40,8 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 ## Step 2: Spawn Sub-Agents (All in Parallel)
 
 Both gates are **read-only** — they report issues but do not fix them. Spawn both as parallel sub-agents using the Agent tool.
+
+**Parallel spawn is literal:** emit both Agent tool_use blocks in a single assistant turn. Do not issue them in sequential turns — that serializes the work and wastes the turn budget.
 
 ### Code Review Gate
 
@@ -73,7 +77,8 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 
 ## Rules
 
+- Parallelize independent tool calls. Whenever you need to read, grep, or glob multiple files without inter-dependencies, issue them all in a single assistant turn with multiple tool_use blocks. Sequential reads burn the turn budget.
 - This is **read-only**. Do not modify any files, do not fix issues, do not commit.
 - All sub-agents run in the project root.
-- Spawn both gates in parallel — they are independent and read-only.
+- Spawn both gates in parallel — emit both Agent tool_use blocks in the same assistant turn, not in back-to-back turns.
 - Report every issue with enough detail for the dev session to locate and fix it (file path, line number, description).

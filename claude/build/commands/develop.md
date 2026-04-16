@@ -30,13 +30,15 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 
 ## Step 1: Load Skills
 
-Read skills that govern this session:
+Load all three skill files in a single parallel batch of Read calls (one assistant turn with three tool_use blocks). Do not issue them sequentially — that wastes turns.
 
 1. `${CLAUDE_PLUGIN_ROOT}/build/skills/SKILL.md` — dispatch rules, implementation procedures
 2. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — BDD conventions
 3. `${CLAUDE_PLUGIN_ROOT}/shared/skills/git-committing/SKILL.md` — commit message format and rules
 
 ## Step 2: Load Context
+
+Issue every Read in this step as part of a parallel batch: group all independent file reads into a single assistant turn with multiple tool_use blocks. Do not load files one at a time. Split into a new batch only at a true dependency boundary (e.g. you must read `plan.json` first to learn which UC file to load). Within each batch, parallelize everything.
 
 1. Read the plan JSON file
 2. Find the task (or parent task + sub-task) matching `task_id`
@@ -108,6 +110,7 @@ Respond with a structured JSON block:
 
 ## Rules
 
+- Parallelize independent tool calls. Whenever you need to read, grep, or glob multiple files without inter-dependencies, issue them all in a single assistant turn with multiple tool_use blocks. Sequential reads burn the turn budget and leave no room for implementation.
 - Do NOT run quality gates (formatting, linting, BDD tests). The orchestrator's test hook handles that.
 - If this is a retry, fix ALL reported issues in one pass — do not fix them one at a time.
 - Commit all changes before outputting results.
