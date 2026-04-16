@@ -30,6 +30,8 @@ export const ALL_HOOKS = [
   ...MANDATORY_HOOKS,
   "start",
   "stop",
+  "healthcheck",
+  "halt",
   "before-task",
   "after-task",
   "before-subtask",

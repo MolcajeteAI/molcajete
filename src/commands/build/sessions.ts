@@ -16,6 +16,7 @@ import type {
   BuildStage,
   DevSessionOutput,
   DocSessionOutput,
+  HealthcheckHookOutput,
   HookMap,
   RecoveryContext,
   RecoverySessionOutput,
@@ -167,6 +168,48 @@ export async function runVerifyHook(
 
   const issues = output.issues || ["Verify hook reported failure"];
   log(`${phaseLabel("VERIFY")} hook ${taskId}: ${issues.length} issues`);
+  logDetail(issuesBlock(issues));
+  return { ok: false, issues };
+}
+
+// ── Healthcheck Hook ──
+
+export interface HealthcheckHookOptions {
+  planFile: string;
+  planName: string;
+  stage: BuildStage;
+  settings: Settings;
+  cwd?: string;
+}
+
+export async function runHealthcheckHook(
+  hooks: HookMap,
+  opts: HealthcheckHookOptions,
+): Promise<{ ok: boolean; issues: string[] }> {
+  if (!hooks.healthcheck) return { ok: true, issues: [] };
+
+  const { planFile, planName, stage, settings, cwd } = opts;
+  log(`${phaseLabel("HEALTH")} hook`);
+
+  const input: Record<string, unknown> = {
+    build: buildBuildContext(planFile, planName, stage),
+  };
+  if (cwd) input.cwd = cwd;
+
+  const result = await runHook(hooks.healthcheck, input, { timeout: settings.hookTimeout ?? 30000 });
+
+  if (!result.ok) {
+    return { ok: false, issues: [`Healthcheck hook failed: ${result.stderr}`] };
+  }
+
+  const output = result.data as unknown as HealthcheckHookOutput;
+  if (output.status === "success") {
+    log(`${phaseLabel("HEALTH")} hook: passed`);
+    return { ok: true, issues: [] };
+  }
+
+  const issues = output.issues || ["Healthcheck reported failure"];
+  log(`${phaseLabel("HEALTH")} hook: ${issues.length} issues`);
   logDetail(issuesBlock(issues));
   return { ok: false, issues };
 }

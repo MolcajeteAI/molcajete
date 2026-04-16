@@ -118,9 +118,9 @@ When `guidance` is non-empty, also log what you interpreted from it.
 Read the template for whichever hook(s) you are generating from `${CLAUDE_PLUGIN_ROOT}/setup/templates/hooks/`:
 
 - Default flow (`hook === null`): read `verify.mjs`.
-- `hook === "<name>"`: read `<name>.mjs` (one of `verify`, `start`, `stop`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-worktree-create`, `after-worktree-create`, `before-worktree-merge`, `after-worktree-merge`, `before-documentation`, `after-documentation`).
+- `hook === "<name>"`: read `<name>.mjs` (one of `verify`, `start`, `stop`, `healthcheck`, `halt`, `before-task`, `after-task`, `before-subtask`, `after-subtask`, `before-review`, `after-review`, `before-worktree-create`, `after-worktree-create`, `before-worktree-merge`, `after-worktree-merge`, `before-documentation`, `after-documentation`).
 
-Use the template as the base — fill in detected values where you see placeholder comments (`// __FORMATTERS__`, `// __LINTERS__`) or placeholder strings (`__BDD_COMMAND__`, `__TAGS_FLAG__`, `__TAG_JOIN__`, `__START_COMMAND__`, `__STOP_COMMAND__`).
+Use the template as the base — fill in detected values where you see placeholder comments (`// __FORMATTERS__`, `// __LINTERS__`, `// __HEALTHCHECK_PROBES__`, `// __HALT_COMMAND__`) or placeholder strings (`__BDD_COMMAND__`, `__TAGS_FLAG__`, `__TAG_JOIN__`, `__START_COMMAND__`, `__STOP_COMMAND__`).
 
 All generated hooks import types from `@molcajeteai/cli`. Never emit a local `types.ts`.
 

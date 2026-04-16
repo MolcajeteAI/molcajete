@@ -19,7 +19,13 @@ import {
   worktreePlanFile,
 } from "./plan-data.js";
 import { updatePrdStatuses } from "./prd.js";
-import { commitDocChanges, maybePushAfterCommit, runDocSession, runRecoverySession } from "./sessions.js";
+import {
+  commitDocChanges,
+  maybePushAfterCommit,
+  runDocSession,
+  runHealthcheckHook,
+  runRecoverySession,
+} from "./sessions.js";
 import { runSimpleTask, runTaskWithSubTasks } from "./tasks.js";
 import { mergeWorktree, setupWorktree } from "./worktree.js";
 
@@ -33,6 +39,25 @@ function commitPlan(cwd: string, planFile: string, message: string): void {
   if (!result.ok) {
     log(`Warning: failed to commit plan update (${message}): ${result.error}`);
   }
+}
+
+async function fireHalt(
+  hooks: HookMap,
+  planFile: string,
+  planName: string,
+  issues: string[],
+  settings: Settings,
+): Promise<void> {
+  log(`BUILD HALTED: ${issues.length} healthcheck issue(s)`);
+  await tryHook(
+    hooks,
+    "halt",
+    {
+      build: buildBuildContext(planFile, planName, "halted"),
+      issues,
+    },
+    { timeout: settings.hookTimeout },
+  );
 }
 
 /**
@@ -164,6 +189,20 @@ async function runAllTasksMode(
     process.exit(1);
   }
 
+  // Healthcheck after start (infra preflight). On failure, halt without
+  // touching plan status so resume picks up the same task once infra recovers.
+  const healthAfterStart = await runHealthcheckHook(hooks, {
+    planFile,
+    planName,
+    stage: "start",
+    settings,
+    cwd: projectRoot,
+  });
+  if (!healthAfterStart.ok) {
+    await fireHalt(hooks, planFile, planName, healthAfterStart.issues, settings);
+    process.exit(1);
+  }
+
   // Task Loop
   const taskCount = data.tasks.length;
   let doneCount = 0;
@@ -190,6 +229,20 @@ async function runAllTasksMode(
     if (!freshTask) continue;
 
     if (freshTask.status === "implemented") continue;
+
+    // Per-task healthcheck — catches infra that died between tasks (e.g.
+    // Docker daemon crashed mid-build). Halts immediately on failure.
+    const health = await runHealthcheckHook(hooks, {
+      planFile,
+      planName,
+      stage: "development",
+      settings,
+      cwd: projectRoot,
+    });
+    if (!health.ok) {
+      await fireHalt(hooks, planFile, planName, health.issues, settings);
+      process.exit(1);
+    }
 
     {
       const h = taskHeading(taskId, freshTask.title);

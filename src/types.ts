@@ -211,6 +211,21 @@ export interface VerifyHookOutput {
   issues: string[];
 }
 
+export interface HealthcheckHookInput {
+  cwd?: string;
+  build?: BuildContext;
+}
+
+export interface HealthcheckHookOutput {
+  status: "success" | "failure";
+  issues: string[];
+}
+
+export interface HaltHookInput {
+  build: BuildContext;
+  issues: string[];
+}
+
 // ── Hook Types ──
 
 export type StartInput = { build?: BuildContext };

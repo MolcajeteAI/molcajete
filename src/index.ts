@@ -9,6 +9,11 @@ export type {
   BuildContext,
   BuildStage,
   DocumentationLifecycleInput,
+  // Halt hook (fires when build is abandoned mid-flight)
+  HaltHookInput,
+  // Healthcheck hook (infra preflight)
+  HealthcheckHookInput,
+  HealthcheckHookOutput,
   // Context
   HookContext,
   HookFn,

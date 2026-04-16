@@ -66,7 +66,7 @@ function rule(char: string, color: string): string {
 
 // ── Phase labels ──
 
-export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY";
+export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY" | "HEALTH";
 
 const PHASE_COLOR: Record<Phase, string> = {
   DEV: MAGENTA,
@@ -74,6 +74,7 @@ const PHASE_COLOR: Record<Phase, string> = {
   REVIEW: YELLOW,
   DOC: GREEN,
   RECOVERY: RED,
+  HEALTH: TEAL,
 };
 
 export function phaseLabel(phase: Phase): string {
