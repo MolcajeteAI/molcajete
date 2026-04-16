@@ -10,12 +10,18 @@ export const PLUGIN_DIR = resolve(__dirname, "../claude");
 // ── Environment Config ──
 
 export const BACKOFF_BASE = parseInt(process.env.MOLCAJETE_BACKOFF_BASE ?? "30", 10);
-export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? "100";
+export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? "250";
 export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? "15.00";
 export const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? "897", 10) * 1000;
 export const MAX_DEV_CYCLES = 7;
 export const MAX_MERGE_FIX_CYCLES = 3;
 export const BUDGET_RECOVERY = process.env.MOLCAJETE_BUDGET_RECOVERY ?? "8.00";
+
+// Injected into every spawned Claude session via --append-system-prompt.
+// Pushes the model to batch independent tool calls into a single assistant
+// turn with multiple tool_use blocks, instead of burning one turn per call.
+export const PARALLEL_TOOLS_DIRECTIVE =
+  "Parallelize independent tool calls. Whenever you need to read, grep, glob, or run independent Bash probes on multiple targets, issue them all in a single assistant turn with multiple tool_use blocks. Do not wait for one tool's result before issuing the next if they are independent. Sequential tool calls burn the turn budget and leave no room for implementation.";
 
 // ── Hook Constants ──
 

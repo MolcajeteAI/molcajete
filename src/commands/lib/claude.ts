@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import type { ClaudeResult, BuildStats, SessionStats } from "../../types.js";
-import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT } from "../../lib/config.js";
-import { log, sleep, shellQuote, isDebug } from "../../lib/utils.js";
+import { PLUGIN_DIR, BACKOFF_BASE, TIMEOUT, PARALLEL_TOOLS_DIRECTIVE } from "../../lib/config.js";
+import { log, logDetail, sleep, shellQuote, isDebug } from "../../lib/utils.js";
 import { isSpinning, stopSpinner } from "../../lib/spinner.js";
 import { writeLog } from "../../lib/logger.js";
+import { debugCmd, fmtTokens, phaseLabel, statsLine, type Phase } from "../../lib/format.js";
 
 // ── Active Child Process ──
 
@@ -56,6 +57,8 @@ export function extractSessionStats(rawOutput: string, realMs: number): SessionS
   const result = parseResultEvent(rawOutput);
   const apiMs = (result?.duration_api_ms as number) ?? 0;
   const costUsd = (result?.total_cost_usd as number) ?? 0;
+  const turns = (result?.num_turns as number) ?? 0;
+  const usage = (result?.usage as Record<string, number> | undefined) ?? {};
   return {
     apiMs,
     costUsd,
@@ -63,16 +66,35 @@ export function extractSessionStats(rawOutput: string, realMs: number): SessionS
     realTime: formatDuration(realMs),
     realMs,
     cost: `$${costUsd.toFixed(4)}`,
+    turns,
+    inputTokens: usage.input_tokens ?? 0,
+    outputTokens: usage.output_tokens ?? 0,
+    cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
   };
 }
 
-export function logSessionStats(rawOutput: string, realMs: number): void {
+export function logSessionStats(rawOutput: string, realMs: number, phase?: Phase): void {
   const stats = extractSessionStats(rawOutput, realMs);
   buildStats.totalCostUsd += stats.costUsd;
   buildStats.totalApiMs += stats.apiMs;
   buildStats.totalRealMs += stats.realMs;
   buildStats.sessions++;
-  log(`Elapsed: ${stats.apiTime} (Real ${stats.realTime}) | Cost: ${stats.cost}`);
+
+  if (phase) log(phaseLabel(phase));
+  logDetail(
+    statsLine([
+      ["Turns", String(stats.turns)],
+      ["Tok", `${fmtTokens(stats.inputTokens)}↑/${fmtTokens(stats.outputTokens)}↓`],
+      [
+        "Cache",
+        `${fmtTokens(stats.cacheReadTokens)} read / ${fmtTokens(stats.cacheWriteTokens)} write`,
+      ],
+      ["Elapsed", stats.apiTime],
+      ["Real", stats.realTime],
+      ["Cost", stats.cost],
+    ]),
+  );
 }
 
 // ── Failure Reason ──
@@ -99,12 +121,16 @@ export function extractFailureReason(rawOutput: string, stderr: string): string 
 
 // ── Claude Invocation ──
 
-export async function invokeClaude(workdir: string, args: string[]): Promise<ClaudeResult> {
+export async function invokeClaude(
+  workdir: string,
+  args: string[],
+  phase?: Phase,
+): Promise<ClaudeResult> {
   for (let attempt = 0; attempt <= 6; attempt++) {
     const result = await spawnClaude(workdir, args);
 
     if (result.exitCode === 0) {
-      logSessionStats(result.output, result.realMs);
+      logSessionStats(result.output, result.realMs, phase);
       return result;
     }
 
@@ -115,7 +141,7 @@ export async function invokeClaude(workdir: string, args: string[]): Promise<Cla
       continue;
     }
 
-    logSessionStats(result.output, result.realMs);
+    logSessionStats(result.output, result.realMs, phase);
     return result;
   }
 
@@ -137,18 +163,17 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
       "--plugin-dir",
       PLUGIN_DIR,
       "--dangerously-skip-permissions",
+      "--append-system-prompt",
+      PARALLEL_TOOLS_DIRECTIVE,
       ...flagArgs,
       "-p",
       prompt,
     ];
 
     if (isDebug()) {
-      const YELLOW = "\x1b[33m";
-      const RESET = "\x1b[0m";
       const quotedArgs = fullArgs.map(shellQuote).join(" ");
       process.stderr.write("\n");
-      log(`${YELLOW}$ claude ${quotedArgs}${RESET}`);
-      log(`${YELLOW}cwd: ${workdir}${RESET}`);
+      logDetail(debugCmd(`claude ${quotedArgs}`, workdir));
       process.stderr.write("\n");
     }
 

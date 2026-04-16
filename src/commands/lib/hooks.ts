@@ -2,7 +2,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, basename } from "node:path";
 import type { HookMap, HookEntry, HookResult, HookFn } from "../../types.js";
 import { MANDATORY_HOOKS, HOOK_TIMEOUT } from "../../lib/config.js";
-import { log, isDebug } from "../../lib/utils.js";
+import { log, logDetail, isDebug } from "../../lib/utils.js";
+import { debugHookIn, debugHookOut } from "../../lib/format.js";
 
 /**
  * Discover hooks in .molcajete/hooks/.
@@ -61,11 +62,8 @@ export async function runHook(
   const hookName = basename(entry.path).replace(/\.mjs$/, "");
 
   if (isDebug()) {
-    const YELLOW = "\x1b[33m";
-    const RESET = "\x1b[0m";
     process.stderr.write("\n");
-    log(`${YELLOW}$ hook: ${hookName}${RESET}`);
-    log(`${YELLOW}input: ${JSON.stringify(input)}${RESET}`);
+    logDetail(debugHookIn(hookName, JSON.stringify(input)));
     process.stderr.write("\n");
   }
 
@@ -97,9 +95,7 @@ export async function runHook(
     ]);
 
     if (isDebug()) {
-      const GRAY = "\x1b[90m";
-      const RESET = "\x1b[0m";
-      log(`${GRAY}output: ${JSON.stringify(result)}${RESET}`);
+      logDetail(debugHookOut(JSON.stringify(result)));
     }
 
     if (result && typeof result === "object" && "ok" in result) {
