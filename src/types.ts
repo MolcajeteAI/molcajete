@@ -98,6 +98,11 @@ export interface SessionStats {
   realTime: string;
   realMs: number;
   cost: string;
+  turns: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
 }
 
 export interface BuildStats {
