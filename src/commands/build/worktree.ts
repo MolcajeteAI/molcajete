@@ -1,13 +1,9 @@
-import { execSync } from "node:child_process";
 import { resolve } from "node:path";
-import { MAX_MERGE_FIX_CYCLES } from "../../lib/config.js";
-import { createWorktree, mergeWorktreeBranch, removeWorktree, resolveConflicts } from "../../lib/git.js";
-import { log, logDetail, sessionLabel } from "../../lib/utils.js";
+import { createWorktree, mergeWorktreeBranch, removeWorktree } from "../../lib/git.js";
+import { log, logDetail } from "../../lib/utils.js";
 import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
 import { tryHook } from "../lib/hooks.js";
 import { buildBuildContext } from "./cycle.js";
-import { readPlan } from "./plan-data.js";
-import { maybePushAfterCommit, runDevSession, runReviewSession, runVerifyHook } from "./sessions.js";
 
 /**
  * Set up a git worktree for a task.
@@ -102,7 +98,7 @@ export async function mergeWorktree(
   );
 
   log(`Merging worktree branch ${branchName} into ${baseBranch}`);
-  const mergeResult = mergeWorktreeBranch(projectRoot, branchName, baseBranch);
+  const mergeResult = await mergeWorktreeBranch(projectRoot, branchName, baseBranch, worktreePath);
 
   if (mergeResult.ok) {
     // Clean merge — remove worktree and branch
@@ -124,142 +120,24 @@ export async function mergeWorktree(
     return { ok: true };
   }
 
-  if (mergeResult.hasConflicts) {
-    log(`Merge conflicts detected for ${branchName} — entering conflict resolution`);
+  // Merge failed after the rebase + ff-only promotion attempt. Either the rebase
+  // could not be resolved (Claude bailed, or conflicts were truly contradictory)
+  // or the final ff-only step tripped. Preserve the worktree for inspection.
+  log(`Merge failed — worktree preserved at ${worktreePath}`);
+  log(`Reason: ${mergeResult.error}`);
 
-    const sideLoopResult = await runMergeConflictSideLoop(hooks, projectRoot, planFile, taskId, settings, planName);
-
-    if (sideLoopResult.ok) {
-      removeWorktree(projectRoot, worktreePath, branchName);
-
-      await tryHook(hooks, "after-worktree-merge", {
-        task_id: taskId,
-        branch: branchName,
-        base_branch: baseBranch,
-        worktree_path: worktreePath,
-        build: buildBuildContext(planFile, planName, "after-worktree-merge"),
-      });
-
-      return { ok: true };
-    }
-
-    // Side-loop failed — preserve worktree for debugging
-    log(`Merge conflict resolution failed — worktree preserved at ${worktreePath}`);
-
-    await tryHook(
-      hooks,
-      "after-worktree-merge",
-      {
-        task_id: taskId,
-        branch: branchName,
-        base_branch: baseBranch,
-        worktree_path: worktreePath,
-        build: buildBuildContext(planFile, planName, "after-worktree-merge"),
-      },
-      { timeout: settings.hookTimeout },
-    );
-
-    return { ok: false, error: sideLoopResult.error || "Merge conflict resolution failed" };
-  }
-
-  // Merge failed without conflicts — abort
-  log(`Merge failed (no conflicts): ${mergeResult.error}`);
-  try {
-    execSync("git merge --abort", { cwd: projectRoot, stdio: "pipe" });
-  } catch {
-    /* already clean */
-  }
-
-  await tryHook(hooks, "after-worktree-merge", {
-    task_id: taskId,
-    branch: branchName,
-    base_branch: baseBranch,
-    worktree_path: worktreePath,
-    build: buildBuildContext(planFile, planName, "after-worktree-merge"),
-  });
+  await tryHook(
+    hooks,
+    "after-worktree-merge",
+    {
+      task_id: taskId,
+      branch: branchName,
+      base_branch: baseBranch,
+      worktree_path: worktreePath,
+      build: buildBuildContext(planFile, planName, "after-worktree-merge"),
+    },
+    { timeout: settings.hookTimeout },
+  );
 
   return { ok: false, error: mergeResult.error || "Merge failed" };
-}
-
-/**
- * Merge conflict side-loop: resolve conflicts, verify, review, fix.
- * Loops up to MAX_MERGE_FIX_CYCLES times.
- *
- * After conflict resolution we're on the base branch — all dev/verify/review
- * runs in projectRoot, not the worktree.
- */
-async function runMergeConflictSideLoop(
-  hooks: HookMap,
-  projectRoot: string,
-  planFile: string,
-  taskId: string,
-  settings: Settings,
-  planName: string,
-): Promise<{ ok: boolean; error?: string }> {
-  // Collect scenario tags from implemented tasks + current task for regression scope
-  const data = readPlan(planFile);
-  const regressionTags: string[] = [];
-  for (const t of data.tasks) {
-    if ((t.status === "implemented" || t.id === taskId) && t.scenario) {
-      regressionTags.push(`@${t.scenario}`);
-    }
-  }
-
-  for (let cycle = 1; cycle <= MAX_MERGE_FIX_CYCLES; cycle++) {
-    log(`Merge conflict fix cycle ${cycle}/${MAX_MERGE_FIX_CYCLES}`);
-
-    // 1. Resolve conflicts (Claude resolves + commits)
-    const resolveResult = await resolveConflicts({ sessionLabel: sessionLabel(planName, taskId) });
-    if (resolveResult.status === "failure") {
-      log(`Conflict resolution failed: ${resolveResult.error}`);
-      try {
-        execSync("git merge --abort", { cwd: projectRoot, stdio: "pipe" });
-      } catch {
-        /* already clean */
-      }
-      return { ok: false, error: resolveResult.error || "Conflict resolution failed" };
-    }
-
-    // 2. Verify with plan-scoped regression (scope: 'final', on base branch)
-    const verify = await runVerifyHook(hooks, {
-      taskId,
-      planFile,
-      filesModified: [],
-      scope: "final",
-      settings,
-      planName,
-      stage: "validation",
-    });
-
-    if (verify.ok) {
-      // 3. Review session
-      const review = await runReviewSession(hooks, planFile, taskId, settings, planName);
-
-      if (review.ok) {
-        return { ok: true };
-      }
-
-      // Review failed — dev session to fix
-      if (cycle < MAX_MERGE_FIX_CYCLES) {
-        log(`Post-merge review found ${review.issues.length} issues — fixing`);
-        await runDevSession(projectRoot, planFile, taskId, [], review.issues, planName);
-        maybePushAfterCommit(settings, `merge-fix ${taskId}`);
-        continue;
-      }
-
-      return { ok: false, error: `Post-merge review failed after ${MAX_MERGE_FIX_CYCLES} cycles` };
-    }
-
-    // Verify failed — dev session to fix, then loop back
-    if (cycle < MAX_MERGE_FIX_CYCLES) {
-      log(`Post-merge verify failed with ${verify.issues.length} issues — fixing`);
-      await runDevSession(projectRoot, planFile, taskId, [], verify.issues, planName);
-      maybePushAfterCommit(settings, `merge-fix ${taskId}`);
-      continue;
-    }
-
-    return { ok: false, error: `Post-merge verify failed after ${MAX_MERGE_FIX_CYCLES} cycles` };
-  }
-
-  return { ok: false, error: "Merge conflict side-loop exhausted" };
 }

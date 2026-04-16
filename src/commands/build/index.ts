@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { MAX_DEV_CYCLES } from "../../lib/config.js";
 import { buildEndHeading, statsLine, taskHeading } from "../../lib/format.js";
+import { commitPlanFile } from "../../lib/git.js";
 import { closeLogger, initLogger } from "../../lib/logger.js";
 import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
 import type { BuildStage, HookMap, RecoveryContext, Settings, WorktreeInfo } from "../../types.js";
@@ -15,11 +16,24 @@ import {
   resolvePlanFile,
   updatePlanJson,
   updatePlanLevelStatus,
+  worktreePlanFile,
 } from "./plan-data.js";
 import { updatePrdStatuses } from "./prd.js";
 import { commitDocChanges, maybePushAfterCommit, runDocSession, runRecoverySession } from "./sessions.js";
 import { runSimpleTask, runTaskWithSubTasks } from "./tasks.js";
 import { mergeWorktree, setupWorktree } from "./worktree.js";
+
+/**
+ * Stage and commit a plan.json write. Skips silently when no diff exists.
+ * Logs a warning on commit failure but never throws — the plan write itself
+ * still succeeded, and a missed commit will surface next iteration.
+ */
+function commitPlan(cwd: string, planFile: string, message: string): void {
+  const result = commitPlanFile(cwd, planFile, message);
+  if (!result.ok) {
+    log(`Warning: failed to commit plan update (${message}): ${result.error}`);
+  }
+}
 
 /**
  * Build command entry point.
@@ -113,6 +127,7 @@ async function runAllTasksMode(
       }
       if (d.status === "failed") d.status = "pending";
     });
+    commitPlan(projectRoot, planFile, "chore(plan): reset failed tasks");
   }
 
   const data = readPlan(planFile);
@@ -145,6 +160,7 @@ async function runAllTasksMode(
     updatePlanJson(planFile, (d) => {
       d.status = "failed";
     });
+    commitPlan(projectRoot, planFile, "chore(plan): mark plan failed (start hook)");
     process.exit(1);
   }
 
@@ -160,6 +176,7 @@ async function runAllTasksMode(
   updatePlanJson(planFile, (d) => {
     d.status = "in_progress";
   });
+  commitPlan(projectRoot, planFile, "chore(plan): mark plan in progress");
 
   const recoveredTasks = new Set<string>();
   let taskIndex = 0;
@@ -198,6 +215,9 @@ async function runAllTasksMode(
       const t = findTask(d, taskId);
       if (t) t.status = "in_progress";
     });
+    // Commit before worktree setup so the worktree branches from a tip that
+    // already records the in_progress status (resume relies on this).
+    commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} in progress`);
 
     // Collect prior summaries
     const priorSummaries: string[] = [];
@@ -224,6 +244,7 @@ async function runAllTasksMode(
             t.errors = ["Failed to create worktree"];
           }
         });
+        commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} failed (worktree setup)`);
         failedCount++;
         break;
       }
@@ -231,16 +252,22 @@ async function runAllTasksMode(
     }
 
     const taskBranch = worktree?.branchName;
+    // All per-task plan/report writes target the worktree's copy when one
+    // exists. The single bookkeeping commit at the end of the task flushes
+    // them; the FF merge then promotes them onto the base branch.
+    const taskPlanFile = worktree ? worktreePlanFile(planFile, projectRoot, worktree.worktreePath) : planFile;
+    const taskPlanDir = worktree ? dirname(taskPlanFile) : planDir;
+    const taskWriteCwd = worktree ? worktree.worktreePath : projectRoot;
 
     let result: { ok: boolean; error?: string };
     if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
       result = await runTaskWithSubTasks(
         hooks,
         projectRoot,
-        planFile,
+        taskPlanFile,
         freshTask,
         priorSummaries,
-        planDir,
+        taskPlanDir,
         settings,
         planName,
         taskCwd,
@@ -250,10 +277,10 @@ async function runAllTasksMode(
       result = await runSimpleTask(
         hooks,
         projectRoot,
-        planFile,
+        taskPlanFile,
         freshTask,
         priorSummaries,
-        planDir,
+        taskPlanDir,
         settings,
         planName,
         taskCwd,
@@ -262,8 +289,8 @@ async function runAllTasksMode(
     }
 
     if (result.ok) {
-      // 1. Extract summary for doc session
-      const taskSummary = extractSummary(result as Record<string, unknown>, planFile, taskId);
+      // 1. Extract summary for doc session (reads from worktree's plan when active)
+      const taskSummary = extractSummary(result as Record<string, unknown>, taskPlanFile, taskId);
 
       // 2. Doc session — in worktree, before merge
       await tryHook(
@@ -280,7 +307,7 @@ async function runAllTasksMode(
 
       const doc = await runDocSession(
         projectRoot,
-        planFile,
+        taskPlanFile,
         freshTask,
         [...priorSummaries, taskSummary].join("\n"),
         [],
@@ -304,26 +331,8 @@ async function runAllTasksMode(
         { timeout: settings.hookTimeout },
       );
 
-      // 3. Merge worktree (doc commit now included in the branch)
-      if (worktree) {
-        const mergeResult = await mergeWorktree(hooks, projectRoot, worktree, planFile, taskId, settings, planName);
-        if (!mergeResult.ok) {
-          log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
-          updatePlanJson(planFile, (d) => {
-            const t = findTask(d, taskId);
-            if (t) {
-              t.status = "failed";
-              t.errors = [mergeResult.error || "Worktree merge failed"];
-            }
-          });
-          failedCount++;
-          break;
-        }
-        maybePushAfterCommit(settings, `merge ${taskId}`);
-      }
-
-      // 4. Mark implemented
-      updatePlanJson(planFile, (d) => {
+      // 3. Mark implemented in the worktree's plan (or dev's, if no worktree)
+      updatePlanJson(taskPlanFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
           t.status = "implemented";
@@ -334,6 +343,36 @@ async function runAllTasksMode(
           }
         }
       });
+
+      // 4. Bookkeeping commit — flushes mark-implemented + any sub-task status
+      // updates accumulated during the cycle. Lives on the worktree branch and
+      // is promoted to the base branch by the FF merge below.
+      commitPlan(taskWriteCwd, taskPlanFile, `chore(plan): record ${taskId} progress`);
+      if (worktree) {
+        maybePushAfterCommit(settings, `bookkeeping ${taskId}`, taskCwd);
+      }
+
+      // 5. Merge worktree (FF only — promotes doc + bookkeeping commits to base)
+      if (worktree) {
+        const mergeResult = await mergeWorktree(hooks, projectRoot, worktree, planFile, taskId, settings, planName);
+        if (!mergeResult.ok) {
+          log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
+          // Worktree retains the implemented status; record the failure on the
+          // base branch so resume sees the correct state next run.
+          updatePlanJson(planFile, (d) => {
+            const t = findTask(d, taskId);
+            if (t) {
+              t.status = "failed";
+              t.errors = [mergeResult.error || "Worktree merge failed"];
+            }
+          });
+          commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} merge-failed`);
+          failedCount++;
+          break;
+        }
+        maybePushAfterCommit(settings, `merge ${taskId}`);
+      }
+
       doneCount++;
       log(`Task ${taskId}: implemented`);
     } else {
@@ -349,6 +388,7 @@ async function runAllTasksMode(
           t.errors = [result.error || "Task failed"];
         }
       });
+      commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} failed`);
 
       // Attempt recovery if not already recovered this task
       if (recoveredTasks.has(taskId)) {
@@ -401,6 +441,7 @@ async function runAllTasksMode(
             }
           }
         });
+        commitPlan(projectRoot, planFile, `chore(plan): reset ${taskId} after recovery`);
         taskIndex--;
         continue;
       }
@@ -428,6 +469,7 @@ async function runAllTasksMode(
   );
 
   updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
+  commitPlan(projectRoot, planFile, "chore(plan): finalize plan status");
 
   // Completion Report
   {

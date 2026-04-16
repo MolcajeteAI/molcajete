@@ -1,8 +1,8 @@
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ResolveConflictsOutput } from "../types.js";
-import { RESOLVE_CONFLICTS_SCHEMA } from "./config.js";
+import { MODEL, RESOLVE_CONFLICTS_SCHEMA } from "./config.js";
 import { log } from "./utils.js";
 
 export interface GitResult {
@@ -13,21 +13,22 @@ export interface GitResult {
 
 export interface MergeOptions {
   ffOnly?: boolean;
+  cwd?: string;
 }
 
 // ── Helpers ──
 
-function head(): string {
-  return execSync("git rev-parse HEAD", { stdio: "pipe" }).toString().trim();
+function head(cwd: string): string {
+  return execSync("git rev-parse HEAD", { cwd, stdio: "pipe" }).toString().trim();
 }
 
-function hasConflicts(): boolean {
-  const status = execSync("git status --porcelain", { stdio: "pipe" }).toString();
+function hasConflicts(cwd: string): boolean {
+  const status = execSync("git status --porcelain", { cwd, stdio: "pipe" }).toString();
   return /^(UU|AA|DD|AU|UA|DU|UD) /m.test(status);
 }
 
-function conflictedFiles(): string[] {
-  const status = execSync("git status --porcelain", { stdio: "pipe" }).toString();
+function conflictedFiles(cwd: string): string[] {
+  const status = execSync("git status --porcelain", { cwd, stdio: "pipe" }).toString();
   const files: string[] = [];
   for (const line of status.split("\n")) {
     if (/^(UU|AA|DD|AU|UA|DU|UD) /.test(line)) {
@@ -55,7 +56,7 @@ async function spawnClaudeResolve(
 
   const result = await invokeClaude(cwd, [
     "--model",
-    "sonnet",
+    MODEL,
     "--allowedTools",
     "Read,Write,Edit,Glob,Grep,Bash",
     "--max-turns",
@@ -79,7 +80,12 @@ export interface WorktreeResult {
 
 export interface MergeWorktreeResult {
   ok: boolean;
-  hasConflicts?: boolean;
+  error?: string;
+}
+
+export interface CommitResult {
+  ok: boolean;
+  skipped?: boolean;
   error?: string;
 }
 
@@ -223,10 +229,31 @@ export function removeWorktree(projectRoot: string, worktreePath: string, branch
 }
 
 /**
- * Merge a worktree branch back into the base branch with --no-ff.
- * Does NOT auto-resolve conflicts — returns conflict status for caller to orchestrate.
+ * Merge a worktree branch back into the base branch.
+ *
+ * Flow:
+ *   1. Rebase the worktree branch onto the (possibly-advanced) base branch
+ *      from inside the worktree. On conflict, Claude is invoked to resolve.
+ *   2. Fast-forward merge the now-rebased branch into the base branch in
+ *      the main checkout. FF is guaranteed to succeed post-rebase.
+ *
+ * Keeping history linear (no merge commits) while still handling base-branch
+ * divergence that happened while the task was running.
  */
-export function mergeWorktreeBranch(projectRoot: string, branchName: string, baseBranch: string): MergeWorktreeResult {
+export async function mergeWorktreeBranch(
+  projectRoot: string,
+  branchName: string,
+  baseBranch: string,
+  worktreePath: string,
+): Promise<MergeWorktreeResult> {
+  const rebaseResult = await rebase(baseBranch, branchName, {
+    cwd: worktreePath,
+    sessionLabel: `rebase-${branchName}`,
+  });
+  if (rebaseResult.status === "failure") {
+    return { ok: false, error: `Rebase of ${branchName} onto ${baseBranch} failed: ${rebaseResult.error}` };
+  }
+
   try {
     execSync(`git checkout ${baseBranch}`, { cwd: projectRoot, stdio: "pipe" });
   } catch (err) {
@@ -234,21 +261,51 @@ export function mergeWorktreeBranch(projectRoot: string, branchName: string, bas
   }
 
   try {
-    execSync(`git merge --no-ff ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
+    execSync(`git merge --ff-only ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
     return { ok: true };
-  } catch {
-    // Check if it's a conflict or a hard failure
-    try {
-      const status = execSync("git status --porcelain", { cwd: projectRoot, stdio: "pipe" }).toString();
-      if (/^(UU|AA|DD|AU|UA|DU|UD) /m.test(status)) {
-        return { ok: false, hasConflicts: true };
-      }
-    } catch {
-      /* fall through */
-    }
-
-    return { ok: false, error: "Merge failed (no conflicts detected)" };
+  } catch (err) {
+    const stderr = (err as { stderr?: Buffer }).stderr?.toString().trim();
+    const stdout = (err as { stdout?: Buffer }).stdout?.toString().trim();
+    const detail = stderr || stdout || (err as Error).message;
+    return { ok: false, error: `git merge --ff-only ${branchName} failed: ${detail}` };
   }
+}
+
+/**
+ * Stage a single file and commit it with the given message.
+ * Returns { ok: true, skipped: true } when the file is unchanged from HEAD.
+ *
+ * Restricts both staging and commit to the given pathspec so unrelated
+ * working-tree changes (the user's in-flight work in the main checkout) are
+ * never swept into a dispatch-driven commit.
+ *
+ * Used for plan.json bookkeeping commits both on the main checkout
+ * (pre/post-task plan-level updates) and inside a worktree (per-task
+ * progress flushed before merge). Keeping these commits out of an
+ * uncommitted working tree is what makes --ff-only merges always succeed.
+ */
+export function commitPlanFile(cwd: string, planFile: string, message: string): CommitResult {
+  const stage = spawnSync("git", ["add", "--", planFile], { cwd, stdio: "pipe" });
+  if (stage.status !== 0) {
+    const detail =
+      stage.stderr.toString().trim() || stage.stdout.toString().trim() || stage.error?.message || "unknown error";
+    return { ok: false, error: `git add failed: ${detail}` };
+  }
+
+  // Check whether this specific path has staged changes. Other paths may be
+  // staged independently (rare, but possible) — we don't care about those.
+  const diff = spawnSync("git", ["diff", "--cached", "--quiet", "--", planFile], { cwd, stdio: "pipe" });
+  if (diff.status === 0) {
+    return { ok: true, skipped: true };
+  }
+
+  const result = spawnSync("git", ["commit", "-m", message, "--only", "--", planFile], { cwd, stdio: "pipe" });
+  if (result.status !== 0) {
+    const detail =
+      result.stderr.toString().trim() || result.stdout.toString().trim() || result.error?.message || "unknown error";
+    return { ok: false, error: `git commit failed: ${detail}` };
+  }
+  return { ok: true };
 }
 
 export interface PushResult {
@@ -338,13 +395,13 @@ function fetchRemoteBranch(projectRoot: string, remote: string, branchName: stri
 
 export async function merge(_base: string, branch: string, options?: MergeOptions): Promise<GitResult> {
   const ffOnly = options?.ffOnly ?? true;
-  const cwd = process.cwd();
+  const cwd = options?.cwd ?? process.cwd();
 
   try {
     if (ffOnly) {
       try {
         execSync(`git merge --ff-only ${branch}`, { cwd, stdio: "pipe" });
-        return { status: "success", commit: head() };
+        return { status: "success", commit: head(cwd) };
       } catch {
         return { status: "failure", error: "Not fast-forwardable — rebase first" };
       }
@@ -353,13 +410,13 @@ export async function merge(_base: string, branch: string, options?: MergeOption
     // Non-ff merge
     try {
       execSync(`git merge ${branch}`, { cwd, stdio: "pipe" });
-      return { status: "success", commit: head() };
+      return { status: "success", commit: head(cwd) };
     } catch {
-      if (!hasConflicts()) {
+      if (!hasConflicts(cwd)) {
         return { status: "failure", error: "Merge failed (no conflicts detected)" };
       }
 
-      const result = await resolveConflicts();
+      const result = await resolveConflicts({ cwd });
 
       if (result.status === "failure") {
         try {
@@ -377,8 +434,12 @@ export async function merge(_base: string, branch: string, options?: MergeOption
   }
 }
 
-export async function rebase(onto: string, branch: string): Promise<GitResult> {
-  const cwd = process.cwd();
+export async function rebase(
+  onto: string,
+  branch: string,
+  opts: { cwd?: string; sessionLabel?: string } = {},
+): Promise<GitResult> {
+  const cwd = opts.cwd ?? process.cwd();
 
   try {
     execSync(`git checkout ${branch}`, { cwd, stdio: "pipe" });
@@ -388,9 +449,9 @@ export async function rebase(onto: string, branch: string): Promise<GitResult> {
 
   try {
     execSync(`git rebase ${onto}`, { cwd, stdio: "pipe" });
-    return { status: "success", commit: head() };
+    return { status: "success", commit: head(cwd) };
   } catch {
-    if (!hasConflicts()) {
+    if (!hasConflicts(cwd)) {
       try {
         execSync("git rebase --abort", { cwd, stdio: "pipe" });
       } catch {
@@ -399,7 +460,7 @@ export async function rebase(onto: string, branch: string): Promise<GitResult> {
       return { status: "failure", error: "Rebase failed (no conflicts detected)" };
     }
 
-    const result = await resolveConflicts();
+    const result = await resolveConflicts({ cwd, sessionLabel: opts.sessionLabel });
 
     if (result.status === "failure") {
       try {
@@ -414,9 +475,9 @@ export async function rebase(onto: string, branch: string): Promise<GitResult> {
   }
 }
 
-export async function resolveConflicts(opts: { sessionLabel?: string } = {}): Promise<GitResult> {
-  const cwd = process.cwd();
-  const files = conflictedFiles();
+export async function resolveConflicts(opts: { cwd?: string; sessionLabel?: string } = {}): Promise<GitResult> {
+  const cwd = opts.cwd ?? process.cwd();
+  const files = conflictedFiles(cwd);
 
   if (files.length === 0) {
     return { status: "failure", error: "No conflicts detected" };
@@ -463,7 +524,7 @@ export async function resolveConflicts(opts: { sessionLabel?: string } = {}): Pr
     } else {
       execSync("git rebase --continue", { cwd, stdio: "pipe", env: { ...process.env, GIT_EDITOR: "true" } });
     }
-    return { status: "success", commit: head() };
+    return { status: "success", commit: head(cwd) };
   } catch (err) {
     return { status: "failure", error: `Failed to complete ${operation}: ${(err as Error).message}` };
   }

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { parentTaskId } from "../../lib/utils.js";
 import type { PlanData, Settings, SubTask, Task } from "../../types.js";
 
@@ -205,4 +205,14 @@ export function resolvePlanFile(plansDir: string, name: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Translate a plan path rooted at projectRoot to its equivalent inside a worktree.
+ * Used when a worktree is active for a task — all plan/report writes during that
+ * task target the worktree's copy so the merge back into the base branch is the
+ * sole point of integration.
+ */
+export function worktreePlanFile(planFile: string, projectRoot: string, worktreePath: string): string {
+  return join(worktreePath, relative(projectRoot, planFile));
 }
