@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { MAX_DEV_CYCLES } from "../../lib/config.js";
 import { buildEndHeading, statsLine, taskHeading } from "../../lib/format.js";
-import { commitPlanFile } from "../../lib/git.js";
+import { commitPlanFile, rebaseOnRemoteBase } from "../../lib/git.js";
 import { closeLogger, initLogger } from "../../lib/logger.js";
 import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
 import type { BuildStage, HookMap, RecoveryContext, Settings, WorktreeInfo } from "../../types.js";
@@ -16,6 +16,7 @@ import {
   resolvePlanFile,
   updatePlanJson,
   updatePlanLevelStatus,
+  updateTaskStage,
   worktreePlanFile,
 } from "./plan-data.js";
 import { updatePrdStatuses } from "./prd.js";
@@ -134,18 +135,21 @@ async function runAllTasksMode(
   log(`Starting build: all pending tasks from ${planName}`);
 
   if (!resume) {
-    // Reset failed tasks back to pending so they are retried
+    // Reset failed tasks back to pending so they are retried.
+    // Stage is cleared — a fresh run restarts from the dev cycle.
     updatePlanJson(planFile, (d) => {
       for (const t of d.tasks) {
         if (t.status === "failed") {
           t.status = "pending";
           t.errors = [];
+          delete t.stage;
         }
         if (t.sub_tasks) {
           for (const st of t.sub_tasks) {
             if (st.status === "failed") {
               st.status = "pending";
               st.errors = [];
+              delete st.stage;
             }
           }
         }
@@ -312,8 +316,18 @@ async function runAllTasksMode(
     const taskPlanDir = worktree ? dirname(taskPlanFile) : planDir;
     const taskWriteCwd = worktree ? worktree.worktreePath : projectRoot;
 
+    // Stage-boundary resume: if the task was already past the dev-test-review
+    // cycle last run (stage === "DOC"), skip the execution block and pick up at
+    // the doc session below. Only honor this when the caller asked to resume.
+    const resumeAtDoc = resume && freshTask.stage === "DOC";
+    if (resumeAtDoc) {
+      log(`Task ${taskId}: resuming at DOC stage — skipping dev-test-review`);
+    }
+
     let result: { ok: boolean; error?: string };
-    if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
+    if (resumeAtDoc) {
+      result = { ok: true };
+    } else if (freshTask.sub_tasks && freshTask.sub_tasks.length > 0) {
       result = await runTaskWithSubTasks(
         hooks,
         projectRoot,
@@ -323,6 +337,7 @@ async function runAllTasksMode(
         taskPlanDir,
         settings,
         planName,
+        baseBranch,
         taskCwd,
         taskBranch,
       );
@@ -336,6 +351,7 @@ async function runAllTasksMode(
         taskPlanDir,
         settings,
         planName,
+        baseBranch,
         taskCwd,
         taskBranch,
       );
@@ -357,6 +373,31 @@ async function runAllTasksMode(
         },
         { timeout: settings.hookTimeout },
       );
+
+      // Mark DOC stage before the doc session runs. Doc commits any generated
+      // docs (commitDocChanges below), so this plan-change gets flushed.
+      updateTaskStage(taskPlanFile, taskId, "DOC");
+
+      // Rebase onto the freshest remote base before doc commits. Matters on
+      // resume-at-DOC (dev already done last run) and whenever the base
+      // advanced during dev — keeps doc commits layered cleanly on top.
+      if (taskCwd) {
+        const rebased = await rebaseOnRemoteBase(taskCwd, settings.remote, baseBranch, `pre-doc-${taskId}`);
+        if (!rebased.ok) {
+          log(`Task ${taskId}: pre-doc rebase failed — worktree preserved at ${taskCwd}`);
+          updatePlanJson(planFile, (d) => {
+            const t = findTask(d, taskId);
+            if (t) {
+              t.status = "failed";
+              t.stage = "DOC";
+              t.errors = [`Pre-doc rebase failed: ${rebased.error}`];
+            }
+          });
+          commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} rebase-failed`);
+          failedCount++;
+          break;
+        }
+      }
 
       const doc = await runDocSession(
         projectRoot,
@@ -390,6 +431,7 @@ async function runAllTasksMode(
         if (t) {
           t.status = "implemented";
           t.errors = [];
+          delete t.stage;
           const devResult = (result as Record<string, unknown>).devResult as { summary?: string } | undefined;
           if (devResult?.summary) {
             t.summary = devResult.summary;
@@ -405,17 +447,22 @@ async function runAllTasksMode(
         maybePushAfterCommit(settings, `bookkeeping ${taskId}`, taskCwd);
       }
 
-      // 5. Merge worktree (FF only — promotes doc + bookkeeping commits to base)
+      // 5. Merge worktree — rebase onto <remote>/<baseBranch> and push to
+      // <baseBranch> on the remote. The local base branch in projectRoot is
+      // never touched; the push IS the merge.
       if (worktree) {
         const mergeResult = await mergeWorktree(hooks, projectRoot, worktree, planFile, taskId, settings, planName);
         if (!mergeResult.ok) {
           log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
           // Worktree retains the implemented status; record the failure on the
-          // base branch so resume sees the correct state next run.
+          // base branch so resume sees the correct state next run. Stage is
+          // set to DOC — merge-failure means we completed dev+doc and only the
+          // push-to-remote step failed, so resume should pick up at the doc/merge step.
           updatePlanJson(planFile, (d) => {
             const t = findTask(d, taskId);
             if (t) {
               t.status = "failed";
+              t.stage = "DOC";
               t.errors = [mergeResult.error || "Worktree merge failed"];
             }
           });
@@ -423,7 +470,6 @@ async function runAllTasksMode(
           failedCount++;
           break;
         }
-        maybePushAfterCommit(settings, `merge ${taskId}`);
       }
 
       doneCount++;
@@ -434,11 +480,19 @@ async function runAllTasksMode(
         log(`Task ${taskId}: failed — worktree preserved at ${worktree.worktreePath}`);
       }
 
+      // Task execution happens in the worktree; the stage marker lives on the
+      // worktree's plan.json. Copy it up to base so resume knows where this
+      // task left off (DEV vs DOC).
+      const worktreeStage = worktree
+        ? (findTask(readPlan(taskPlanFile), taskId)?.stage ?? undefined)
+        : findTask(readPlan(planFile), taskId)?.stage;
+
       updatePlanJson(planFile, (d) => {
         const t = findTask(d, taskId);
         if (t) {
           t.status = "failed";
           t.errors = [result.error || "Task failed"];
+          if (worktreeStage) t.stage = worktreeStage;
         }
       });
       commitPlan(projectRoot, planFile, `chore(plan): mark ${taskId} failed`);
@@ -484,11 +538,13 @@ async function runAllTasksMode(
           if (t) {
             t.status = "pending";
             t.errors = [];
+            delete t.stage;
             if (t.sub_tasks) {
               for (const st of t.sub_tasks) {
                 if (st.status === "failed") {
                   st.status = "pending";
                   st.errors = [];
+                  delete st.stage;
                 }
               }
             }

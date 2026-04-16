@@ -1,3 +1,7 @@
+// ── Phase ──
+
+export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY" | "HEALTH";
+
 // ── Build Context ──
 
 export type BuildStage =
@@ -46,6 +50,7 @@ export interface Task {
   estimated_context?: string;
   depends_on?: string[];
   status: "pending" | "in_progress" | "implemented" | "failed";
+  stage?: Phase;
   errors?: string[];
   summary?: string;
   sub_tasks?: SubTask[];
@@ -60,6 +65,7 @@ export interface SubTask {
   estimated_context?: string;
   depends_on?: string[];
   status: "pending" | "in_progress" | "implemented" | "failed";
+  stage?: Phase;
   errors?: string[];
   summary?: string;
 }

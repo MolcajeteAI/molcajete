@@ -5,6 +5,9 @@
  * Layout helpers return preformatted strings suitable for `log()` / `logDetail()`.
  */
 
+import type { Phase } from "../types.js";
+export type { Phase };
+
 // ── Color constants ──
 
 const ESC = "\x1b[";
@@ -65,8 +68,6 @@ function rule(char: string, color: string): string {
 }
 
 // ── Phase labels ──
-
-export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY" | "HEALTH";
 
 const PHASE_COLOR: Record<Phase, string> = {
   DEV: MAGENTA,

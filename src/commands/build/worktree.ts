@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createWorktree, mergeWorktreeBranch, removeWorktree } from "../../lib/git.js";
+import { createWorktree, fetchBase, mergeWorktreeBranch, removeWorktree } from "../../lib/git.js";
 import { log, logDetail } from "../../lib/utils.js";
 import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
 import { tryHook } from "../lib/hooks.js";
@@ -39,6 +39,17 @@ export async function setupWorktree(
     },
     { timeout: settings.hookTimeout },
   );
+
+  // Fetch the remote base branch so the worktree starts from the freshest
+  // remote tip. Skip on resume — the task's branch already has its base
+  // ancestor frozen into its history.
+  if (!resume) {
+    const fetched = fetchBase(projectRoot, settings.remote, baseBranch);
+    if (!fetched.ok) {
+      log(`Failed to fetch ${settings.remote}/${baseBranch}: ${fetched.error}`);
+      return null;
+    }
+  }
 
   logDetail(`Creating worktree: ${branchName}`);
   const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
@@ -97,8 +108,8 @@ export async function mergeWorktree(
     { timeout: settings.hookTimeout },
   );
 
-  log(`Merging worktree branch ${branchName} into ${baseBranch}`);
-  const mergeResult = await mergeWorktreeBranch(projectRoot, branchName, baseBranch, worktreePath);
+  log(`Merging worktree branch ${branchName} into ${settings.remote}/${baseBranch}`);
+  const mergeResult = await mergeWorktreeBranch(projectRoot, branchName, baseBranch, worktreePath, settings.remote);
 
   if (mergeResult.ok) {
     // Clean merge — remove worktree and branch

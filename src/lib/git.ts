@@ -90,14 +90,130 @@ export interface CommitResult {
 }
 
 /**
+ * Fetch the base branch from the remote. The user's local <baseBranch> ref
+ * is never touched; only refs/remotes/<remote>/<baseBranch> is updated.
+ *
+ * Hard-fails if the remote is missing, the fetch fails, or the remote branch
+ * doesn't exist. Dispatch requires a working remote — the remote is the
+ * source of truth for every worktree's base.
+ */
+export function fetchBase(projectRoot: string, remote: string, baseBranch: string): WorktreeResult {
+  try {
+    execSync(`git remote get-url ${remote}`, { cwd: projectRoot, stdio: "pipe" });
+  } catch {
+    return { ok: false, error: `remote '${remote}' is not configured` };
+  }
+
+  try {
+    execSync(`git fetch ${remote} ${baseBranch}`, { cwd: projectRoot, stdio: "pipe" });
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+    return { ok: false, error: `git fetch ${remote} ${baseBranch} failed: ${msg}` };
+  }
+
+  try {
+    execSync(`git rev-parse --verify --quiet refs/remotes/${remote}/${baseBranch}`, {
+      cwd: projectRoot,
+      stdio: "pipe",
+    });
+  } catch {
+    return { ok: false, error: `${remote}/${baseBranch} does not exist after fetch` };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Rebase the current branch (inside a worktree) onto <remote>/<baseBranch>.
+ * Runs a fresh fetch first so the rebase target is the freshest remote tip.
+ *
+ * Called before every write stage — dev sessions, retry cycles, and the
+ * final merge — so task work is always integrated with the latest remote
+ * state before the next commit lands.
+ */
+export async function rebaseOnRemoteBase(
+  worktreePath: string,
+  remote: string,
+  baseBranch: string,
+  sessionLabel?: string,
+): Promise<WorktreeResult> {
+  try {
+    execSync(`git remote get-url ${remote}`, { cwd: worktreePath, stdio: "pipe" });
+  } catch {
+    return { ok: false, error: `remote '${remote}' is not configured` };
+  }
+
+  try {
+    execSync(`git fetch ${remote} ${baseBranch}`, { cwd: worktreePath, stdio: "pipe" });
+  } catch (err) {
+    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+    return { ok: false, error: `git fetch ${remote} ${baseBranch} failed: ${msg}` };
+  }
+
+  let branch: string;
+  try {
+    branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: worktreePath, stdio: "pipe" }).toString().trim();
+  } catch (err) {
+    return { ok: false, error: `could not resolve HEAD in worktree: ${(err as Error).message}` };
+  }
+  if (branch === "HEAD") {
+    return { ok: false, error: "worktree is in detached HEAD — cannot rebase" };
+  }
+
+  const result = await rebase(`${remote}/${baseBranch}`, branch, {
+    cwd: worktreePath,
+    sessionLabel: sessionLabel ?? `rebase-${branch}`,
+  });
+  if (result.status === "failure") {
+    return { ok: false, error: `rebase of ${branch} onto ${remote}/${baseBranch} failed: ${result.error}` };
+  }
+  return { ok: true };
+}
+
+/**
+ * Fast-forward push the worktree's current branch onto <baseBranch> on the
+ * remote. Races are handled by fetching + rebasing + retrying up to
+ * maxRetries times; a terminal failure is returned as { ok: false }.
+ *
+ * Precondition: caller has already rebased on <remote>/<baseBranch> — the
+ * first push attempt is expected to succeed under normal conditions.
+ */
+export async function pushToRemoteBase(
+  worktreePath: string,
+  remote: string,
+  baseBranch: string,
+  maxRetries = 3,
+): Promise<WorktreeResult> {
+  let lastError = "";
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      execSync(`git push ${remote} HEAD:${baseBranch}`, { cwd: worktreePath, stdio: "pipe" });
+      return { ok: true };
+    } catch (err) {
+      lastError = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+      if (attempt === maxRetries) break;
+
+      // Rejection (non-ff) → re-fetch, re-rebase, retry
+      const rebased = await rebaseOnRemoteBase(worktreePath, remote, baseBranch, `push-retry-${attempt}`);
+      if (!rebased.ok) {
+        return { ok: false, error: `push retry ${attempt} failed to rebase: ${rebased.error}` };
+      }
+    }
+  }
+  return { ok: false, error: `git push ${remote} HEAD:${baseBranch} failed after ${maxRetries} attempts: ${lastError}` };
+}
+
+/**
  * Create a git worktree with a new branch.
  *
- * Default (resume=false): create a new branch from baseBranch; if the branch
- * already exists locally, reuse it.
+ * Default (resume=false): fetch <remote>/<baseBranch> must have already been
+ * run (see fetchBase). The new branch is created from <remote>/<baseBranch>
+ * so the worktree always starts from the freshest remote tip — the local
+ * <baseBranch> ref is never touched.
  *
  * Resume (resume=true): the task's branch is assumed to already exist —
- * locally, or on the remote from a prior push. Never create a new branch
- * from baseBranch (that would silently discard prior work).
+ * locally, or on the remote from a prior push. Never branch off the base
+ * (that would silently discard prior work).
  */
 export function createWorktree(
   projectRoot: string,
@@ -143,8 +259,9 @@ export function createWorktree(
     }
   }
 
+  const baseRef = `${remote}/${baseBranch}`;
   try {
-    execSync(`git worktree add -b ${branchName} ${worktreePath} ${baseBranch}`, { cwd: projectRoot, stdio: "pipe" });
+    execSync(`git worktree add -b ${branchName} ${worktreePath} ${baseRef}`, { cwd: projectRoot, stdio: "pipe" });
     return { ok: true };
   } catch (err) {
     const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
@@ -229,46 +346,35 @@ export function removeWorktree(projectRoot: string, worktreePath: string, branch
 }
 
 /**
- * Merge a worktree branch back into the base branch.
+ * Merge a worktree branch into <baseBranch> by pushing directly to the remote.
  *
- * Flow:
- *   1. Rebase the worktree branch onto the (possibly-advanced) base branch
- *      from inside the worktree. On conflict, Claude is invoked to resolve.
- *   2. Fast-forward merge the now-rebased branch into the base branch in
- *      the main checkout. FF is guaranteed to succeed post-rebase.
+ * Flow (entirely inside the worktree — projectRoot is never touched):
+ *   1. Rebase the worktree branch onto <remote>/<baseBranch>. On conflict,
+ *      Claude is invoked to resolve.
+ *   2. Push HEAD to <remote>/<baseBranch>. On rejection (remote advanced
+ *      mid-push), re-fetch + re-rebase + retry.
  *
- * Keeping history linear (no merge commits) while still handling base-branch
- * divergence that happened while the task was running.
+ * The remote is the merge point. The user's local <baseBranch> ref is never
+ * updated — if they want to mirror remote locally, they `git pull` themselves.
  */
 export async function mergeWorktreeBranch(
-  projectRoot: string,
+  _projectRoot: string,
   branchName: string,
   baseBranch: string,
   worktreePath: string,
+  remote: string,
 ): Promise<MergeWorktreeResult> {
-  const rebaseResult = await rebase(baseBranch, branchName, {
-    cwd: worktreePath,
-    sessionLabel: `rebase-${branchName}`,
-  });
-  if (rebaseResult.status === "failure") {
-    return { ok: false, error: `Rebase of ${branchName} onto ${baseBranch} failed: ${rebaseResult.error}` };
+  const rebased = await rebaseOnRemoteBase(worktreePath, remote, baseBranch, `rebase-${branchName}`);
+  if (!rebased.ok) {
+    return { ok: false, error: rebased.error };
   }
 
-  try {
-    execSync(`git checkout ${baseBranch}`, { cwd: projectRoot, stdio: "pipe" });
-  } catch (err) {
-    return { ok: false, error: `Failed to checkout ${baseBranch}: ${(err as Error).message}` };
+  const pushed = await pushToRemoteBase(worktreePath, remote, baseBranch);
+  if (!pushed.ok) {
+    return { ok: false, error: pushed.error };
   }
 
-  try {
-    execSync(`git merge --ff-only ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
-    return { ok: true };
-  } catch (err) {
-    const stderr = (err as { stderr?: Buffer }).stderr?.toString().trim();
-    const stdout = (err as { stdout?: Buffer }).stdout?.toString().trim();
-    const detail = stderr || stdout || (err as Error).message;
-    return { ok: false, error: `git merge --ff-only ${branchName} failed: ${detail}` };
-  }
+  return { ok: true };
 }
 
 /**

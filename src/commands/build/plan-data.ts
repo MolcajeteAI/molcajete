@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { parentTaskId } from "../../lib/utils.js";
-import type { PlanData, Settings, SubTask, Task } from "../../types.js";
+import type { Phase, PlanData, Settings, SubTask, Task } from "../../types.js";
 
 // ── Plan JSON I/O ──
 
@@ -72,6 +72,41 @@ export function updateSubTaskStatus(
     if (st) {
       st.status = status;
       Object.assign(st, extra);
+    }
+  });
+}
+
+// ── Stage tracking ──
+//
+// Stage marks the current phase of a task/sub-task within the build cycle
+// (DEV, DOC, etc.) so a resumed build can skip ahead to the phase it left off.
+// Stage writes only happen before committing phases (DEV, DOC) — writing before
+// a non-committing phase (VERIFY, REVIEW) would leave the plan.json change
+// orphaned in the worktree until the next commit and can cause issues.
+
+export function updateTaskStage(planPath: string, taskId: string, stage: Phase | undefined): void {
+  updatePlanJson(planPath, (data) => {
+    const task = findTask(data, taskId);
+    if (!task) return;
+    if (stage === undefined) {
+      delete task.stage;
+    } else {
+      task.stage = stage;
+    }
+  });
+}
+
+export function updateSubTaskStage(planPath: string, subTaskId: string, stage: Phase | undefined): void {
+  updatePlanJson(planPath, (data) => {
+    const pId = parentTaskId(subTaskId);
+    const task = findTask(data, pId);
+    if (!task?.sub_tasks) return;
+    const st = task.sub_tasks.find((s) => s.id === subTaskId);
+    if (!st) return;
+    if (stage === undefined) {
+      delete st.stage;
+    } else {
+      st.stage = stage;
     }
   });
 }

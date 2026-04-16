@@ -18,6 +18,7 @@ export async function runSimpleTask(
   planDir: string | null,
   settings: Settings,
   planName: string,
+  baseBranch: string,
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
@@ -51,6 +52,7 @@ export async function runSimpleTask(
     "task",
     settings,
     planName,
+    baseBranch,
     cwd,
     branch,
   );
@@ -106,6 +108,7 @@ export async function runTaskWithSubTasks(
   planDir: string | null,
   settings: Settings,
   planName: string,
+  baseBranch: string,
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -191,6 +194,7 @@ export async function runTaskWithSubTasks(
       "subtask",
       settings,
       planName,
+      baseBranch,
       cwd,
       branch,
     );
@@ -262,6 +266,7 @@ export async function runTaskWithSubTasks(
     planDir,
     settings,
     planName,
+    baseBranch,
     cwd,
     branch,
   );

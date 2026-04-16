@@ -1,5 +1,6 @@
 import { MAX_DEV_CYCLES } from "../../lib/config.js";
 import { phaseSep } from "../../lib/format.js";
+import { rebaseOnRemoteBase } from "../../lib/git.js";
 import { isSubTaskId, log, logDetail, parentTaskId } from "../../lib/utils.js";
 import type {
   BuildContext,
@@ -10,7 +11,7 @@ import type {
   Settings,
   TaskContext,
 } from "../../types.js";
-import { findTask, readPlan } from "./plan-data.js";
+import { findTask, readPlan, updateSubTaskStage, updateTaskStage } from "./plan-data.js";
 import { writeReport } from "./reports.js";
 import { maybePushAfterCommit, runDevSession, runReviewSession, runVerifyHook } from "./sessions.js";
 
@@ -109,6 +110,7 @@ export async function runDevTestReviewCycle(
   scope: "task" | "subtask",
   settings: Settings,
   planName: string,
+  baseBranch: string,
   cwd?: string,
   branch?: string,
 ): Promise<DevTestReviewResult> {
@@ -117,6 +119,30 @@ export async function runDevTestReviewCycle(
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Dev-test-review cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
     logDetail(phaseSep());
+
+    // Mark DEV stage before the dev session. Dev commits, so this plan-change
+    // gets flushed to git. VERIFY/REVIEW that follow don't commit, so we leave
+    // the stage at DEV through the full cycle.
+    if (isSubTaskId(taskId)) {
+      updateSubTaskStage(planFile, taskId, "DEV");
+    } else {
+      updateTaskStage(planFile, taskId, "DEV");
+    }
+
+    // Rebase the task branch onto the freshest remote base before every
+    // write stage. The worktree is the only place that can commit; the
+    // --no-worktrees path skips this because it writes directly in projectRoot.
+    if (cwd) {
+      const rebased = await rebaseOnRemoteBase(cwd, settings.remote, baseBranch, `pre-dev-${taskId}-${cycle}`);
+      if (!rebased.ok) {
+        return {
+          ok: false,
+          devResult: null,
+          reviewResult: null,
+          error: `Pre-dev rebase failed: ${rebased.error}`,
+        };
+      }
+    }
 
     // 1. Dev session — writes code + commits
     const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
@@ -208,6 +234,7 @@ export async function runTaskLevelValidation(
   planDir: string | null,
   settings: Settings,
   planName: string,
+  baseBranch: string,
   cwd?: string,
   branch?: string,
 ): Promise<DevTestReviewResult> {
@@ -252,6 +279,7 @@ export async function runTaskLevelValidation(
       "task",
       settings,
       planName,
+      baseBranch,
       cwd,
       branch,
     );
@@ -265,6 +293,22 @@ export async function runTaskLevelValidation(
 
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Task-level fix cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
+
+    // Task-level fix cycle always operates on the parent task (never a sub-task).
+    updateTaskStage(planFile, taskId, "DEV");
+
+    // Rebase on freshest remote base before every write stage.
+    if (cwd) {
+      const rebased = await rebaseOnRemoteBase(cwd, settings.remote, baseBranch, `pre-fix-${taskId}-${cycle}`);
+      if (!rebased.ok) {
+        return {
+          ok: false,
+          devResult: null,
+          reviewResult: null,
+          error: `Pre-dev rebase failed: ${rebased.error}`,
+        };
+      }
+    }
 
     const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
     if (!dev.ok) {
