@@ -22,7 +22,7 @@ import {
   BUDGET_RECOVERY,
 } from "../../lib/config.js";
 import { log, isSubTaskId, parentTaskId } from "../../lib/utils.js";
-import { invokeClaude, extractStructuredOutput } from "../lib/claude.js";
+import { invokeClaude, extractStructuredOutput, extractFailureReason } from "../lib/claude.js";
 import { runHook, tryHook } from "../lib/hooks.js";
 import { readPlan, findTask } from "./plan-data.js";
 import { buildBuildContext } from "./cycle.js";
@@ -87,7 +87,7 @@ export async function runDevSession(
     return { ok: true, structured: out };
   }
 
-  const error = out.error || "Dev session failed";
+  const error = out.error || extractFailureReason(result.output, result.stderr) || "Dev session failed";
   log(`Dev session ${taskId}: failed (${error})`);
   return { ok: false, structured: out };
 }
@@ -257,7 +257,7 @@ export async function runRecoverySession(
     return { ok: true, structured: out };
   }
 
-  const error = out.error || "Recovery session failed";
+  const error = out.error || extractFailureReason(result.output, result.stderr) || "Recovery session failed";
   log(`Recovery session ${context.failed_task_id}: failed (${error})`);
   return { ok: false, structured: out };
 }
@@ -305,7 +305,7 @@ export async function runDocSession(
     return { ok: true, structured: out };
   }
 
-  const error = out.error || "Doc session failed";
+  const error = out.error || extractFailureReason(result.output, result.stderr) || "Doc session failed";
   log(`Doc session ${taskId}: warning — ${error}`);
   return { ok: false, structured: out };
 }

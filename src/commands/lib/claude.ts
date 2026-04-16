@@ -30,40 +30,71 @@ export function formatDuration(ms: number): string {
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
-// ── Session Stats ──
+// ── Result Event Parsing ──
 
-export function extractSessionStats(rawOutput: string, realMs: number): SessionStats | null {
+// Claude emits a single JSON object for --output-format json and an array of
+// events for --output-format stream-json. Normalise both to the result event.
+function parseResultEvent(rawOutput: string): Record<string, unknown> | null {
   try {
-    const events = JSON.parse(rawOutput.trim());
-    if (!Array.isArray(events)) return null;
-    const result = events.find((e: Record<string, unknown>) => e.type === "result");
-    if (!result) return null;
-
-    const apiMs = (result.duration_api_ms as number) ?? 0;
-    const costUsd = (result.total_cost_usd as number) ?? 0;
-
-    return {
-      apiMs,
-      costUsd,
-      apiTime: formatDuration(apiMs),
-      realTime: formatDuration(realMs),
-      realMs,
-      cost: `$${costUsd.toFixed(4)}`,
-    };
+    const parsed = JSON.parse(rawOutput.trim());
+    if (Array.isArray(parsed)) {
+      const ev = parsed.find((e: Record<string, unknown>) => e.type === "result");
+      return (ev ?? null) as Record<string, unknown> | null;
+    }
+    if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).type === "result") {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+// ── Session Stats ──
+
+export function extractSessionStats(rawOutput: string, realMs: number): SessionStats {
+  const result = parseResultEvent(rawOutput);
+  const apiMs = (result?.duration_api_ms as number) ?? 0;
+  const costUsd = (result?.total_cost_usd as number) ?? 0;
+  return {
+    apiMs,
+    costUsd,
+    apiTime: formatDuration(apiMs),
+    realTime: formatDuration(realMs),
+    realMs,
+    cost: `$${costUsd.toFixed(4)}`,
+  };
+}
+
 export function logSessionStats(rawOutput: string, realMs: number): void {
   const stats = extractSessionStats(rawOutput, realMs);
-  if (stats) {
-    buildStats.totalCostUsd += stats.costUsd;
-    buildStats.totalApiMs += stats.apiMs;
-    buildStats.totalRealMs += stats.realMs;
-    buildStats.sessions++;
-    log(`Elapsed: ${stats.apiTime} (Real ${stats.realTime}) | Cost: ${stats.cost}`);
+  buildStats.totalCostUsd += stats.costUsd;
+  buildStats.totalApiMs += stats.apiMs;
+  buildStats.totalRealMs += stats.realMs;
+  buildStats.sessions++;
+  log(`Elapsed: ${stats.apiTime} (Real ${stats.realTime}) | Cost: ${stats.cost}`);
+}
+
+// ── Failure Reason ──
+
+export function extractFailureReason(rawOutput: string, stderr: string): string | null {
+  const result = parseResultEvent(rawOutput);
+  if (result) {
+    const isError = result.is_error === true;
+    const subtype = typeof result.subtype === "string" ? result.subtype : "";
+    const resultText = typeof result.result === "string" ? result.result.trim() : "";
+    if (isError || (subtype && subtype !== "success")) {
+      if (subtype === "error_max_turns") return "max turns reached";
+      if (resultText) return subtype ? `${subtype}: ${resultText}` : resultText;
+      if (subtype) return subtype;
+    }
   }
+  const trimmedStderr = stderr.trim();
+  if (trimmedStderr) {
+    const lastLine = trimmedStderr.split("\n").pop()?.trim();
+    if (lastLine) return lastLine.slice(0, 240);
+  }
+  return null;
 }
 
 // ── Claude Invocation ──
@@ -164,33 +195,18 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
 // ── Output Parsing ──
 
 export function extractStructuredOutput(rawOutput: string): Record<string, unknown> {
-  const trimmed = rawOutput.trim();
-  try {
-    const events = JSON.parse(trimmed);
-    if (Array.isArray(events)) {
-      const result = events.find((e: Record<string, unknown>) => e.type === "result");
-      if (result?.structured_output) return result.structured_output as Record<string, unknown>;
-      // Fall back to assistant text content (when no --json-schema)
-      const textParts: string[] = [];
-      for (const e of events) {
-        if (e.type === "assistant" && e.message?.content) {
-          for (const c of e.message.content) {
-            if (c.type === "text") textParts.push(c.text);
-          }
-        }
-      }
-      if (textParts.length) {
-        const text = textParts.join("\n").trim();
-        try {
-          return JSON.parse(text);
-        } catch {
-          /* not JSON text */
-        }
-      }
-      return {};
-    }
-    return events as Record<string, unknown>;
-  } catch {
-    return {};
+  const result = parseResultEvent(rawOutput);
+  if (result?.structured_output && typeof result.structured_output === "object") {
+    return result.structured_output as Record<string, unknown>;
   }
+  // Fallback: when no --json-schema was passed, the `result` field holds the assistant's final text.
+  const text = typeof result?.result === "string" ? result.result.trim() : "";
+  if (text) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      /* not JSON text */
+    }
+  }
+  return {};
 }
