@@ -1,25 +1,25 @@
 import { existsSync, readdirSync } from "node:fs";
-import { resolve, dirname, basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { MAX_DEV_CYCLES } from "../../lib/config.js";
+import { buildEndHeading, statsLine, taskHeading } from "../../lib/format.js";
+import { closeLogger, initLogger } from "../../lib/logger.js";
 import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
-import { initLogger, closeLogger } from "../../lib/logger.js";
-import { taskHeading, buildEndHeading, statsLine } from "../../lib/format.js";
+import type { BuildStage, HookMap, RecoveryContext, Settings, WorktreeInfo } from "../../types.js";
+import { buildStats, formatDuration } from "../lib/claude.js";
+import { discoverHooks, tryHook, validateMandatoryHooks } from "../lib/hooks.js";
+import { buildBuildContext } from "./cycle.js";
 import {
-  readPlan,
   findTask,
+  readPlan,
+  readSettings,
+  resolvePlanFile,
   updatePlanJson,
   updatePlanLevelStatus,
-  resolvePlanFile,
-  readSettings,
 } from "./plan-data.js";
-import { discoverHooks, validateMandatoryHooks, tryHook } from "../lib/hooks.js";
-import { buildStats, formatDuration } from "../lib/claude.js";
-import { buildBuildContext } from "./cycle.js";
-import { runDocSession, commitDocChanges, runRecoverySession, maybePushAfterCommit } from "./sessions.js";
-import { runSimpleTask, runTaskWithSubTasks } from "./tasks.js";
-import { setupWorktree, mergeWorktree } from "./worktree.js";
 import { updatePrdStatuses } from "./prd.js";
-import type { HookMap, BuildStage, RecoveryContext, Settings, WorktreeInfo } from "../../types.js";
-import { MAX_DEV_CYCLES } from "../../lib/config.js";
+import { commitDocChanges, maybePushAfterCommit, runDocSession, runRecoverySession } from "./sessions.js";
+import { runSimpleTask, runTaskWithSubTasks } from "./tasks.js";
+import { mergeWorktree, setupWorktree } from "./worktree.js";
 
 /**
  * Build command entry point.
@@ -117,6 +117,20 @@ async function runAllTasksMode(
 
   const data = readPlan(planFile);
 
+  // Snapshot tasks that were already in_progress when the build started.
+  // Only these get resume=true (attach to existing branch); pending/failed
+  // tasks use the default path so a fresh branch can be created from base.
+  // Snapshot at start because the loop flips tasks to in_progress just
+  // before running them.
+  const resumeTaskIds = new Set<string>();
+  if (resume) {
+    for (const t of data.tasks) {
+      if (t.status === "in_progress") {
+        resumeTaskIds.add(t.id);
+      }
+    }
+  }
+
   // Start hook (optional) — developer sets up environment
   const startResult = await tryHook(
     hooks,
@@ -200,7 +214,8 @@ async function runAllTasksMode(
     let taskCwd: string | undefined;
 
     if (useWorktrees) {
-      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile, settings, resume);
+      const taskResume = resumeTaskIds.has(taskId);
+      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile, settings, taskResume);
       if (!worktree) {
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
