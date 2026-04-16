@@ -1,6 +1,6 @@
 ---
 description: Development session — implement code for a task or sub-task, write unit tests, commit changes
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 argument-hint: "<json-payload>"
 allowed-tools:
   - Read

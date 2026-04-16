@@ -1,6 +1,6 @@
 ---
 description: Recovery session — diagnose and fix root cause of a failed task before giving up
-model: claude-opus-4-6
+model: claude-sonnet-4-6
 argument-hint: "<json-payload>"
 allowed-tools:
   - Read
