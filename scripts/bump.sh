@@ -16,4 +16,10 @@ esac
 
 new="$major.$minor.$patch"
 sed -i '' "s/\"version\": \"$current\"/\"version\": \"$new\"/" "$PACKAGE_JSON"
-echo "$current -> $new"
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+git -C "$REPO_ROOT" add "$PACKAGE_JSON"
+git -C "$REPO_ROOT" commit -m "Bumps version to $new"
+git -C "$REPO_ROOT" tag -a "v$new" -m "v$new"
+
+echo "$current -> $new (tagged v$new)"
