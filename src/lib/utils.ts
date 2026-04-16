@@ -84,8 +84,8 @@ export function parentTaskId(subTaskId: string): string {
   return subTaskId.replace(/-\d+$/, "");
 }
 
-/** Build the Claude session label shared by every dev/review/doc/recover call for a task. */
-export function sessionLabel(planName: string, taskId: string): string {
+/** Build the Claude session label for a given task and role. */
+export function sessionLabel(planName: string, taskId: string, role: string): string {
   const parent = isSubTaskId(taskId) ? parentTaskId(taskId) : taskId;
-  return `${planName}-${parent}`;
+  return `${planName}-${parent}-${role}`;
 }

@@ -14,8 +14,8 @@ export const MAX_TURNS_AGENT = process.env.MOLCAJETE_MAX_TURNS_AGENT ?? "250";
 export const BUDGET_AGENT = process.env.MOLCAJETE_BUDGET_AGENT ?? "15.00";
 export const TIMEOUT = parseInt(process.env.MOLCAJETE_TASK_TIMEOUT ?? "897", 10) * 1000;
 export const MAX_DEV_CYCLES = 7;
-export const MAX_MERGE_FIX_CYCLES = 3;
 export const BUDGET_RECOVERY = process.env.MOLCAJETE_BUDGET_RECOVERY ?? "8.00";
+export const MODEL = process.env.MOLCAJETE_MODEL ?? "claude-sonnet-4-6";
 
 // Injected into every spawned Claude session via --append-system-prompt.
 // Pushes the model to batch independent tool calls into a single assistant

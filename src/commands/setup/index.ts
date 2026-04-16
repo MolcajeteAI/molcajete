@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ALL_HOOKS, PLUGIN_DIR } from "../../lib/config.js";
+import { ALL_HOOKS, MODEL, PLUGIN_DIR } from "../../lib/config.js";
 import { closeLogger, initLogger } from "../../lib/logger.js";
 import { startSpinner, stopSpinner } from "../../lib/spinner.js";
 import { log, resolveProjectRoot } from "../../lib/utils.js";
@@ -80,7 +80,7 @@ export async function runSetup(options: SetupOptions): Promise<void> {
 
   const child = spawn(
     "claude",
-    ["--plugin-dir", PLUGIN_DIR, "--dangerously-skip-permissions", "-p", `/molcajete:setup ${payload}`],
+    ["--model", MODEL, "--plugin-dir", PLUGIN_DIR, "--dangerously-skip-permissions", "-p", `/molcajete:setup ${payload}`],
     {
       cwd: projectRoot,
       stdio: "inherit",

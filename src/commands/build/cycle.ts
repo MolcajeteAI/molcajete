@@ -162,7 +162,7 @@ export async function runDevTestReviewCycle(
     logDetail(phaseSep());
 
     // 3. Review session — AI code review + completeness
-    const review = await runReviewSession(hooks, planFile, taskId, settings, planName, cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -231,7 +231,7 @@ export async function runTaskLevelValidation(
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, planFile, taskId, settings, planName, cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
@@ -303,7 +303,7 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, planFile, taskId, settings, planName, cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
     }

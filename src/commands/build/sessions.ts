@@ -5,6 +5,7 @@ import {
   DEV_SESSION_SCHEMA,
   DOC_SESSION_SCHEMA,
   MAX_TURNS_AGENT,
+  MODEL,
   RECOVERY_SESSION_SCHEMA,
   REVIEW_SESSION_SCHEMA,
 } from "../../lib/config.js";
@@ -57,7 +58,7 @@ export async function runDevSession(
   planName: string,
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
-  const label = sessionLabel(planName, taskId);
+  const label = sessionLabel(planName, taskId, "dev");
   const retrySuffix = issues.length ? ` (retry, ${issues.length} issues)` : "";
   log(`${phaseLabel("DEV")} session: ${taskId}${retrySuffix}`);
 
@@ -72,7 +73,7 @@ export async function runDevSession(
     cwd || projectRoot,
     [
       "--model",
-      "opus",
+      MODEL,
       "--allowedTools",
       "Read,Write,Edit,Glob,Grep,Bash",
       "--max-turns",
@@ -174,6 +175,7 @@ export async function runVerifyHook(
 
 export async function runReviewSession(
   hooks: HookMap,
+  projectRoot: string,
   planFile: string,
   taskId: string,
   settings: Settings,
@@ -190,17 +192,17 @@ export async function runReviewSession(
   if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, "validation");
   await tryHook(hooks, "before-review", beforeReviewInput, { timeout: settings.hookTimeout });
 
-  const label = sessionLabel(planName, taskId);
+  const label = sessionLabel(planName, taskId, "review");
   const payload = JSON.stringify({
     plan_path: planFile,
     task_id: taskId,
   });
 
   const result = await invokeClaude(
-    cwd || process.cwd(),
+    cwd || projectRoot,
     [
       "--model",
-      "sonnet",
+      MODEL,
       "--allowedTools",
       "Read,Glob,Grep,Bash,Agent",
       "--max-turns",
@@ -242,7 +244,7 @@ export async function runRecoverySession(
   projectRoot: string,
   context: RecoveryContext,
 ): Promise<{ ok: boolean; structured: RecoverySessionOutput }> {
-  const label = sessionLabel(context.plan_name, context.failed_task_id);
+  const label = sessionLabel(context.plan_name, context.failed_task_id, "recovery");
   log(`${phaseLabel("RECOVERY")} session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
 
   const payload = JSON.stringify(context);
@@ -251,7 +253,7 @@ export async function runRecoverySession(
     projectRoot,
     [
       "--model",
-      "opus",
+      MODEL,
       "--allowedTools",
       "Read,Write,Edit,Glob,Grep,Bash",
       "--max-turns",
@@ -291,7 +293,7 @@ export async function runDocSession(
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DocSessionOutput }> {
   const taskId = task.id;
-  const label = sessionLabel(planName, taskId);
+  const label = sessionLabel(planName, taskId, "doc");
   log(`${phaseLabel("DOC")} session: ${taskId}`);
 
   const payload = JSON.stringify({
@@ -306,7 +308,7 @@ export async function runDocSession(
     cwd || projectRoot,
     [
       "--model",
-      "claude-haiku-4-5",
+      MODEL,
       "--max-turns",
       "30",
       "--allowedTools",
