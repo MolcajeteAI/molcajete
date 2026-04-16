@@ -107,7 +107,7 @@ export async function runDevTestReviewCycle(
   planDir: string | null,
   scope: "task" | "subtask",
   settings: Settings,
-  planName?: string,
+  planName: string,
   cwd?: string,
   branch?: string,
 ): Promise<DevTestReviewResult> {
@@ -117,7 +117,7 @@ export async function runDevTestReviewCycle(
     log(`Dev-test-review cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
 
     // 1. Dev session — writes code + commits
-    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, cwd);
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
     if (!dev.ok) {
       return {
         ok: false,
@@ -200,7 +200,7 @@ export async function runTaskLevelValidation(
   priorSummaries: string[],
   planDir: string | null,
   settings: Settings,
-  planName?: string,
+  planName: string,
   cwd?: string,
   branch?: string,
 ): Promise<DevTestReviewResult> {
@@ -258,7 +258,7 @@ export async function runTaskLevelValidation(
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Task-level fix cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
 
-    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, cwd);
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
     if (!dev.ok) {
       return {
         ok: false,

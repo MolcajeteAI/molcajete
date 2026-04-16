@@ -15,7 +15,7 @@ export async function runSimpleTask(
   priorSummaries: string[],
   planDir: string | null,
   settings: Settings,
-  planName?: string,
+  planName: string,
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
@@ -91,6 +91,9 @@ export async function runSimpleTask(
 
 /**
  * Run a task with sub-tasks: iterate sub-tasks, then task-level test + review.
+ *
+ * Sub-tasks share the parent task's worktree and branch — cwd/branch are
+ * threaded through unchanged across every sub-task invocation.
  */
 export async function runTaskWithSubTasks(
   hooks: HookMap,
@@ -100,7 +103,7 @@ export async function runTaskWithSubTasks(
   priorSummaries: string[],
   planDir: string | null,
   settings: Settings,
-  planName?: string,
+  planName: string,
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; error?: string }> {

@@ -4,6 +4,7 @@ import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
 import { MAX_MERGE_FIX_CYCLES } from "../../lib/config.js";
 import { log } from "../../lib/utils.js";
 import { createWorktree, removeWorktree, mergeWorktreeBranch, resolveConflicts } from "../../lib/git.js";
+import { sessionLabel } from "../../lib/utils.js";
 import { tryHook } from "../lib/hooks.js";
 import { readPlan } from "./plan-data.js";
 import { buildBuildContext } from "./cycle.js";
@@ -12,8 +13,11 @@ import { runDevSession, runVerifyHook, runReviewSession, maybePushAfterCommit } 
 /**
  * Set up a git worktree for a task.
  * Branch name: <planName>--<taskId>
- * Worktree path: <projectRoot>/.worktrees/<branchName>
+ * Worktree path: <projectRoot>/.molcajete/worktrees/<branchName>
  * Fires before/after-worktree-create hooks.
+ *
+ * When `resume` is true and the worktree is missing, the branch is
+ * recovered from the remote rather than recreated from base_branch.
  */
 export async function setupWorktree(
   hooks: HookMap,
@@ -23,9 +27,10 @@ export async function setupWorktree(
   baseBranch: string,
   planFile: string,
   settings: Settings,
+  resume: boolean,
 ): Promise<WorktreeInfo | null> {
   const branchName = `${planName}--${taskId}`;
-  const worktreePath = resolve(projectRoot, ".worktrees", branchName);
+  const worktreePath = resolve(projectRoot, ".molcajete", "worktrees", branchName);
 
   await tryHook(
     hooks,
@@ -41,7 +46,10 @@ export async function setupWorktree(
   );
 
   log(`Creating worktree: ${branchName}`);
-  const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch);
+  const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
+    resume,
+    remote: settings.remote,
+  });
 
   if (!result.ok) {
     log(`Failed to create worktree: ${result.error}`);
@@ -202,7 +210,7 @@ async function runMergeConflictSideLoop(
     log(`Merge conflict fix cycle ${cycle}/${MAX_MERGE_FIX_CYCLES}`);
 
     // 1. Resolve conflicts (Claude resolves + commits)
-    const resolveResult = await resolveConflicts();
+    const resolveResult = await resolveConflicts({ sessionLabel: sessionLabel(planName, taskId) });
     if (resolveResult.status === "failure") {
       log(`Conflict resolution failed: ${resolveResult.error}`);
       try {
@@ -235,7 +243,7 @@ async function runMergeConflictSideLoop(
       // Review failed — dev session to fix
       if (cycle < MAX_MERGE_FIX_CYCLES) {
         log(`Post-merge review found ${review.issues.length} issues — fixing`);
-        await runDevSession(projectRoot, planFile, taskId, [], review.issues);
+        await runDevSession(projectRoot, planFile, taskId, [], review.issues, planName);
         maybePushAfterCommit(settings, `merge-fix ${taskId}`);
         continue;
       }
@@ -246,7 +254,7 @@ async function runMergeConflictSideLoop(
     // Verify failed — dev session to fix, then loop back
     if (cycle < MAX_MERGE_FIX_CYCLES) {
       log(`Post-merge verify failed with ${verify.issues.length} issues — fixing`);
-      await runDevSession(projectRoot, planFile, taskId, [], verify.issues);
+      await runDevSession(projectRoot, planFile, taskId, [], verify.issues, planName);
       maybePushAfterCommit(settings, `merge-fix ${taskId}`);
       continue;
     }

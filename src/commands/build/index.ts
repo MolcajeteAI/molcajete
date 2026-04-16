@@ -53,7 +53,16 @@ export async function runBuild(planName: string, opts: { resume?: boolean; noWor
 
   const settings = readSettings(projectRoot);
 
-  await runAllTasksMode(hooks, projectRoot, planRelative, planFile, planDir, settings, opts.resume, opts.noWorktrees);
+  await runAllTasksMode(
+    hooks,
+    projectRoot,
+    planRelative,
+    planFile,
+    planDir,
+    settings,
+    opts.resume ?? false,
+    opts.noWorktrees ?? false,
+  );
 }
 
 // ── Helpers ──
@@ -79,8 +88,8 @@ async function runAllTasksMode(
   planFile: string,
   planDir: string,
   settings: Settings,
-  resume?: boolean,
-  noWorktrees?: boolean,
+  resume: boolean,
+  noWorktrees: boolean,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
 
@@ -186,7 +195,7 @@ async function runAllTasksMode(
     let taskCwd: string | undefined;
 
     if (useWorktrees) {
-      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile, settings);
+      worktree = await setupWorktree(hooks, projectRoot, planName, taskId, baseBranch, planFile, settings, resume);
       if (!worktree) {
         updatePlanJson(planFile, (d) => {
           const t = findTask(d, taskId);
@@ -255,6 +264,7 @@ async function runAllTasksMode(
         freshTask,
         [...priorSummaries, taskSummary].join("\n"),
         [],
+        planName,
         taskCwd,
       );
       if (doc.ok && doc.structured?.files_modified?.length > 0) {

@@ -45,7 +45,11 @@ function detectOperation(cwd: string): "merge" | "rebase" | null {
   return null;
 }
 
-async function spawnClaudeResolve(cwd: string, payload: Record<string, unknown>): Promise<ResolveConflictsOutput> {
+async function spawnClaudeResolve(
+  cwd: string,
+  payload: Record<string, unknown>,
+  sessionLabel: string,
+): Promise<ResolveConflictsOutput> {
   // Lazy import to avoid circular dependency with CLI-only code
   const { invokeClaude, extractStructuredOutput } = await import("../commands/lib/claude.js");
 
@@ -59,7 +63,7 @@ async function spawnClaudeResolve(cwd: string, payload: Record<string, unknown>)
     "--json-schema",
     JSON.stringify(RESOLVE_CONFLICTS_SCHEMA),
     "--name",
-    "resolve-conflicts",
+    sessionLabel,
     `/molcajete:resolve-conflicts ${JSON.stringify(payload)}`,
   ]);
 
@@ -81,25 +85,55 @@ export interface MergeWorktreeResult {
 
 /**
  * Create a git worktree with a new branch.
- * If the branch already exists (prior failed run), reuses it.
+ *
+ * Default (resume=false): create a new branch from baseBranch; if the branch
+ * already exists locally, reuse it.
+ *
+ * Resume (resume=true): the task's branch is assumed to already exist —
+ * locally, or on the remote from a prior push. Never create a new branch
+ * from baseBranch (that would silently discard prior work).
  */
 export function createWorktree(
   projectRoot: string,
   branchName: string,
   worktreePath: string,
   baseBranch: string,
+  opts: { resume?: boolean; remote?: string } = {},
 ): WorktreeResult {
-  // Check if worktree already exists (e.g. resumed after a failed build)
+  const resume = opts.resume ?? false;
+  const remote = opts.remote ?? "origin";
+
+  // Worktree already registered at this path?
   const existing = findRegisteredWorktree(projectRoot, worktreePath);
+  if (existing === branchName) {
+    // Correct branch attached — assume up to date, no-op.
+    return { ok: true };
+  }
   if (existing) {
-    if (existing === branchName) {
-      return { ok: true };
-    }
-    // Wrong branch — remove and recreate below
+    // Wrong branch attached — force-remove and fall through to recreate.
     try {
       execSync(`git worktree remove --force ${worktreePath}`, { cwd: projectRoot, stdio: "pipe" });
     } catch {
       /* best-effort removal */
+    }
+  }
+
+  if (resume) {
+    // Resume: attach to existing branch (local or remote). Never branch off baseBranch.
+    if (!localBranchExists(projectRoot, branchName)) {
+      if (!fetchRemoteBranch(projectRoot, remote, branchName)) {
+        return {
+          ok: false,
+          error: `--resume: branch ${branchName} not found locally or on remote ${remote}`,
+        };
+      }
+    }
+    try {
+      execSync(`git worktree add ${worktreePath} ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
+      return { ok: true };
+    } catch (err) {
+      const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+      return { ok: false, error: msg };
     }
   }
 
@@ -109,7 +143,7 @@ export function createWorktree(
   } catch (err) {
     const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
 
-    // Branch already exists — reuse it
+    // Branch already exists locally from a prior run — reuse it.
     if (/already exists/i.test(msg)) {
       try {
         execSync(`git worktree add ${worktreePath} ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
@@ -275,6 +309,31 @@ export function pushCurrentBranch(remote: string, cwd?: string): PushResult {
   }
 }
 
+/**
+ * Check whether a local branch exists.
+ */
+function localBranchExists(projectRoot: string, branchName: string): boolean {
+  try {
+    execSync(`git rev-parse --verify --quiet refs/heads/${branchName}`, { cwd: projectRoot, stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fetch a remote branch into a local tracking branch of the same name.
+ * Returns true on success, false if the ref doesn't exist on the remote.
+ */
+function fetchRemoteBranch(projectRoot: string, remote: string, branchName: string): boolean {
+  try {
+    execSync(`git fetch ${remote} ${branchName}:${branchName}`, { cwd: projectRoot, stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Public API ──
 
 export async function merge(_base: string, branch: string, options?: MergeOptions): Promise<GitResult> {
@@ -355,7 +414,7 @@ export async function rebase(onto: string, branch: string): Promise<GitResult> {
   }
 }
 
-export async function resolveConflicts(): Promise<GitResult> {
+export async function resolveConflicts(opts: { sessionLabel?: string } = {}): Promise<GitResult> {
   const cwd = process.cwd();
   const files = conflictedFiles();
 
@@ -391,7 +450,7 @@ export async function resolveConflicts(): Promise<GitResult> {
     incoming_ref: incomingRef,
   };
 
-  const output = await spawnClaudeResolve(cwd, payload);
+  const output = await spawnClaudeResolve(cwd, payload, opts.sessionLabel ?? "resolve-conflicts");
 
   if (output.status !== "resolved") {
     return { status: "failure", error: output.error || "Conflict resolution failed" };

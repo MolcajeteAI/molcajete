@@ -21,7 +21,7 @@ import {
   BUDGET_AGENT,
   BUDGET_RECOVERY,
 } from "../../lib/config.js";
-import { log, isSubTaskId, parentTaskId } from "../../lib/utils.js";
+import { log, isSubTaskId, parentTaskId, sessionLabel } from "../../lib/utils.js";
 import { invokeClaude, extractStructuredOutput, extractFailureReason } from "../lib/claude.js";
 import { runHook, tryHook } from "../lib/hooks.js";
 import { readPlan, findTask } from "./plan-data.js";
@@ -53,9 +53,10 @@ export async function runDevSession(
   taskId: string,
   priorSummaries: string[],
   issues: string[],
+  planName: string,
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
-  const sessionLabel = `dev-${taskId}`;
+  const label = sessionLabel(planName, taskId);
   log(`Dev session: ${taskId}${issues.length ? ` (retry, ${issues.length} issues)` : ""}`);
 
   const payload = JSON.stringify({
@@ -77,7 +78,7 @@ export async function runDevSession(
     "--json-schema",
     JSON.stringify(DEV_SESSION_SCHEMA),
     "--name",
-    sessionLabel,
+    label,
     `/molcajete:develop ${payload}`,
   ]);
 
@@ -169,7 +170,7 @@ export async function runReviewSession(
   planFile: string,
   taskId: string,
   settings: Settings,
-  planName?: string,
+  planName: string,
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
@@ -182,7 +183,7 @@ export async function runReviewSession(
   if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, "validation");
   await tryHook(hooks, "before-review", beforeReviewInput, { timeout: settings.hookTimeout });
 
-  const sessionLabel = `review-${taskId}`;
+  const label = sessionLabel(planName, taskId);
   const payload = JSON.stringify({
     plan_path: planFile,
     task_id: taskId,
@@ -200,7 +201,7 @@ export async function runReviewSession(
     "--json-schema",
     JSON.stringify(REVIEW_SESSION_SCHEMA),
     "--name",
-    sessionLabel,
+    label,
     `/molcajete:validate ${payload}`,
   ]);
 
@@ -229,7 +230,7 @@ export async function runRecoverySession(
   projectRoot: string,
   context: RecoveryContext,
 ): Promise<{ ok: boolean; structured: RecoverySessionOutput }> {
-  const sessionLabel = `recover-${context.failed_task_id}`;
+  const label = sessionLabel(context.plan_name, context.failed_task_id);
   log(`Recovery session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
 
   const payload = JSON.stringify(context);
@@ -246,7 +247,7 @@ export async function runRecoverySession(
     "--json-schema",
     JSON.stringify(RECOVERY_SESSION_SCHEMA),
     "--name",
-    sessionLabel,
+    label,
     `/molcajete:recover ${payload}`,
   ]);
 
@@ -270,10 +271,11 @@ export async function runDocSession(
   task: Task,
   devSummary: string,
   filesModified: string[],
+  planName: string,
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DocSessionOutput }> {
   const taskId = task.id;
-  const sessionLabel = `doc-${taskId}`;
+  const label = sessionLabel(planName, taskId);
   log(`Doc session: ${taskId}`);
 
   const payload = JSON.stringify({
@@ -294,7 +296,7 @@ export async function runDocSession(
     "--json-schema",
     JSON.stringify(DOC_SESSION_SCHEMA),
     "--name",
-    sessionLabel,
+    label,
     `/molcajete:document ${payload}`,
   ]);
 
