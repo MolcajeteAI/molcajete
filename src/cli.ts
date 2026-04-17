@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { runBuild } from "./commands/build/index.js";
 import { sweepActiveWorktrees } from "./commands/build/worktree-registry.js";
 import { getActiveChildren } from "./commands/lib/claude.js";
@@ -26,17 +26,16 @@ program
   .description("Execute all pending tasks in a plan (completeness per task, code review at boundary)")
   .argument("<plan-name>", "Plan name, path, timestamp, or slug")
   .option("--resume", "Resume from where a previous build left off (skip implemented tasks)")
-  .option("--no-worktrees", "Run all tasks in the main working directory (no worktree isolation)")
   .option("--parallel <n>", "Max number of tasks to run concurrently (1-16)", (v) => Number.parseInt(v, 10))
-  .option("--no-parallel", "Disable parallelism (equivalent to --parallel 1)")
-  .option("--failure-threshold <n>", "Terminal failures allowed before draining (1-100)", (v) =>
-    Number.parseInt(v, 10),
-  )
   .option("--skip-docs", "Skip the documentation step after each task")
   .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
   .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
-  .option("--yes", "Auto-confirm the startup sync prompt (fast-forward or push)")
-  .option("--no", "Auto-decline the startup sync prompt (abort on mismatch)")
+  .option("--debug", "Print spawned claude commands to stderr")
+  .addOption(new Option("--no-worktrees").hideHelp())
+  .addOption(new Option("--no-parallel").hideHelp())
+  .addOption(new Option("--failure-threshold <n>").hideHelp().argParser((v) => Number.parseInt(v, 10)))
+  .addOption(new Option("--yes").hideHelp())
+  .addOption(new Option("--no").hideHelp())
   .action(async (planName, opts) => {
     const parallelOverride =
       opts.parallel === false ? 1 : typeof opts.parallel === "number" ? opts.parallel : undefined;

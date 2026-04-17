@@ -86,15 +86,11 @@ molcajete build --resume 202604021530-login   # skip already-implemented tasks
 | Flag | Description |
 |------|-------------|
 | `--resume` | Resume from where a previous build left off |
+| `--parallel <n>` | Max concurrent tasks (1-16) |
 | `--skip-docs` | Skip the documentation step after each task |
 | `--skip-review` | Skip AI code review entirely (completeness-only per task, no boundary review) |
 | `--review-level <levels>` | Comma-separated review boundaries: `scenario`, `usecase` (default), `feature`, `plan` |
-| `--parallel <n>` | Max concurrent tasks (1-16) |
-| `--no-parallel` | Disable parallelism (equivalent to `--parallel 1`) |
-| `--failure-threshold <n>` | Terminal failures allowed before draining (1-100) |
-| `--no-worktrees` | Run all tasks in the main working directory (no worktree isolation) |
-| `--yes` | Auto-confirm the startup sync prompt |
-| `--no` | Auto-decline the startup sync prompt (abort on mismatch) |
+| `--debug` | Print spawned claude commands to stderr |
 
 ## Plugin Commands
 
