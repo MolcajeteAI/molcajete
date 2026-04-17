@@ -10,9 +10,11 @@ import type { Phase, PlanData, Task } from "../../types.js";
  */
 export class PlanState {
   private data: PlanData;
+  private allowedTaskIds: Set<string> | null;
 
-  constructor(data: PlanData) {
+  constructor(data: PlanData, allowedTaskIds?: Set<string>) {
     this.data = deepClone(data);
+    this.allowedTaskIds = allowedTaskIds ?? null;
   }
 
   snapshot(): PlanData {
@@ -50,13 +52,14 @@ export class PlanState {
       }
       if (ready) out.push(task.id);
     }
-    return out;
+    return this.allowedTaskIds ? out.filter((id) => this.allowedTaskIds!.has(id)) : out;
   }
 
   /** Tasks still waiting to be implemented (pending or in_progress). */
   unimplementedTaskIds(): string[] {
     return this.data.tasks
       .filter((t) => t.status !== "implemented")
+      .filter((t) => !this.allowedTaskIds || this.allowedTaskIds.has(t.id))
       .map((t) => t.id);
   }
 

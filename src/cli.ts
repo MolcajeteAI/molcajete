@@ -4,6 +4,7 @@ import { runBuild } from "./commands/build/index.js";
 import { sweepActiveWorktrees } from "./commands/build/worktree-registry.js";
 import { getActiveChildren } from "./commands/lib/claude.js";
 import { runSetup } from "./commands/setup/index.js";
+import { runTask } from "./commands/task/index.js";
 import { setDebug } from "./lib/utils.js";
 
 const require = createRequire(import.meta.url);
@@ -40,6 +41,43 @@ program
       resume: opts.resume,
       parallel: parallelOverride,
       maxFailures: typeof opts.maxFailures === "number" ? opts.maxFailures : undefined,
+      syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
+      skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
+      skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,
+      reviewLevel: opts.reviewLevel || process.env.REVIEW_LEVEL,
+    });
+  });
+
+program
+  .command("task")
+  .description("Run specific tasks from a plan")
+  .argument("<plan-name>", "Plan name, path, timestamp, or slug")
+  .argument("<task-numbers...>", "Task numbers to run (e.g. 1 3 99 → T-001 T-003 T-099)")
+  .option("--parallel <n>", "Max number of tasks to run concurrently (1-16)", (v) => Number.parseInt(v, 10))
+  .option("--resume", "Resume from where a previous run left off (skip implemented tasks)")
+  .option("--skip-docs", "Skip the documentation step after each task")
+  .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
+  .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
+  .option("--max-failures <n>", "Stop after N terminal task failures (default: no limit)", (v) => Number.parseInt(v, 10))
+  .option("--build-deps", "Build unimplemented dependencies before running specified tasks")
+  .option("--debug", "Print spawned claude commands to stderr")
+  .addOption(new Option("--yes").hideHelp())
+  .addOption(new Option("--no").hideHelp())
+  .action(async (planName, taskNumbers, opts) => {
+    const nums = (taskNumbers as string[]).map((s) => {
+      const n = Number.parseInt(s, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        process.stderr.write(`Error: invalid task number "${s}" — must be a positive integer\n`);
+        process.exit(1);
+      }
+      return n;
+    });
+    const parallelOverride = typeof opts.parallel === "number" ? opts.parallel : undefined;
+    await runTask(planName, nums, {
+      resume: opts.resume,
+      parallel: parallelOverride,
+      maxFailures: typeof opts.maxFailures === "number" ? opts.maxFailures : undefined,
+      buildDeps: opts.buildDeps,
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
       skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
       skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,

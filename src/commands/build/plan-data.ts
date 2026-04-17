@@ -177,6 +177,48 @@ export function checkSubTaskDeps(task: Task, subTaskId: string): number {
   return 0;
 }
 
+// ── Task ID Mapping ──
+
+/**
+ * Map user-provided integers to T-NNN task IDs.
+ * e.g. [1, 3, 99] → ["T-001", "T-003", "T-099"]
+ */
+export function expandTaskNumbers(nums: number[]): string[] {
+  return nums.map((n) => `T-${String(n).padStart(3, "0")}`);
+}
+
+// ── Transitive Dependency Resolution ──
+
+/**
+ * Walk `depends_on` recursively for each task in `taskIds`, collecting all
+ * transitive ancestors that are not yet `implemented`. Returns the union of
+ * the original taskIds plus all unimplemented ancestors.
+ */
+export function resolveTransitiveDeps(data: PlanData, taskIds: string[]): Set<string> {
+  const byId = new Map(data.tasks.map((t) => [t.id, t] as const));
+  const result = new Set<string>(taskIds);
+  const visited = new Set<string>();
+  const queue = [...taskIds];
+
+  while (queue.length > 0) {
+    const id = queue.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+
+    const task = byId.get(id);
+    if (!task) continue;
+
+    for (const depId of task.depends_on ?? []) {
+      const dep = byId.get(depId);
+      if (dep && dep.status !== "implemented") {
+        result.add(depId);
+        queue.push(depId);
+      }
+    }
+  }
+  return result;
+}
+
 // ── Plan-Level Status ──
 
 export function updatePlanLevelStatus(

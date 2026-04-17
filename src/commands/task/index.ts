@@ -6,76 +6,55 @@ import { enableTaskPrefix } from "../../lib/log-context.js";
 import { closeLogger, initLogger } from "../../lib/logger.js";
 import { promptYesNo, type SyncAnswer } from "../../lib/prompt.js";
 import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
-import type { BuildStage, HookMap, ReviewLevel, Settings } from "../../types.js";
+import type { BuildStage, HookMap, Settings } from "../../types.js";
 import { buildStats, formatDuration } from "../lib/claude.js";
 import { discoverHooks, tryHook, validateMandatoryHooks } from "../lib/hooks.js";
-import { buildBuildContext } from "./cycle.js";
+import { buildBuildContext } from "../build/cycle.js";
 import {
+  expandTaskNumbers,
+  findTask,
   readPlan,
   readSettings,
   resolvePlanFile,
+  resolveTransitiveDeps,
   updatePlanLevelStatus,
   writePlan,
-} from "./plan-data.js";
-import { PlanState } from "./plan-state.js";
-import { updatePrdStatuses } from "./prd.js";
-import { runHealthcheckHook } from "./sessions.js";
-import { runScheduler } from "./scheduler.js";
-import { sweepActiveWorktrees } from "./worktree-registry.js";
+} from "../build/plan-data.js";
+import { PlanState } from "../build/plan-state.js";
+import { updatePrdStatuses } from "../build/prd.js";
+import { runHealthcheckHook } from "../build/sessions.js";
+import { runScheduler } from "../build/scheduler.js";
+import { sweepActiveWorktrees } from "../build/worktree-registry.js";
+import {
+  fireHalt,
+  flushPlanLevelStatus,
+  flushPlanToDisk,
+  parseReviewLevels,
+} from "../build/index.js";
 
-export interface RunBuildOptions {
+export interface RunTaskOptions {
   resume?: boolean;
   parallel?: number;
   maxFailures?: number;
+  buildDeps?: boolean;
   syncAnswer?: SyncAnswer;
   skipDocs?: boolean;
   skipReview?: boolean;
   reviewLevel?: string;
 }
 
-const VALID_REVIEW_LEVELS = new Set<ReviewLevel>(["scenario", "usecase", "feature", "plan"]);
-
-export function parseReviewLevels(raw?: string): Set<ReviewLevel> {
-  if (!raw) return new Set<ReviewLevel>(["usecase"]);
-  const levels = new Set<ReviewLevel>();
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim() as ReviewLevel;
-    if (VALID_REVIEW_LEVELS.has(trimmed)) {
-      levels.add(trimmed);
-    } else {
-      log(`Warning: unknown review level "${trimmed}" — ignored`);
-    }
-  }
-  return levels.size > 0 ? levels : new Set<ReviewLevel>(["usecase"]);
-}
-
-export async function fireHalt(
-  hooks: HookMap,
-  planFile: string,
-  planName: string,
-  issues: string[],
-  settings: Settings,
-): Promise<void> {
-  log(`BUILD HALTED: ${issues.length} healthcheck issue(s)`);
-  sweepActiveWorktrees("halt");
-  await tryHook(
-    hooks,
-    "halt",
-    {
-      build: buildBuildContext(planFile, planName, "halted"),
-      issues,
-    },
-    { timeout: settings.hookTimeout },
-  );
-}
-
 /**
- * Build command entry point.
+ * Task command entry point — run specific tasks from a plan.
  */
-export async function runBuild(planName: string, opts: RunBuildOptions = {}): Promise<void> {
+export async function runTask(
+  planName: string,
+  taskNumbers: number[],
+  opts: RunTaskOptions = {},
+): Promise<void> {
   const projectRoot = resolveProjectRoot();
 
-  // Resolve plan file
+  // ── Resolve plan file ──
+
   const plansDir = resolve(projectRoot, ".molcajete", "plans");
   if (!existsSync(plansDir)) {
     process.stderr.write("Error: .molcajete/plans/ directory not found\n");
@@ -94,7 +73,7 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
   const planDir = dirname(planFile);
   const planRelative = basename(planDir);
 
-  const logPath = initLogger("build", planRelative);
+  const logPath = initLogger("task", planRelative);
   logDetail(`Logs: ${logPath}`);
 
   const hooks = await discoverHooks(projectRoot);
@@ -110,70 +89,81 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
 
   enableTaskPrefix(settings.maxParallel > 1);
 
-  await runAllTasksMode(
-    hooks,
-    projectRoot,
-    planRelative,
-    planFile,
-    planDir,
-    settings,
-    opts.resume ?? false,
-    opts.syncAnswer,
-    opts.skipDocs ?? false,
-    opts.skipReview ?? false,
-    parseReviewLevels(opts.reviewLevel),
-  );
-}
-
-// ── Main Orchestrator ──
-
-async function runAllTasksMode(
-  hooks: HookMap,
-  projectRoot: string,
-  planName: string,
-  planFile: string,
-  _planDir: string,
-  settings: Settings,
-  resume: boolean,
-  syncAnswer: SyncAnswer,
-  skipDocs: boolean,
-  skipReview: boolean,
-  reviewLevels: Set<ReviewLevel>,
-): Promise<void> {
-  log(`Starting build: all pending tasks from ${planName}`);
-  log(`Parallelism: ${settings.maxParallel} worker(s), max failures: ${settings.maxFailures ?? "no limit"}`);
+  // ── Pre-flight validation ──
 
   const diskData = readPlan(planFile);
+  const requestedIds = expandTaskNumbers(taskNumbers);
+
+  // Validate all task IDs exist in the plan.
+  const missing = requestedIds.filter((id) => !findTask(diskData, id));
+  if (missing.length > 0) {
+    process.stderr.write(`Error: task(s) not found in plan: ${missing.join(", ")}\n`);
+    process.exit(1);
+  }
+
+  // Dependency check.
+  let allowedTaskIds: Set<string>;
+
+  if (opts.buildDeps) {
+    // Expand to include all unimplemented transitive dependencies.
+    allowedTaskIds = resolveTransitiveDeps(diskData, requestedIds);
+    const extraDeps = [...allowedTaskIds].filter((id) => !requestedIds.includes(id));
+    if (extraDeps.length > 0) {
+      log(`--build-deps: will also build ${extraDeps.length} dependency task(s): ${extraDeps.join(", ")}`);
+    }
+  } else {
+    // Abort if any dependency is not implemented.
+    const unmetDeps: string[] = [];
+    for (const id of requestedIds) {
+      const task = findTask(diskData, id)!;
+      for (const depId of task.depends_on ?? []) {
+        const dep = findTask(diskData, depId);
+        if (dep && dep.status !== "implemented") {
+          unmetDeps.push(`${id} depends on ${depId} (status: ${dep.status})`);
+        }
+      }
+    }
+    if (unmetDeps.length > 0) {
+      process.stderr.write(
+        `Error: unmet dependencies — cannot proceed without --build-deps:\n  ${unmetDeps.join("\n  ")}\n`,
+      );
+      process.exit(1);
+    }
+    allowedTaskIds = new Set(requestedIds);
+  }
+
+  // ── Run (mirrors runAllTasksMode from build) ──
+
+  log(`Starting task run: ${requestedIds.join(", ")} from ${planRelative}`);
+  log(`Parallelism: ${settings.maxParallel} worker(s), max failures: ${settings.maxFailures ?? "no limit"}`);
+
   const baseBranch = diskData.base_branch || "main";
 
-  // Startup sync check: projectRoot must be on base_branch, plan.json clean,
-  // and local base in sync with remote (or brought in sync interactively).
   const syncOutcome = await checkBaseSync(
     projectRoot,
     settings.remote,
     baseBranch,
     planRelativePath(projectRoot, planFile),
-    (question) => promptYesNo(question, { syncAnswer }),
+    (question) => promptYesNo(question, { syncAnswer: opts.syncAnswer }),
   );
   if (!syncOutcome.ok) {
-    log(`BUILD ABORTED: ${syncOutcome.message}`);
+    log(`TASK RUN ABORTED: ${syncOutcome.message}`);
     process.exit(1);
   }
   if (syncOutcome.action !== "in-sync") {
     log(`Base sync: ${syncOutcome.action}`);
   }
 
-  // Reset failed tasks on the in-memory plan (unless resuming). No commit —
-  // the on-disk plan.json is frozen until build end.
+  // Reset failed tasks — only within the allowed set (unless resuming).
   const freshData = readPlan(planFile);
-  if (!resume) {
+  if (!opts.resume) {
     for (const t of freshData.tasks) {
-      if (t.status === "failed") {
+      if (allowedTaskIds.has(t.id) && t.status === "failed") {
         t.status = "pending";
         t.errors = [];
         delete t.stage;
       }
-      if (t.sub_tasks) {
+      if (allowedTaskIds.has(t.id) && t.sub_tasks) {
         for (const st of t.sub_tasks) {
           if (st.status === "failed") {
             st.status = "pending";
@@ -186,14 +176,14 @@ async function runAllTasksMode(
     if (freshData.status === "failed") freshData.status = "pending";
   }
 
-  const planState = new PlanState(freshData);
+  const planState = new PlanState(freshData, allowedTaskIds);
 
-  // Snapshot tasks that were in_progress at start — those get resume=true so
-  // setupWorktree reattaches rather than creating a fresh branch.
   const resumeTaskIds = new Set<string>();
-  if (resume) {
+  if (opts.resume) {
     for (const t of freshData.tasks) {
-      if (t.status === "in_progress") resumeTaskIds.add(t.id);
+      if (allowedTaskIds.has(t.id) && t.status === "in_progress") {
+        resumeTaskIds.add(t.id);
+      }
     }
   }
 
@@ -203,44 +193,44 @@ async function runAllTasksMode(
   const startResult = await tryHook(
     hooks,
     "start",
-    { build: buildBuildContext(planFile, planName, "start") },
+    { build: buildBuildContext(planFile, planRelative, "start") },
     { timeout: settings.hookTimeout },
   );
   if (startResult && !startResult.ok) {
-    log(`BUILD ABORTED: start hook failed — ${startResult.stderr}`);
+    log(`TASK RUN ABORTED: start hook failed — ${startResult.stderr}`);
     planState.setPlanStatus("failed");
     flushPlanToDisk(planFile, planState);
     process.exit(1);
   }
 
-  // Pre-scheduler healthcheck (infra preflight).
+  // Pre-scheduler healthcheck.
   const healthAfterStart = await runHealthcheckHook(hooks, {
     planFile,
-    planName,
+    planName: planRelative,
     stage: "start",
     settings,
     cwd: projectRoot,
   });
   if (!healthAfterStart.ok) {
-    await fireHalt(hooks, planFile, planName, healthAfterStart.issues, settings);
+    await fireHalt(hooks, planFile, planRelative, healthAfterStart.issues, settings);
     flushPlanToDisk(planFile, planState);
     process.exit(1);
   }
 
-  const taskCount = freshData.tasks.length;
+  const totalTaskCount = freshData.tasks.length;
 
   const schedulerResult = await runScheduler({
     hooks,
     projectRoot,
     planFile,
-    planName,
+    planName: planRelative,
     settings,
     planState,
-    resume,
+    resume: opts.resume ?? false,
     resumeTaskIds,
-    skipDocs,
-    skipReview,
-    reviewLevels,
+    skipDocs: opts.skipDocs ?? false,
+    skipReview: opts.skipReview ?? false,
+    reviewLevels: parseReviewLevels(opts.reviewLevel),
   });
 
   const { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
@@ -249,14 +239,16 @@ async function runAllTasksMode(
     const snap = planState.snapshot();
     const failedIds = snap.tasks.filter((t) => t.status === "failed").map((t) => t.id);
     const issues = drainedEarly
-      ? [`Failure threshold reached — ${failedIds.length} task(s) failed: ${failedIds.join(", ")}`]
+      ? [`Max failures reached — ${failedIds.length} task(s) failed: ${failedIds.join(", ")}`]
       : [`Deadlock — ${blockedTaskIds.length} task(s) blocked by failed deps: ${blockedTaskIds.join(", ")}`];
-    await fireHalt(hooks, planFile, planName, issues, settings);
+    await fireHalt(hooks, planFile, planRelative, issues, settings);
   }
 
-  // PRD status update after a fully-clean run.
-  if (failedCount === 0 && doneCount === taskCount) {
-    // Flush before the PRD scan so readPlan in prd.ts sees final state.
+  // PRD status update only when ALL plan tasks are done (not just the subset).
+  const allDone = freshData.tasks.every(
+    (t) => t.status === "implemented" || planState.snapshot().tasks.find((s) => s.id === t.id)?.status === "implemented",
+  );
+  if (failedCount === 0 && allDone) {
     flushPlanToDisk(planFile, planState);
     updatePrdStatuses(projectRoot, planFile);
   }
@@ -266,15 +258,17 @@ async function runAllTasksMode(
   await tryHook(
     hooks,
     "stop",
-    { build: buildBuildContext(planFile, planName, stopStage) },
+    { build: buildBuildContext(planFile, planRelative, stopStage) },
     { timeout: settings.hookTimeout },
   );
 
-  // Final plan.json flush — no commit. The user can inspect it; remote state
-  // is the source of truth for each task branch.
-  flushPlanLevelStatus(planFile, planState, taskCount, doneCount, failedCount);
+  // Final plan flush — use total plan task count for plan-level status.
+  const totalDone = planState.snapshot().tasks.filter((t) => t.status === "implemented").length;
+  const totalFailed = planState.snapshot().tasks.filter((t) => t.status === "failed").length;
+  flushPlanLevelStatus(planFile, planState, totalTaskCount, totalDone, totalFailed);
 
-  // Completion report
+  // ── Completion report (scoped to requested tasks + deps) ──
+
   {
     const h = buildEndHeading();
     log(h.title);
@@ -284,11 +278,11 @@ async function runAllTasksMode(
     statsLine([
       ["Implemented", String(doneCount)],
       ["Failed", String(failedCount)],
-      ["Total", String(taskCount)],
+      ["Scope", `${allowedTaskIds.size} task(s)`],
     ]),
   );
   if (drainedEarly) {
-    logDetail(`Build drained early after reaching max failures.`);
+    logDetail(`Task run drained early after reaching max failures.`);
   }
   if (blockedTaskIds.length > 0) {
     logDetail(`Unattempted (blocked by failed deps): ${blockedTaskIds.join(", ")}`);
@@ -307,6 +301,7 @@ async function runAllTasksMode(
   process.stdout.write("\nTask Status:\n");
   const finalData = readPlan(planFile);
   for (const task of finalData.tasks) {
+    if (!allowedTaskIds.has(task.id)) continue;
     const status = task.status.padEnd(12);
     const error = task.errors?.length ? ` (${task.errors.join("; ")})` : "";
     process.stdout.write(`  ${task.id.padEnd(10)}  ${status} ${task.title}${error}\n`);
@@ -322,29 +317,4 @@ async function runAllTasksMode(
 
   closeLogger();
   process.exit(failedCount === 0 ? 0 : 1);
-}
-
-export function flushPlanToDisk(planFile: string, planState: PlanState): void {
-  try {
-    writePlan(planFile, planState.snapshot());
-  } catch (err) {
-    log(`Warning: failed to flush plan.json to disk: ${(err as Error).message}`);
-  }
-}
-
-export function flushPlanLevelStatus(
-  planFile: string,
-  planState: PlanState,
-  taskCount: number,
-  doneCount: number,
-  failedCount: number,
-): void {
-  if (doneCount === taskCount) {
-    planState.setPlanStatus("implemented");
-  } else if (failedCount > 0) {
-    planState.setPlanStatus("failed");
-  }
-  flushPlanToDisk(planFile, planState);
-  // Reuse updatePlanLevelStatus for any side-effects consumers may rely on.
-  updatePlanLevelStatus(planFile, taskCount, doneCount, failedCount);
 }
