@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { PlanData, ResolveConflictsOutput, Task } from "../types.js";
 import { MODEL, RESOLVE_CONFLICTS_SCHEMA } from "./config.js";
@@ -317,25 +317,28 @@ export function createWorktree(
   const resume = opts.resume ?? false;
   const remote = opts.remote ?? "origin";
 
-  // ── Step 1: Clean up stale worktree registrations ──
-  // Check if the target path already has a worktree registered.
-  const existingAtPath = findRegisteredWorktree(projectRoot, worktreePath);
-  if (existingAtPath === branchName) {
-    // Correct branch at correct path — reuse as-is.
-    return { ok: true };
+  // ── Reuse: only on resume, only when properly registered with the right branch ──
+  if (resume) {
+    const existingBranch = findRegisteredWorktree(projectRoot, worktreePath);
+    if (existingBranch === branchName) {
+      return { ok: true };
+    }
   }
-  if (existingAtPath) {
-    // Wrong branch at this path — remove and recreate.
+
+  // ── Cleanup: remove anything at the target path ──
+  // Triggers on existsSync — catches detached-HEAD worktrees (stuck rebases),
+  // stale directories, and properly registered worktrees that need refreshing.
+  if (existsSync(worktreePath)) {
     forceRemoveWorktree(projectRoot, worktreePath);
   }
 
-  // Check if the branch is checked out in a DIFFERENT worktree (stale leftover).
+  // If the branch is checked out in a DIFFERENT worktree, clean that up too.
   const staleWorktreePath = findWorktreeByBranch(projectRoot, branchName);
   if (staleWorktreePath && resolve(staleWorktreePath) !== resolve(worktreePath)) {
     forceRemoveWorktree(projectRoot, staleWorktreePath);
   }
 
-  // ── Step 2: Resume path ──
+  // ── Resume: reattach to existing branch ──
   if (resume) {
     if (!localBranchExists(projectRoot, branchName)) {
       if (!fetchRemoteBranch(projectRoot, remote, branchName)) {
@@ -354,22 +357,22 @@ export function createWorktree(
     }
   }
 
-  // ── Step 3: Fresh worktree from baseBranch ──
-  // Delete stale remote branch from a prior run so the first push won't
-  // hit a non-fast-forward rejection.
+  // ── Fresh: new branch from remote base ──
+  // Delete stale remote branch so the first push won't hit a non-ff rejection.
   try {
     execSync(`git push ${remote} --delete ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
   } catch {
     /* branch may not exist on remote — that's fine */
   }
 
-  // Delete stale local branch if it exists (now safe — any worktree using it
-  // was removed in step 1).
+  // Delete stale local branch. After cleanup above, any worktree holding it
+  // is gone — if this still fails, something unexpected is locking it.
   if (localBranchExists(projectRoot, branchName)) {
     try {
       execSync(`git branch -D ${branchName}`, { cwd: projectRoot, stdio: "pipe" });
-    } catch {
-      /* best-effort */
+    } catch (err) {
+      const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
+      return { ok: false, error: `Failed to delete stale branch ${branchName}: ${msg}` };
     }
   }
 
@@ -384,13 +387,21 @@ export function createWorktree(
 }
 
 /**
- * Force-remove a worktree and prune its registration. Never throws.
+ * Force-remove a worktree, its directory, and prune stale registrations.
+ * Never throws. Handles stuck-rebase / detached-HEAD worktrees that
+ * `git worktree remove` may struggle with by falling back to manual
+ * directory removal + prune.
  */
 function forceRemoveWorktree(projectRoot: string, wtPath: string): void {
   try {
     execSync(`git worktree remove --force ${shellEscape(wtPath)}`, { cwd: projectRoot, stdio: "pipe" });
   } catch {
-    // If remove fails (e.g., path already deleted), prune stale entries.
+    // Manual fallback: remove the directory, then prune the stale registration.
+    try {
+      rmSync(wtPath, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
     try {
       execSync("git worktree prune", { cwd: projectRoot, stdio: "pipe" });
     } catch {
