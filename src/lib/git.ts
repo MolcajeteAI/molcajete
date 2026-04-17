@@ -114,7 +114,7 @@ function detectOperation(cwd: string): "merge" | "rebase" | null {
 async function spawnClaudeResolve(
   cwd: string,
   payload: Record<string, unknown>,
-  sessionLabel: string,
+  _sessionLabel: string,
 ): Promise<ResolveConflictsOutput> {
   // Lazy import to avoid circular dependency with CLI-only code
   const { invokeClaude, extractStructuredOutput } = await import("../commands/lib/claude.js");
@@ -128,8 +128,6 @@ async function spawnClaudeResolve(
     "30",
     "--json-schema",
     JSON.stringify(RESOLVE_CONFLICTS_SCHEMA),
-    "--name",
-    sessionLabel,
     `/molcajete:resolve-conflicts ${JSON.stringify(payload)}`,
   ]);
 
@@ -1120,7 +1118,7 @@ type AutoResolveResult =
 async function autoResolvePlanJsonConflicts(
   cwd: string,
   operation: "merge" | "rebase",
-  sessionLabel?: string,
+  _sessionLabel?: string,
 ): Promise<AutoResolveResult> {
   const MAX_STEPS = 100; // safety limit for very large rebases
 

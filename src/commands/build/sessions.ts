@@ -61,7 +61,7 @@ export async function runDevSession(
   planName: string,
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
-  const label = sessionLabel(planName, taskId, "dev");
+  const _label = sessionLabel(planName, taskId, "dev");
   const retrySuffix = issues.length ? ` (retry, ${issues.length} issues)` : "";
   log(`${phaseLabel("DEV")} session: ${taskId}${retrySuffix}`);
 
@@ -85,8 +85,6 @@ export async function runDevSession(
       BUDGET_AGENT,
       "--json-schema",
       JSON.stringify(DEV_SESSION_SCHEMA),
-      "--name",
-      label,
       `/molcajete:develop ${payload}`,
     ],
     "DEV",
@@ -238,7 +236,7 @@ export async function runReviewSession(
   if (planName) beforeReviewInput.build = buildBuildContext(planFile, planName, "validation");
   await tryHook(hooks, "before-review", beforeReviewInput, { timeout: settings.hookTimeout });
 
-  const label = sessionLabel(planName, taskId, "review");
+  const _label = sessionLabel(planName, taskId, "review");
   const payload = JSON.stringify({
     plan_path: planFile,
     task_id: taskId,
@@ -258,8 +256,6 @@ export async function runReviewSession(
       BUDGET_AGENT,
       "--json-schema",
       JSON.stringify(REVIEW_SESSION_SCHEMA),
-      "--name",
-      label,
       `/molcajete:validate ${payload}`,
     ],
     "REVIEW",
@@ -291,7 +287,7 @@ export async function runRecoverySession(
   projectRoot: string,
   context: RecoveryContext,
 ): Promise<{ ok: boolean; structured: RecoverySessionOutput }> {
-  const label = sessionLabel(context.plan_name, context.failed_task_id, "recovery");
+  const _label = sessionLabel(context.plan_name, context.failed_task_id, "recovery");
   log(`${phaseLabel("RECOVERY")} session: ${context.failed_task_id} (stage: ${context.failed_stage})`);
 
   const payload = JSON.stringify(context);
@@ -309,8 +305,6 @@ export async function runRecoverySession(
       BUDGET_RECOVERY,
       "--json-schema",
       JSON.stringify(RECOVERY_SESSION_SCHEMA),
-      "--name",
-      label,
       `/molcajete:recover ${payload}`,
     ],
     "RECOVERY",
@@ -363,7 +357,7 @@ export async function runDocSession(
   cwd?: string,
 ): Promise<{ ok: boolean; structured: DocSessionOutput }> {
   const taskId = task.id;
-  const label = sessionLabel(planName, taskId, "doc");
+  const _label = sessionLabel(planName, taskId, "doc");
   log(`${phaseLabel("DOC")} session: ${taskId}`);
 
   const payload = JSON.stringify({
@@ -385,8 +379,6 @@ export async function runDocSession(
       "Read,Write,Edit,Glob,Grep,Bash,Agent",
       "--json-schema",
       JSON.stringify(DOC_SESSION_SCHEMA),
-      "--name",
-      label,
       `/molcajete:document ${payload}`,
     ],
     "DOC",
