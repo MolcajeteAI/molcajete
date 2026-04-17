@@ -31,7 +31,7 @@ program
   .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
   .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
   .option("--debug", "Print spawned claude commands to stderr")
-.addOption(new Option("--failure-threshold <n>").hideHelp().argParser((v) => Number.parseInt(v, 10)))
+  .option("--max-failures <n>", "Stop the build after N terminal task failures (default: no limit)", (v) => Number.parseInt(v, 10))
   .addOption(new Option("--yes").hideHelp())
   .addOption(new Option("--no").hideHelp())
   .action(async (planName, opts) => {
@@ -39,7 +39,7 @@ program
     await runBuild(planName, {
       resume: opts.resume,
       parallel: parallelOverride,
-      failureThreshold: typeof opts.failureThreshold === "number" ? opts.failureThreshold : undefined,
+      maxFailures: typeof opts.maxFailures === "number" ? opts.maxFailures : undefined,
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
       skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
       skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,

@@ -34,8 +34,9 @@ export interface SchedulerResult {
 
 /**
  * DAG scheduler — launches up to `settings.maxParallel` workers concurrently,
- * respecting task dependencies. Terminal failures accumulate against a
- * threshold; once reached, the scheduler drains in-flight work and exits.
+ * respecting task dependencies. When `maxFailures` is set, terminal failures
+ * accumulate against that limit; once reached, the scheduler drains in-flight
+ * work and exits. Otherwise, the build continues until no launchable tasks remain.
  *
  * Recovery runs as its own worker in its own worktree (no serialization
  * needed beyond gitMutex for worktree add/remove).
@@ -45,8 +46,6 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
 
   const gitMutex: AsyncMutex = createMutex();
   const maxParallel = Math.max(1, settings.maxParallel);
-  const effectiveThreshold = maxParallel === 1 ? 1 : Math.max(1, settings.failureThreshold);
-
   const recoveredTasks = new Set<string>();
   const reviewedBoundaries = new Set<string>(); // "usecase:UC-001", "feature:FEAT-001", etc.
   const inflight = new Map<string, Promise<{ kind: "task" | "recovery" | "boundary-review"; result: unknown }>>();
@@ -265,9 +264,9 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
       handleBoundaryReviewResult(winner.payload.result as BoundaryReviewResult);
     }
 
-    if (!draining && terminalFailures >= effectiveThreshold) {
+    if (!draining && settings.maxFailures !== undefined && terminalFailures >= settings.maxFailures) {
       log(
-        `Failure threshold reached (${terminalFailures}/${effectiveThreshold}) — draining in-flight tasks and stopping`,
+        `Max failures reached (${terminalFailures}/${settings.maxFailures}) — draining in-flight tasks and stopping`,
       );
       draining = true;
     }

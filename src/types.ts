@@ -101,7 +101,7 @@ export interface Settings {
   push: boolean;
   hookTimeout?: number;
   maxParallel: number;
-  failureThreshold: number;
+  maxFailures?: number;
 }
 
 export interface HookResult {

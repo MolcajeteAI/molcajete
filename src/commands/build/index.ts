@@ -26,7 +26,7 @@ import { sweepActiveWorktrees } from "./worktree-registry.js";
 export interface RunBuildOptions {
   resume?: boolean;
   parallel?: number;
-  failureThreshold?: number;
+  maxFailures?: number;
   syncAnswer?: SyncAnswer;
   skipDocs?: boolean;
   skipReview?: boolean;
@@ -104,8 +104,8 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
   if (typeof opts.parallel === "number") {
     settings = { ...settings, maxParallel: Math.max(1, Math.min(16, opts.parallel)) };
   }
-  if (typeof opts.failureThreshold === "number") {
-    settings = { ...settings, failureThreshold: Math.max(1, Math.min(100, opts.failureThreshold)) };
+  if (typeof opts.maxFailures === "number") {
+    settings = { ...settings, maxFailures: Math.max(1, Math.min(100, opts.maxFailures)) };
   }
 
   enableTaskPrefix(settings.maxParallel > 1);
@@ -141,7 +141,7 @@ async function runAllTasksMode(
   reviewLevels: Set<ReviewLevel>,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
-  log(`Parallelism: ${settings.maxParallel} worker(s), failure threshold: ${settings.failureThreshold}`);
+  log(`Parallelism: ${settings.maxParallel} worker(s), max failures: ${settings.maxFailures ?? "no limit"}`);
 
   const diskData = readPlan(planFile);
   const baseBranch = diskData.base_branch || "main";
@@ -288,7 +288,7 @@ async function runAllTasksMode(
     ]),
   );
   if (drainedEarly) {
-    logDetail(`Build drained early after reaching failure threshold.`);
+    logDetail(`Build drained early after reaching max failures.`);
   }
   if (blockedTaskIds.length > 0) {
     logDetail(`Unattempted (blocked by failed deps): ${blockedTaskIds.join(", ")}`);

@@ -90,6 +90,7 @@ molcajete build --resume 202604021530-login   # skip already-implemented tasks
 | `--skip-docs` | Skip the documentation step after each task |
 | `--skip-review` | Skip AI code review entirely (completeness-only per task, no boundary review) |
 | `--review-level <levels>` | Comma-separated review boundaries: `scenario`, `usecase` (default), `feature`, `plan` |
+| `--max-failures <n>` | Stop the build after N terminal task failures (default: no limit) |
 | `--debug` | Print spawned claude commands to stderr |
 
 ## Plugin Commands

@@ -36,7 +36,7 @@ export function readSettings(projectRoot: string): Settings {
     push: true,
     hookTimeout: 180000,
     maxParallel: 1,
-    failureThreshold: 3,
+    maxFailures: undefined,
   };
 
   let raw: Record<string, unknown> = {};
@@ -49,16 +49,16 @@ export function readSettings(projectRoot: string): Settings {
   }
 
   const envMaxParallel = process.env.MOLCAJETE_MAX_CONCURRENCY;
-  const envFailureThreshold = process.env.MOLCAJETE_FAILURE_THRESHOLD;
+  const envMaxFailures = process.env.MOLCAJETE_MAX_FAILURES;
 
   const maxParallelRaw =
     envMaxParallel !== undefined
       ? Number.parseInt(envMaxParallel, 10)
       : ((raw.maxParallel as number | undefined) ?? defaults.maxParallel);
-  const failureThresholdRaw =
-    envFailureThreshold !== undefined
-      ? Number.parseInt(envFailureThreshold, 10)
-      : ((raw.failureThreshold as number | undefined) ?? defaults.failureThreshold);
+  const maxFailuresRaw =
+    envMaxFailures !== undefined
+      ? Number.parseInt(envMaxFailures, 10)
+      : (raw.maxFailures as number | undefined) ?? defaults.maxFailures;
 
   return {
     maxDevCycles: (raw.maxDevCycles as number | undefined) ?? defaults.maxDevCycles,
@@ -66,7 +66,7 @@ export function readSettings(projectRoot: string): Settings {
     push: (raw.push as boolean | undefined) ?? defaults.push,
     hookTimeout: (raw.hookTimeout as number | undefined) ?? defaults.hookTimeout,
     maxParallel: clampInt(maxParallelRaw, 1, 16),
-    failureThreshold: clampInt(failureThresholdRaw, 1, 100),
+    maxFailures: maxFailuresRaw !== undefined ? clampInt(maxFailuresRaw, 1, 100) : undefined,
   };
 }
 
