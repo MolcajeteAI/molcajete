@@ -32,13 +32,11 @@ program
   .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
   .option("--debug", "Print spawned claude commands to stderr")
   .addOption(new Option("--no-worktrees").hideHelp())
-  .addOption(new Option("--no-parallel").hideHelp())
   .addOption(new Option("--failure-threshold <n>").hideHelp().argParser((v) => Number.parseInt(v, 10)))
   .addOption(new Option("--yes").hideHelp())
   .addOption(new Option("--no").hideHelp())
   .action(async (planName, opts) => {
-    const parallelOverride =
-      opts.parallel === false ? 1 : typeof opts.parallel === "number" ? opts.parallel : undefined;
+    const parallelOverride = typeof opts.parallel === "number" ? opts.parallel : undefined;
     await runBuild(planName, {
       resume: opts.resume,
       noWorktrees: !opts.worktrees,

@@ -35,7 +35,7 @@ export function readSettings(projectRoot: string): Settings {
     remote: "origin",
     push: true,
     hookTimeout: 180000,
-    maxParallel: 4,
+    maxParallel: 1,
     failureThreshold: 3,
   };
 
