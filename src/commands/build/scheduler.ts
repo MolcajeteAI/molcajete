@@ -156,6 +156,16 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
     if (result.outcome === "ok") {
       if (result.worktreeFinalState) {
         planState.mergeWorkerResult(result.taskId, result.worktreeFinalState);
+      } else {
+        // Defensive: worker succeeded but worktree was already removed before
+        // the final state could be read. Mark implemented directly so downstream
+        // dependencies are unblocked.
+        const task = planState.findTask(result.taskId);
+        if (task) {
+          task.status = "implemented";
+          task.errors = [];
+          delete task.stage;
+        }
       }
       doneCount++;
       launchBoundaryReview(result.taskId);

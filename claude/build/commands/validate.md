@@ -61,10 +61,12 @@ Review the changes for intent conformance:
 
 Trace requirements to code:
 
-- Check that all requirements from the task's use cases are addressed in code
+- Check that **every** requirement from the task's use cases is addressed in code
 - Search for TODO, FIXME, stub, placeholder markers in modified files
 - Check `CLAUDE.md` and `.claude/rules/*.md` compliance
-- Report any gaps or stubs found
+- Report **all** gaps or stubs found
+
+**Exhaustive scan required:** Do NOT stop after finding the first issue. Complete the full checklist above — scan every step definition, every requirement, every modified file — before producing the final report. A single-issue report followed by a re-review cycle costs $2+ and 10+ minutes. Surface everything in one pass.
 
 **Out of scope — do not flag these:**
 

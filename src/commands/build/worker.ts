@@ -326,6 +326,10 @@ async function runTaskWorkerBody({
   }
   await maybePushAfterCommit(settings, `bookkeeping ${taskId}`, taskCwd);
 
+  // Capture final plan state BEFORE the merge — mergeWorktree removes the
+  // worktree directory on success, so reading afterwards would return undefined.
+  const worktreeFinalState = safeReadPlan(taskPlanFile);
+
   // Merge to remote base. On parallelism, plan.json conflicts are auto-resolved
   // via the reconcile path inside mergeWorktreeBranch.
   const mergeResult = await mergeWorktree(
@@ -346,7 +350,7 @@ async function runTaskWorkerBody({
       outcome: "merge_failed",
       error: mergeResult.error ?? "Worktree merge failed",
       worktree,
-      worktreeFinalState: safeReadPlan(taskPlanFile),
+      worktreeFinalState,
     };
   }
 
@@ -355,7 +359,7 @@ async function runTaskWorkerBody({
     taskId,
     outcome: "ok",
     worktree,
-    worktreeFinalState: safeReadPlan(taskPlanFile),
+    worktreeFinalState,
     summary: (cycleResult.devResult as { summary?: string } | undefined)?.summary,
   };
 }
