@@ -18,6 +18,7 @@ export interface SchedulerInputs {
    * launched in resume mode so their existing worktree/branch is reattached.
    */
   resumeTaskIds: Set<string>;
+  skipDocs: boolean;
 }
 
 export interface SchedulerResult {
@@ -37,7 +38,7 @@ export interface SchedulerResult {
  * needed beyond gitMutex for worktree add/remove).
  */
 export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerResult> {
-  const { hooks, projectRoot, planFile, planName, settings, planState, resume, noWorktrees, resumeTaskIds } = inputs;
+  const { hooks, projectRoot, planFile, planName, settings, planState, resume, noWorktrees, resumeTaskIds, skipDocs } = inputs;
 
   const gitMutex: AsyncMutex = createMutex();
   const maxParallel = Math.max(1, settings.maxParallel);
@@ -76,6 +77,7 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
       taskId,
       resume: resume && resumeTaskIds.has(taskId),
       noWorktrees,
+      skipDocs,
       gitMutex,
       planStateSnapshot: snapshot,
       priorSummaries,

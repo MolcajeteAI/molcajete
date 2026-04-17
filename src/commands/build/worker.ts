@@ -41,6 +41,7 @@ export interface WorkerInputs {
   taskId: string;
   resume: boolean;
   noWorktrees: boolean;
+  skipDocs?: boolean;
   gitMutex?: AsyncMutex;
   /**
    * The orchestrator's current in-memory plan state. Seeded into the worktree's
@@ -73,6 +74,7 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
     taskId,
     resume,
     noWorktrees,
+    skipDocs,
     gitMutex,
     planStateSnapshot,
   } = inputs;
@@ -150,6 +152,7 @@ async function runTaskWorkerBody({
     settings,
     taskId,
     resume,
+    skipDocs,
     gitMutex,
     planStateSnapshot,
     priorSummaries,
@@ -199,7 +202,7 @@ async function runTaskWorkerBody({
 
   // Stage-boundary resume: if the task's stage is DOC, skip dev-test-review.
   const freshTaskOnDisk = findTask(readPlan(taskPlanFile), taskId);
-  const resumeAtDoc = resume && freshTaskOnDisk?.stage === "DOC";
+  const resumeAtDoc = !skipDocs && resume && freshTaskOnDisk?.stage === "DOC";
   if (resumeAtDoc) {
     log(`Task ${taskId}: resuming at DOC stage — skipping dev-test-review`);
   }
@@ -257,59 +260,63 @@ async function runTaskWorkerBody({
     (cycleResult.devResult as { summary?: string } | undefined)?.summary ??
     extractAggregateSummary(taskPlanFile, taskId);
 
-  await tryHook(
-    hooks,
-    "before-documentation",
-    {
-      task_id: taskId,
-      ...(taskCwd && { cwd: taskCwd }),
-      ...(taskBranch && { branch: taskBranch }),
-      build: buildBuildContext(planFile, planName, "documentation"),
-    },
-    { timeout: settings.hookTimeout },
-  );
+  if (skipDocs) {
+    log(`Task ${taskId}: skipping documentation (--skip-docs)`);
+  } else {
+    await tryHook(
+      hooks,
+      "before-documentation",
+      {
+        task_id: taskId,
+        ...(taskCwd && { cwd: taskCwd }),
+        ...(taskBranch && { branch: taskBranch }),
+        build: buildBuildContext(planFile, planName, "documentation"),
+      },
+      { timeout: settings.hookTimeout },
+    );
 
-  updateTaskStage(taskPlanFile, taskId, "DOC");
+    updateTaskStage(taskPlanFile, taskId, "DOC");
 
-  if (taskCwd) {
-    const rebased = await rebaseOnRemoteBase(taskCwd, settings.remote, baseBranch, `pre-doc-${taskId}`);
-    if (!rebased.ok) {
-      log(`Task ${taskId}: pre-doc rebase failed — worktree preserved at ${taskCwd}`);
-      return {
-        taskId,
-        outcome: "merge_failed",
-        error: `Pre-doc rebase failed: ${rebased.error}`,
-        worktree: worktree ?? undefined,
-        worktreeFinalState: safeReadPlan(taskPlanFile),
-      };
+    if (taskCwd) {
+      const rebased = await rebaseOnRemoteBase(taskCwd, settings.remote, baseBranch, `pre-doc-${taskId}`);
+      if (!rebased.ok) {
+        log(`Task ${taskId}: pre-doc rebase failed — worktree preserved at ${taskCwd}`);
+        return {
+          taskId,
+          outcome: "merge_failed",
+          error: `Pre-doc rebase failed: ${rebased.error}`,
+          worktree: worktree ?? undefined,
+          worktreeFinalState: safeReadPlan(taskPlanFile),
+        };
+      }
     }
-  }
 
-  const doc = await runDocSession(
-    projectRoot,
-    taskPlanFile,
-    task,
-    [...priorSummaries, devSummary].join("\n"),
-    [],
-    planName,
-    taskCwd,
-  );
-  if (doc.ok && doc.structured?.files_modified?.length > 0) {
-    await commitDocChanges(task.id, doc.structured.files_modified, taskCwd);
-    await maybePushAfterCommit(settings, `doc ${taskId}`, taskCwd);
-  }
+    const doc = await runDocSession(
+      projectRoot,
+      taskPlanFile,
+      task,
+      [...priorSummaries, devSummary].join("\n"),
+      [],
+      planName,
+      taskCwd,
+    );
+    if (doc.ok && doc.structured?.files_modified?.length > 0) {
+      await commitDocChanges(task.id, doc.structured.files_modified, taskCwd);
+      await maybePushAfterCommit(settings, `doc ${taskId}`, taskCwd);
+    }
 
-  await tryHook(
-    hooks,
-    "after-documentation",
-    {
-      task_id: taskId,
-      ...(taskCwd && { cwd: taskCwd }),
-      ...(taskBranch && { branch: taskBranch }),
-      build: buildBuildContext(planFile, planName, "documentation"),
-    },
-    { timeout: settings.hookTimeout },
-  );
+    await tryHook(
+      hooks,
+      "after-documentation",
+      {
+        task_id: taskId,
+        ...(taskCwd && { cwd: taskCwd }),
+        ...(taskBranch && { branch: taskBranch }),
+        build: buildBuildContext(planFile, planName, "documentation"),
+      },
+      { timeout: settings.hookTimeout },
+    );
+  }
 
   // Mark implemented on the worktree's plan before the final bookkeeping commit.
   updatePlanJson(taskPlanFile, (d) => {

@@ -29,6 +29,7 @@ export interface RunBuildOptions {
   parallel?: number;
   failureThreshold?: number;
   syncAnswer?: SyncAnswer;
+  skipDocs?: boolean;
 }
 
 async function fireHalt(
@@ -102,6 +103,7 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
     opts.resume ?? false,
     opts.noWorktrees ?? false,
     opts.syncAnswer,
+    opts.skipDocs ?? false,
   );
 }
 
@@ -117,6 +119,7 @@ async function runAllTasksMode(
   resume: boolean,
   noWorktrees: boolean,
   syncAnswer: SyncAnswer,
+  skipDocs: boolean,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
   log(`Parallelism: ${settings.maxParallel} worker(s), failure threshold: ${settings.failureThreshold}`);
@@ -217,6 +220,7 @@ async function runAllTasksMode(
     resume,
     noWorktrees,
     resumeTaskIds,
+    skipDocs,
   });
 
   const { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;

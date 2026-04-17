@@ -32,6 +32,7 @@ program
   .option("--failure-threshold <n>", "Terminal failures allowed before draining (1-100)", (v) =>
     Number.parseInt(v, 10),
   )
+  .option("--skip-docs", "Skip the documentation step after each task")
   .option("--yes", "Auto-confirm the startup sync prompt (fast-forward or push)")
   .option("--no", "Auto-decline the startup sync prompt (abort on mismatch)")
   .action(async (planName, opts) => {
@@ -43,6 +44,7 @@ program
       parallel: parallelOverride,
       failureThreshold: typeof opts.failureThreshold === "number" ? opts.failureThreshold : undefined,
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
+      skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
     });
   });
 
