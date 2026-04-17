@@ -25,18 +25,21 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 | Field | Type | Description |
 |-------|------|-------------|
 | `plan_path` | string | Absolute path to the plan JSON file |
-| `task_id` | string | Task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`) |
+| `task_id` | string (optional) | Single task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`). Used for per-task validation. |
+| `task_ids` | string[] (optional) | Array of task IDs for multi-task scope (e.g., end-of-build review). When present, review all listed tasks as a cohesive unit. |
 | `mode` | string (optional) | `"full"` (default) — both gates; `"review"` — code review only; `"completeness"` — completeness only |
+
+**Exactly one of `task_id` or `task_ids` must be present.** When `task_ids` is provided, operate in multi-task mode: load all listed tasks from the plan and review their combined scope as a single cohesive unit.
 
 ## Step 1: Load Context
 
 Issue every Read and Glob in this step as part of a parallel batch: group all independent tool calls into a single assistant turn with multiple tool_use blocks. Do not load files one at a time. Split into a new batch only at a true dependency boundary (e.g. you must read `plan.json` first to learn which UC file to load). Within each batch, parallelize everything.
 
 1. Read the plan JSON file
-2. Find the task (or parent task + sub-task) matching `task_id`
-3. Extract the task's `intent`, `module`, `scenario`, and `use_case` from the plan
-4. Pass the UC's source files to the sub-agents: the UC markdown at `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md` (find via `Glob`) and its single `.feature` file at `bdd/features/**/{UC-XXXX}-*.feature` (or `.feature.md`). Both are UC-ID-prefixed and slug-tolerant — never grep by `@UC-XXXX` tag.
-5. Read the companion `plan.md` when present. Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` that contains both `plan.json` and (when applicable) `plan.md`. Locate the `### T-NNN` section matching `task_id` and pass its "What changes", "Non-requirements (task-level)", and "Verification" subsections to the Code Review and Completeness sub-agents as extra context, so they can check conformance against the narrative plan — which may include human edits made after plan generation — not just the JSON `description`. If `plan.md` is absent on a `wire-bdd`-intent task, proceed without it. If `plan.md` is absent on an `implement`-intent task, note this in the review output as a warning and continue; the dev session is the enforcement point for the required MD, not validate.
+2. **Single-task mode** (`task_id`): Find the task (or parent task + sub-task) matching `task_id`. **Multi-task mode** (`task_ids`): Find all tasks matching the listed IDs.
+3. Extract each task's `intent`, `module`, `scenario`, and `use_case` from the plan. In multi-task mode, collect the union of all unique modules, scenarios, and use cases.
+4. Pass the UC's source files to the sub-agents: the UC markdown at `prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md` (find via `Glob`) and its single `.feature` file at `bdd/features/**/{UC-XXXX}-*.feature` (or `.feature.md`). Both are UC-ID-prefixed and slug-tolerant — never grep by `@UC-XXXX` tag. In multi-task mode, load all unique UCs referenced by the task set.
+5. Read the companion `plan.md` when present. Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` that contains both `plan.json` and (when applicable) `plan.md`. In single-task mode, locate the `### T-NNN` section matching `task_id` and pass its "What changes", "Non-requirements (task-level)", and "Verification" subsections to the Code Review and Completeness sub-agents as extra context. In multi-task mode, locate sections for all listed task IDs. These sections let sub-agents check conformance against the narrative plan — which may include human edits made after plan generation — not just the JSON `description`. If `plan.md` is absent on a `wire-bdd`-intent task, proceed without it. If `plan.md` is absent on an `implement`-intent task, note this in the review output as a warning and continue; the dev session is the enforcement point for the required MD, not validate.
 
 ## Step 2: Spawn Sub-Agents (All in Parallel)
 

@@ -226,8 +226,10 @@ export async function runReviewSession(
   mode: ReviewMode = "full",
   cwd?: string,
   branch?: string,
+  taskIds?: string[],
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
-  log(`${phaseLabel("REVIEW")} session: ${taskId} (mode: ${mode})`);
+  const scopeLabel = taskIds ? `${taskIds.length} task(s)` : taskId;
+  log(`${phaseLabel("REVIEW")} session: ${scopeLabel} (mode: ${mode})`);
 
   // Lifecycle hook: before-review
   const beforeReviewInput: Record<string, unknown> = { task_id: taskId };
@@ -237,11 +239,16 @@ export async function runReviewSession(
   await tryHook(hooks, "before-review", beforeReviewInput, { timeout: settings.hookTimeout });
 
   const _label = sessionLabel(planName, taskId, "review");
-  const payload = JSON.stringify({
+  const payloadObj: Record<string, unknown> = {
     plan_path: planFile,
-    task_id: taskId,
     mode,
-  });
+  };
+  if (taskIds) {
+    payloadObj.task_ids = taskIds;
+  } else {
+    payloadObj.task_id = taskId;
+  }
+  const payload = JSON.stringify(payloadObj);
 
   const result = await invokeClaude(
     cwd || projectRoot,
@@ -279,6 +286,53 @@ export async function runReviewSession(
   log(`${phaseLabel("REVIEW")} session ${taskId}: ${allIssues.length} issues found`);
   logDetail(issuesBlock(allIssues));
   return { ok: false, issues: allIssues, structured: out };
+}
+
+// ── Review Fix Session ──
+
+export async function runReviewFixSession(
+  projectRoot: string,
+  planFile: string,
+  issues: string[],
+  taskIds: string[],
+  planName: string,
+  cwd?: string,
+): Promise<{ ok: boolean; structured: DevSessionOutput }> {
+  log(`${phaseLabel("DEV")} review-fix session: ${taskIds.length} task(s), ${issues.length} issue(s)`);
+
+  const payload = JSON.stringify({
+    plan_path: planFile,
+    task_ids: taskIds,
+    issues,
+  });
+
+  const result = await invokeClaude(
+    cwd || projectRoot,
+    [
+      "--model",
+      MODEL,
+      "--allowedTools",
+      "Read,Write,Edit,Glob,Grep,Bash",
+      "--max-turns",
+      MAX_TURNS_AGENT,
+      "--max-budget-usd",
+      BUDGET_AGENT,
+      "--json-schema",
+      JSON.stringify(DEV_SESSION_SCHEMA),
+      `/molcajete:review-fix ${payload}`,
+    ],
+    "DEV",
+  );
+
+  const out = extractStructuredOutput(result.output) as unknown as DevSessionOutput;
+
+  if (result.exitCode === 0 && out.status === "done") {
+    return { ok: true, structured: out };
+  }
+
+  const error = out.error || extractFailureReason(result.output, result.stderr) || "Review fix session failed";
+  log(`${phaseLabel("DEV")} review-fix session: failed (${error})`);
+  return { ok: false, structured: out };
 }
 
 // ── Recovery Session ──

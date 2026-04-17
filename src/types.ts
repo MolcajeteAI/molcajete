@@ -7,9 +7,6 @@ export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY" | "HEALTH";
 /** Thoroughness level for the validate session. */
 export type ReviewMode = "full" | "review" | "completeness";
 
-/** Granularity levels at which boundary review can fire. */
-export type ReviewLevel = "scenario" | "usecase" | "feature" | "plan";
-
 /** What just completed after a task finishes — each field is independently computed. */
 export interface DoneItems {
   task: string;

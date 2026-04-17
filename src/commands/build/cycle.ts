@@ -98,7 +98,7 @@ export function buildBuildContext(planFile: string, planName: string, stage: Bui
  * 5. If completeness has issues → loop back to dev with issues
  * 6. If completeness passes → done
  *
- * Code review is deferred to boundary level (UC/feature/plan) by the scheduler.
+ * Code review runs once at end-of-build (see end-review.ts).
  * Retries up to MAX_DEV_CYCLES times.
  */
 export async function runDevTestReviewCycle(
@@ -187,7 +187,7 @@ export async function runDevTestReviewCycle(
 
     logDetail(phaseSep());
 
-    // 3. Completeness check — code review is deferred to boundary (UC/feature/plan)
+    // 3. Completeness check — code review runs at end-of-build
     const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
 
     if (planDir) {

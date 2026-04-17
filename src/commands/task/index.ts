@@ -10,6 +10,7 @@ import type { BuildStage, HookMap, Settings } from "../../types.js";
 import { buildStats, formatDuration } from "../lib/claude.js";
 import { discoverHooks, tryHook, validateMandatoryHooks } from "../lib/hooks.js";
 import { buildBuildContext } from "../build/cycle.js";
+import { runEndOfBuildReview } from "../build/end-review.js";
 import {
   expandTaskNumbers,
   findTask,
@@ -29,7 +30,6 @@ import {
   fireHalt,
   flushPlanLevelStatus,
   flushPlanToDisk,
-  parseReviewLevels,
 } from "../build/index.js";
 
 export interface RunTaskOptions {
@@ -40,7 +40,6 @@ export interface RunTaskOptions {
   syncAnswer?: SyncAnswer;
   skipDocs?: boolean;
   skipReview?: boolean;
-  reviewLevel?: string;
 }
 
 /**
@@ -229,11 +228,9 @@ export async function runTask(
     resume: opts.resume ?? false,
     resumeTaskIds,
     skipDocs: opts.skipDocs ?? false,
-    skipReview: opts.skipReview ?? false,
-    reviewLevels: parseReviewLevels(opts.reviewLevel),
   });
 
-  const { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
+  let { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
 
   if (drainedEarly || blockedTaskIds.length > 0) {
     const snap = planState.snapshot();
@@ -242,6 +239,23 @@ export async function runTask(
       ? [`Max failures reached — ${failedIds.length} task(s) failed: ${failedIds.join(", ")}`]
       : [`Deadlock — ${blockedTaskIds.length} task(s) blocked by failed deps: ${blockedTaskIds.join(", ")}`];
     await fireHalt(hooks, planFile, planRelative, issues, settings);
+  }
+
+  // End-of-build code review (scoped to requested tasks).
+  const skipReview = opts.skipReview ?? false;
+  if (!skipReview && failedCount === 0) {
+    const reviewResult = await runEndOfBuildReview({
+      hooks,
+      projectRoot,
+      planFile,
+      planName: planRelative,
+      settings,
+      taskIds: [...allowedTaskIds],
+    });
+    if (!reviewResult.ok) {
+      log(`End-of-build review: ${reviewResult.issues.length} unresolved issue(s)`);
+      failedCount++;
+    }
   }
 
   // PRD status update only when ALL plan tasks are done (not just the subset).

@@ -6,10 +6,11 @@ import { enableTaskPrefix } from "../../lib/log-context.js";
 import { closeLogger, initLogger } from "../../lib/logger.js";
 import { promptYesNo, type SyncAnswer } from "../../lib/prompt.js";
 import { log, logDetail, resolveProjectRoot } from "../../lib/utils.js";
-import type { BuildStage, HookMap, ReviewLevel, Settings } from "../../types.js";
+import type { BuildStage, HookMap, Settings } from "../../types.js";
 import { buildStats, formatDuration } from "../lib/claude.js";
 import { discoverHooks, tryHook, validateMandatoryHooks } from "../lib/hooks.js";
 import { buildBuildContext } from "./cycle.js";
+import { runEndOfBuildReview } from "./end-review.js";
 import {
   readPlan,
   readSettings,
@@ -30,23 +31,6 @@ export interface RunBuildOptions {
   syncAnswer?: SyncAnswer;
   skipDocs?: boolean;
   skipReview?: boolean;
-  reviewLevel?: string;
-}
-
-const VALID_REVIEW_LEVELS = new Set<ReviewLevel>(["scenario", "usecase", "feature", "plan"]);
-
-export function parseReviewLevels(raw?: string): Set<ReviewLevel> {
-  if (!raw) return new Set<ReviewLevel>(["usecase"]);
-  const levels = new Set<ReviewLevel>();
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim() as ReviewLevel;
-    if (VALID_REVIEW_LEVELS.has(trimmed)) {
-      levels.add(trimmed);
-    } else {
-      log(`Warning: unknown review level "${trimmed}" — ignored`);
-    }
-  }
-  return levels.size > 0 ? levels : new Set<ReviewLevel>(["usecase"]);
 }
 
 export async function fireHalt(
@@ -121,7 +105,6 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
     opts.syncAnswer,
     opts.skipDocs ?? false,
     opts.skipReview ?? false,
-    parseReviewLevels(opts.reviewLevel),
   );
 }
 
@@ -138,7 +121,6 @@ async function runAllTasksMode(
   syncAnswer: SyncAnswer,
   skipDocs: boolean,
   skipReview: boolean,
-  reviewLevels: Set<ReviewLevel>,
 ): Promise<void> {
   log(`Starting build: all pending tasks from ${planName}`);
   log(`Parallelism: ${settings.maxParallel} worker(s), max failures: ${settings.maxFailures ?? "no limit"}`);
@@ -239,11 +221,9 @@ async function runAllTasksMode(
     resume,
     resumeTaskIds,
     skipDocs,
-    skipReview,
-    reviewLevels,
   });
 
-  const { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
+  let { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
 
   if (drainedEarly || blockedTaskIds.length > 0) {
     const snap = planState.snapshot();
@@ -252,6 +232,23 @@ async function runAllTasksMode(
       ? [`Failure threshold reached — ${failedIds.length} task(s) failed: ${failedIds.join(", ")}`]
       : [`Deadlock — ${blockedTaskIds.length} task(s) blocked by failed deps: ${blockedTaskIds.join(", ")}`];
     await fireHalt(hooks, planFile, planName, issues, settings);
+  }
+
+  // End-of-build code review (skipped on failure or --skip-review).
+  if (!skipReview && failedCount === 0 && doneCount === taskCount) {
+    const allTaskIds = freshData.tasks.map((t) => t.id);
+    const reviewResult = await runEndOfBuildReview({
+      hooks,
+      projectRoot,
+      planFile,
+      planName,
+      settings,
+      taskIds: allTaskIds,
+    });
+    if (!reviewResult.ok) {
+      log(`End-of-build review: ${reviewResult.issues.length} unresolved issue(s)`);
+      failedCount++;
+    }
   }
 
   // PRD status update after a fully-clean run.

@@ -24,13 +24,12 @@ program
 
 program
   .command("build")
-  .description("Execute all pending tasks in a plan (completeness per task, code review at boundary)")
+  .description("Execute all pending tasks in a plan")
   .argument("<plan-name>", "Plan name, path, timestamp, or slug")
   .option("--resume", "Resume from where a previous build left off (skip implemented tasks)")
   .option("--parallel <n>", "Max number of tasks to run concurrently (1-16)", (v) => Number.parseInt(v, 10))
   .option("--skip-docs", "Skip the documentation step after each task")
-  .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
-  .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
+  .option("--skip-review", "Skip end-of-build code review (per-task completeness checks still run)")
   .option("--debug", "Print spawned claude commands to stderr")
   .option("--max-failures <n>", "Stop the build after N terminal task failures (default: no limit)", (v) => Number.parseInt(v, 10))
   .addOption(new Option("--yes").hideHelp())
@@ -44,7 +43,6 @@ program
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
       skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
       skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,
-      reviewLevel: opts.reviewLevel || process.env.REVIEW_LEVEL,
     });
   });
 
@@ -56,8 +54,7 @@ program
   .option("--parallel <n>", "Max number of tasks to run concurrently (1-16)", (v) => Number.parseInt(v, 10))
   .option("--resume", "Resume from where a previous run left off (skip implemented tasks)")
   .option("--skip-docs", "Skip the documentation step after each task")
-  .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
-  .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
+  .option("--skip-review", "Skip end-of-build code review (per-task completeness checks still run)")
   .option("--max-failures <n>", "Stop after N terminal task failures (default: no limit)", (v) => Number.parseInt(v, 10))
   .option("--build-deps", "Build unimplemented dependencies before running specified tasks")
   .option("--debug", "Print spawned claude commands to stderr")
@@ -81,7 +78,6 @@ program
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
       skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
       skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,
-      reviewLevel: opts.reviewLevel || process.env.REVIEW_LEVEL,
     });
   });
 
