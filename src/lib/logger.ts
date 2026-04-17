@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stripAnsi } from "./format.js";
+import { currentTaskPrefix } from "./log-context.js";
 
 let logFilePath: string | null = null;
 
@@ -35,7 +36,8 @@ export function writeLog(line: string): void {
   if (!logFilePath) return;
   try {
     const ts = new Date().toISOString().slice(11, 19);
-    appendFileSync(logFilePath, `[${ts}] ${stripAnsi(line)}\n`);
+    const prefix = currentTaskPrefix();
+    appendFileSync(logFilePath, `[${ts}] ${prefix}${stripAnsi(line)}\n`);
   } catch {
     // never crash over a log file
   }

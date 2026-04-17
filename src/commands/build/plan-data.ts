@@ -23,6 +23,11 @@ export function updatePlanJson(planPath: string, mutator: (data: PlanData) => vo
 
 // ── Settings ──
 
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
 export function readSettings(projectRoot: string): Settings {
   const settingsPath = join(projectRoot, ".molcajete", "settings.json");
   const defaults: Settings = {
@@ -30,19 +35,39 @@ export function readSettings(projectRoot: string): Settings {
     remote: "origin",
     push: true,
     hookTimeout: 180000,
+    maxParallel: 4,
+    failureThreshold: 3,
   };
-  if (!existsSync(settingsPath)) return defaults;
-  try {
-    const raw = JSON.parse(readFileSync(settingsPath, "utf8"));
-    return {
-      maxDevCycles: raw.maxDevCycles ?? defaults.maxDevCycles,
-      remote: raw.remote ?? defaults.remote,
-      push: raw.push ?? defaults.push,
-      hookTimeout: raw.hookTimeout ?? defaults.hookTimeout,
-    };
-  } catch {
-    return defaults;
+
+  let raw: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try {
+      raw = JSON.parse(readFileSync(settingsPath, "utf8"));
+    } catch {
+      raw = {};
+    }
   }
+
+  const envMaxParallel = process.env.MOLCAJETE_MAX_CONCURRENCY;
+  const envFailureThreshold = process.env.MOLCAJETE_FAILURE_THRESHOLD;
+
+  const maxParallelRaw =
+    envMaxParallel !== undefined
+      ? Number.parseInt(envMaxParallel, 10)
+      : ((raw.maxParallel as number | undefined) ?? defaults.maxParallel);
+  const failureThresholdRaw =
+    envFailureThreshold !== undefined
+      ? Number.parseInt(envFailureThreshold, 10)
+      : ((raw.failureThreshold as number | undefined) ?? defaults.failureThreshold);
+
+  return {
+    maxDevCycles: (raw.maxDevCycles as number | undefined) ?? defaults.maxDevCycles,
+    remote: (raw.remote as string | undefined) ?? defaults.remote,
+    push: (raw.push as boolean | undefined) ?? defaults.push,
+    hookTimeout: (raw.hookTimeout as number | undefined) ?? defaults.hookTimeout,
+    maxParallel: clampInt(maxParallelRaw, 1, 16),
+    failureThreshold: clampInt(failureThresholdRaw, 1, 100),
+  };
 }
 
 // ── Task Lookup ──

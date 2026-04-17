@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { debugCmd, stripAnsi } from "./format.js";
+import { currentTaskPrefix } from "./log-context.js";
 import { writeLog } from "./logger.js";
 import { clearForLog, isSpinning, redrawAfterLog } from "./spinner.js";
 
@@ -19,10 +20,11 @@ export function isDebug(): boolean {
 
 export function log(...args: unknown[]): void {
   const ts = new Date().toISOString().slice(11, 19);
+  const prefix = currentTaskPrefix();
   const line = args.join(" ");
 
   if (isSpinning()) clearForLog();
-  process.stderr.write(`[${ts}] ${line}\n`);
+  process.stderr.write(`[${ts}] ${prefix}${line}\n`);
   if (isSpinning()) redrawAfterLog();
 
   writeLog(stripAnsi(line));
@@ -33,10 +35,11 @@ export function log(...args: unknown[]): void {
  * Still routed through the log file (ANSI-stripped).
  */
 export function logDetail(...args: unknown[]): void {
+  const prefix = currentTaskPrefix();
   const line = args.join(" ");
 
   if (isSpinning()) clearForLog();
-  process.stderr.write(`${line}\n`);
+  process.stderr.write(`${prefix}${line}\n`);
   if (isSpinning()) redrawAfterLog();
 
   writeLog(stripAnsi(line));
