@@ -131,8 +131,7 @@ export async function runDevTestReviewCycle(
     }
 
     // Rebase the task branch onto the freshest remote base before every
-    // write stage. The worktree is the only place that can commit; the
-    // --no-worktrees path skips this because it writes directly in projectRoot.
+    // write stage so we pick up any concurrent merges.
     if (cwd) {
       const rebased = await rebaseOnRemoteBase(cwd, settings.remote, baseBranch, `pre-dev-${taskId}-${cycle}`);
       if (!rebased.ok) {

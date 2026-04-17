@@ -40,7 +40,6 @@ export interface WorkerInputs {
   settings: Settings;
   taskId: string;
   resume: boolean;
-  noWorktrees: boolean;
   skipDocs?: boolean;
   gitMutex?: AsyncMutex;
   /**
@@ -73,7 +72,6 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
     settings,
     taskId,
     resume,
-    noWorktrees,
     skipDocs,
     gitMutex,
     planStateSnapshot,
@@ -91,33 +89,28 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
   }
 
   const baseBranch = planStateSnapshot.base_branch || "main";
-  const useWorktrees = !noWorktrees;
 
-  let worktree: WorktreeInfo | null = null;
-  let registered: ActiveWorktree | null = null;
-  if (useWorktrees) {
-    worktree = await setupWorktree(
-      hooks,
-      projectRoot,
-      planName,
-      taskId,
-      baseBranch,
-      planFile,
-      settings,
-      resume,
-      gitMutex,
-    );
-    if (!worktree) {
-      return { taskId, outcome: "infra_failed", error: "Failed to create worktree" };
-    }
-    registered = {
-      taskId,
-      worktreePath: worktree.worktreePath,
-      branchName: worktree.branchName,
-      remote: settings.remote,
-    };
-    registerWorktree(registered);
+  const worktree = await setupWorktree(
+    hooks,
+    projectRoot,
+    planName,
+    taskId,
+    baseBranch,
+    planFile,
+    settings,
+    resume,
+    gitMutex,
+  );
+  if (!worktree) {
+    return { taskId, outcome: "infra_failed", error: "Failed to create worktree" };
   }
+  const registered: ActiveWorktree = {
+    taskId,
+    worktreePath: worktree.worktreePath,
+    branchName: worktree.branchName,
+    remote: settings.remote,
+  };
+  registerWorktree(registered);
 
   try {
     return await runTaskWorkerBody({
@@ -127,14 +120,14 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
       baseBranch,
     });
   } finally {
-    if (registered) unregisterWorktree(registered);
+    unregisterWorktree(registered);
   }
 }
 
 interface TaskBodyInputs {
   inputs: WorkerInputs;
   task: PlanData["tasks"][number];
-  worktree: WorktreeInfo | null;
+  worktree: WorktreeInfo;
   baseBranch: string;
 }
 
@@ -158,15 +151,15 @@ async function runTaskWorkerBody({
     priorSummaries,
   } = inputs;
 
-  const taskCwd = worktree?.worktreePath;
-  const taskBranch = worktree?.branchName;
-  const taskPlanFile = worktree ? worktreePlanFile(planFile, projectRoot, worktree.worktreePath) : planFile;
-  const taskPlanDir = worktree ? dirname(taskPlanFile) : dirname(planFile);
-  const taskWriteCwd = worktree ? worktree.worktreePath : projectRoot;
+  const taskCwd = worktree.worktreePath;
+  const taskBranch = worktree.branchName;
+  const taskPlanFile = worktreePlanFile(planFile, projectRoot, worktree.worktreePath);
+  const taskPlanDir = dirname(taskPlanFile);
+  const taskWriteCwd = worktree.worktreePath;
 
   // Seed the worktree's plan.json with the orchestrator's view. Skipped on
   // resume — the task branch already carries the last committed state.
-  if (worktree && !resume) {
+  if (!resume) {
     try {
       writePlan(taskPlanFile, planStateSnapshot);
     } catch (err) {
@@ -174,7 +167,7 @@ async function runTaskWorkerBody({
         taskId,
         outcome: "infra_failed",
         error: `failed to seed plan.json: ${(err as Error).message}`,
-        worktree: worktree ?? undefined,
+        worktree,
       };
     }
 
@@ -242,15 +235,13 @@ async function runTaskWorkerBody({
 
   if (!cycleResult.ok) {
     // Preserve the worktree for debugging / recovery.
-    if (worktree) {
-      log(`Task ${taskId}: failed — worktree preserved at ${worktree.worktreePath}`);
-    }
+    log(`Task ${taskId}: failed — worktree preserved at ${worktree.worktreePath}`);
     const worktreeFinalState = safeReadPlan(taskPlanFile);
     return {
       taskId,
       outcome: "dev_failed",
       error: cycleResult.error ?? "Task failed",
-      worktree: worktree ?? undefined,
+      worktree,
       worktreeFinalState,
     };
   }
@@ -268,8 +259,8 @@ async function runTaskWorkerBody({
       "before-documentation",
       {
         task_id: taskId,
-        ...(taskCwd && { cwd: taskCwd }),
-        ...(taskBranch && { branch: taskBranch }),
+        cwd: taskCwd,
+        branch: taskBranch,
         build: buildBuildContext(planFile, planName, "documentation"),
       },
       { timeout: settings.hookTimeout },
@@ -277,18 +268,16 @@ async function runTaskWorkerBody({
 
     updateTaskStage(taskPlanFile, taskId, "DOC");
 
-    if (taskCwd) {
-      const rebased = await rebaseOnRemoteBase(taskCwd, settings.remote, baseBranch, `pre-doc-${taskId}`);
-      if (!rebased.ok) {
-        log(`Task ${taskId}: pre-doc rebase failed — worktree preserved at ${taskCwd}`);
-        return {
-          taskId,
-          outcome: "merge_failed",
-          error: `Pre-doc rebase failed: ${rebased.error}`,
-          worktree: worktree ?? undefined,
-          worktreeFinalState: safeReadPlan(taskPlanFile),
-        };
-      }
+    const rebased = await rebaseOnRemoteBase(taskCwd, settings.remote, baseBranch, `pre-doc-${taskId}`);
+    if (!rebased.ok) {
+      log(`Task ${taskId}: pre-doc rebase failed — worktree preserved at ${taskCwd}`);
+      return {
+        taskId,
+        outcome: "merge_failed",
+        error: `Pre-doc rebase failed: ${rebased.error}`,
+        worktree,
+        worktreeFinalState: safeReadPlan(taskPlanFile),
+      };
     }
 
     const doc = await runDocSession(
@@ -310,8 +299,8 @@ async function runTaskWorkerBody({
       "after-documentation",
       {
         task_id: taskId,
-        ...(taskCwd && { cwd: taskCwd }),
-        ...(taskBranch && { branch: taskBranch }),
+        cwd: taskCwd,
+        branch: taskBranch,
         build: buildBuildContext(planFile, planName, "documentation"),
       },
       { timeout: settings.hookTimeout },
@@ -336,41 +325,37 @@ async function runTaskWorkerBody({
   if (!bookkeep.ok && !bookkeep.skipped) {
     log(`Warning: bookkeeping commit failed for ${taskId}: ${bookkeep.error}`);
   }
-  if (worktree) {
-    await maybePushAfterCommit(settings, `bookkeeping ${taskId}`, taskCwd);
-  }
+  await maybePushAfterCommit(settings, `bookkeeping ${taskId}`, taskCwd);
 
   // Merge to remote base. On parallelism, plan.json conflicts are auto-resolved
   // via the reconcile path inside mergeWorktreeBranch.
-  if (worktree) {
-    const mergeResult = await mergeWorktree(
-      hooks,
-      projectRoot,
-      worktree,
-      planFile,
+  const mergeResult = await mergeWorktree(
+    hooks,
+    projectRoot,
+    worktree,
+    planFile,
+    taskId,
+    settings,
+    planName,
+    planRelativePath(projectRoot, planFile),
+    gitMutex,
+  );
+  if (!mergeResult.ok) {
+    log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
+    return {
       taskId,
-      settings,
-      planName,
-      planRelativePath(projectRoot, planFile),
-      gitMutex,
-    );
-    if (!mergeResult.ok) {
-      log(`Task ${taskId}: worktree merge failed — worktree preserved at ${worktree.worktreePath}`);
-      return {
-        taskId,
-        outcome: "merge_failed",
-        error: mergeResult.error ?? "Worktree merge failed",
-        worktree,
-        worktreeFinalState: safeReadPlan(taskPlanFile),
-      };
-    }
+      outcome: "merge_failed",
+      error: mergeResult.error ?? "Worktree merge failed",
+      worktree,
+      worktreeFinalState: safeReadPlan(taskPlanFile),
+    };
   }
 
   log(`Task ${taskId}: implemented`);
   return {
     taskId,
     outcome: "ok",
-    worktree: worktree ?? undefined,
+    worktree,
     worktreeFinalState: safeReadPlan(taskPlanFile),
     summary: (cycleResult.devResult as { summary?: string } | undefined)?.summary,
   };

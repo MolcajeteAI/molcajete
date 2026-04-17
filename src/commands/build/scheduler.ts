@@ -14,7 +14,6 @@ export interface SchedulerInputs {
   settings: Settings;
   planState: PlanState;
   resume: boolean;
-  noWorktrees: boolean;
   /**
    * Task ids that were `in_progress` on disk when the build started. Those are
    * launched in resume mode so their existing worktree/branch is reattached.
@@ -42,7 +41,7 @@ export interface SchedulerResult {
  * needed beyond gitMutex for worktree add/remove).
  */
 export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerResult> {
-  const { hooks, projectRoot, planFile, planName, settings, planState, resume, noWorktrees, resumeTaskIds, skipDocs, skipReview, reviewLevels } = inputs;
+  const { hooks, projectRoot, planFile, planName, settings, planState, resume, resumeTaskIds, skipDocs, skipReview, reviewLevels } = inputs;
 
   const gitMutex: AsyncMutex = createMutex();
   const maxParallel = Math.max(1, settings.maxParallel);
@@ -81,7 +80,6 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
       settings,
       taskId,
       resume: resume && resumeTaskIds.has(taskId),
-      noWorktrees,
       skipDocs,
       gitMutex,
       planStateSnapshot: snapshot,

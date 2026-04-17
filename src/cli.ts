@@ -31,15 +31,13 @@ program
   .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
   .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
   .option("--debug", "Print spawned claude commands to stderr")
-  .addOption(new Option("--no-worktrees").hideHelp())
-  .addOption(new Option("--failure-threshold <n>").hideHelp().argParser((v) => Number.parseInt(v, 10)))
+.addOption(new Option("--failure-threshold <n>").hideHelp().argParser((v) => Number.parseInt(v, 10)))
   .addOption(new Option("--yes").hideHelp())
   .addOption(new Option("--no").hideHelp())
   .action(async (planName, opts) => {
     const parallelOverride = typeof opts.parallel === "number" ? opts.parallel : undefined;
     await runBuild(planName, {
       resume: opts.resume,
-      noWorktrees: !opts.worktrees,
       parallel: parallelOverride,
       failureThreshold: typeof opts.failureThreshold === "number" ? opts.failureThreshold : undefined,
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,

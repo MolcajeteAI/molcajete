@@ -25,7 +25,6 @@ import { sweepActiveWorktrees } from "./worktree-registry.js";
 
 export interface RunBuildOptions {
   resume?: boolean;
-  noWorktrees?: boolean;
   parallel?: number;
   failureThreshold?: number;
   syncAnswer?: SyncAnswer;
@@ -119,7 +118,6 @@ export async function runBuild(planName: string, opts: RunBuildOptions = {}): Pr
     planDir,
     settings,
     opts.resume ?? false,
-    opts.noWorktrees ?? false,
     opts.syncAnswer,
     opts.skipDocs ?? false,
     opts.skipReview ?? false,
@@ -137,7 +135,6 @@ async function runAllTasksMode(
   _planDir: string,
   settings: Settings,
   resume: boolean,
-  noWorktrees: boolean,
   syncAnswer: SyncAnswer,
   skipDocs: boolean,
   skipReview: boolean,
@@ -240,7 +237,6 @@ async function runAllTasksMode(
     settings,
     planState,
     resume,
-    noWorktrees,
     resumeTaskIds,
     skipDocs,
     skipReview,
