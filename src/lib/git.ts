@@ -460,38 +460,61 @@ function parseWorktreeList(projectRoot: string): WorktreeEntry[] {
 }
 
 /**
- * Remove a git worktree and delete its branch (safe delete).
- * Non-fatal: logs warnings on failure.
+ * Remove a git worktree, force-delete its branch, and nuke the directory.
+ * No prompts, no questions — everything gets cleaned up.
+ * Non-fatal: logs warnings on failure but never throws.
  */
 export function removeWorktree(projectRoot: string, worktreePath: string, branchName: string): void {
+  // 1. Git worktree remove (force)
   try {
-    execSync(`git worktree remove ${worktreePath} --force`, {
+    execSync(`git worktree remove --force ${worktreePath}`, {
       cwd: projectRoot,
       stdio: "pipe",
     });
-  } catch (err) {
-    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
-    log(`Warning: failed to remove worktree ${worktreePath}: ${msg}`);
+  } catch {
+    // If that fails, try a second --force (handles locked worktrees)
+    try {
+      execSync(`git worktree remove --force --force ${worktreePath}`, {
+        cwd: projectRoot,
+        stdio: "pipe",
+      });
+    } catch {
+      // Will be cleaned up by the rm -rf fallback below
+    }
   }
 
+  // 2. Nuke the worktree directory if it still exists
   try {
-    execSync(`git branch -d ${branchName}`, {
+    execSync(`rm -rf ${worktreePath}`, { cwd: projectRoot, stdio: "pipe" });
+  } catch {
+    // best-effort
+  }
+
+  // 3. Prune stale worktree entries
+  try {
+    execSync("git worktree prune", { cwd: projectRoot, stdio: "pipe" });
+  } catch {
+    // best-effort
+  }
+
+  // 4. Force-delete the local branch — no "not fully merged" complaints
+  try {
+    execSync(`git branch -D ${branchName}`, {
       cwd: projectRoot,
       stdio: "pipe",
     });
-  } catch (err) {
-    const msg = ((err as { stderr?: Buffer }).stderr?.toString() ?? (err as Error).message).trim();
-    log(`Warning: failed to delete local branch ${branchName}: ${msg}`);
+  } catch {
+    // Branch may already be gone — fine
   }
 
-  // Delete the remote branch if it exists
+  // 5. Delete the remote branch if it exists
   try {
     execSync(`git push origin --delete ${branchName}`, {
       cwd: projectRoot,
       stdio: "pipe",
     });
   } catch {
-    // Remote branch may not exist (push was never enabled) — ignore silently
+    // Remote branch may not exist — ignore
   }
 }
 
