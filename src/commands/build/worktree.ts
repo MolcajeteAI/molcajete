@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import type { AsyncMutex } from "../../lib/async-mutex.js";
 import { createWorktree, fetchBase, mergeWorktreeBranch, removeWorktree } from "../../lib/git.js";
 import { log, logDetail } from "../../lib/utils.js";
 import type { HookMap, Settings, WorktreeInfo } from "../../types.js";
@@ -23,6 +24,7 @@ export async function setupWorktree(
   planFile: string,
   settings: Settings,
   resume: boolean,
+  gitMutex?: AsyncMutex,
 ): Promise<WorktreeInfo | null> {
   const branchName = `${planName}--${taskId}`;
   const worktreePath = resolve(projectRoot, ".molcajete", "worktrees", branchName);
@@ -40,25 +42,30 @@ export async function setupWorktree(
     { timeout: settings.hookTimeout },
   );
 
-  // Fetch the remote base branch so the worktree starts from the freshest
-  // remote tip. Skip on resume — the task's branch already has its base
-  // ancestor frozen into its history.
-  if (!resume) {
-    const fetched = fetchBase(projectRoot, settings.remote, baseBranch);
-    if (!fetched.ok) {
-      log(`Failed to fetch ${settings.remote}/${baseBranch}: ${fetched.error}`);
-      return null;
+  // Fetch + create hold projectRoot's .git/index.lock; serialize under gitMutex
+  // so concurrent workers don't trample each other.
+  const createGitOps = async () => {
+    if (!resume) {
+      const fetched = fetchBase(projectRoot, settings.remote, baseBranch);
+      if (!fetched.ok) {
+        return { ok: false as const, error: `fetch ${settings.remote}/${baseBranch}: ${fetched.error}` };
+      }
     }
-  }
 
-  logDetail(`Creating worktree: ${branchName}`);
-  const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
-    resume,
-    remote: settings.remote,
-  });
+    logDetail(`Creating worktree: ${branchName}`);
+    const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
+      resume,
+      remote: settings.remote,
+    });
+    if (!result.ok) {
+      return { ok: false as const, error: result.error ?? "createWorktree failed" };
+    }
+    return { ok: true as const };
+  };
 
-  if (!result.ok) {
-    log(`Failed to create worktree: ${result.error}`);
+  const outcome = gitMutex ? await gitMutex.run(createGitOps) : await createGitOps();
+  if (!outcome.ok) {
+    log(`Failed to create worktree: ${outcome.error}`);
     return null;
   }
 
@@ -91,6 +98,8 @@ export async function mergeWorktree(
   taskId: string,
   settings: Settings,
   planName: string,
+  planRelPath?: string,
+  gitMutex?: AsyncMutex,
 ): Promise<{ ok: boolean; error?: string }> {
   const { branchName, worktreePath, baseBranch } = worktree;
 
@@ -109,11 +118,18 @@ export async function mergeWorktree(
   );
 
   log(`Merging worktree branch ${branchName} into ${settings.remote}/${baseBranch}`);
-  const mergeResult = await mergeWorktreeBranch(projectRoot, branchName, baseBranch, worktreePath, settings.remote);
+  const mergeResult = await mergeWorktreeBranch(projectRoot, branchName, baseBranch, worktreePath, settings.remote, {
+    taskId,
+    planRelPath,
+  });
 
   if (mergeResult.ok) {
     // Clean merge — remove worktree and branch
-    removeWorktree(projectRoot, worktreePath, branchName);
+    if (gitMutex) {
+      await gitMutex.run(() => removeWorktree(projectRoot, worktreePath, branchName));
+    } else {
+      removeWorktree(projectRoot, worktreePath, branchName);
+    }
 
     await tryHook(
       hooks,

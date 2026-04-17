@@ -82,6 +82,8 @@ export interface Settings {
   remote: string;
   push: boolean;
   hookTimeout?: number;
+  maxParallel: number;
+  failureThreshold: number;
 }
 
 export interface HookResult {

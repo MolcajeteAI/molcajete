@@ -155,7 +155,7 @@ export async function runDevTestReviewCycle(
       };
     }
 
-    maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
+    await maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
     logDetail(phaseSep());
 
     const filesModified = dev.structured.files_modified || [];
@@ -320,7 +320,7 @@ export async function runTaskLevelValidation(
       };
     }
 
-    maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
+    await maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
 
     const filesModified = dev.structured.files_modified || [];
 

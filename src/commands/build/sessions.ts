@@ -34,11 +34,12 @@ import { findTask, readPlan } from "./plan-data.js";
 
 /**
  * Push the current branch to the configured remote after a commit.
+ * On non-fast-forward: fetches, rebases (with conflict resolution), and retries.
  * Non-fatal: logs a warning on failure, skipped silently when disabled.
  */
-export function maybePushAfterCommit(settings: Settings, label: string, cwd?: string): void {
+export async function maybePushAfterCommit(settings: Settings, label: string, cwd?: string): Promise<void> {
   if (settings.push === false) return;
-  const result = pushCurrentBranch(settings.remote, cwd);
+  const result = await pushCurrentBranch(settings.remote, cwd);
   if (result.ok) {
     logDetail(`Push ${label}: ok`);
   } else if (result.skipped) {
@@ -319,8 +320,31 @@ export async function runRecoverySession(
     return { ok: true, structured: out };
   }
 
-  const error = out.error || extractFailureReason(result.output, result.stderr) || "Recovery session failed";
+  // Build a detailed error from structured output, result event, or stderr.
+  const failureReason = extractFailureReason(result.output, result.stderr);
+  const error = out.error || failureReason || "Recovery session failed";
+
+  // Surface all available diagnostic info as issues.
+  const issues: string[] = [];
+  const stderrDetail = result.stderr.trim();
+  if (!out.status) {
+    // Session produced no structured output — likely crashed or the command wasn't found.
+    const detail = stderrDetail
+      ? stderrDetail.split("\n").pop()
+      : failureReason || `exit code ${result.exitCode}, no output`;
+    issues.push(`Recovery session exited without result: ${detail}`);
+  } else {
+    issues.push(error);
+  }
+  if (result.exitCode !== 0) {
+    issues.push(`Exit code: ${result.exitCode}`);
+  }
+
   log(`${phaseLabel("RECOVERY")} session ${context.failed_task_id}: failed (${error})`);
+  logDetail(issuesBlock(issues));
+
+  // Ensure the structured output carries the error for callers.
+  if (!out.error) out.error = error;
   return { ok: false, structured: out };
 }
 

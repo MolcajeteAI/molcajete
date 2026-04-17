@@ -165,8 +165,9 @@ export async function runTaskWithSubTasks(
       logDetail(h.rule);
     }
 
-    const preSessions = buildStats.sessions;
-    const preCost = buildStats.totalCostUsd;
+    const reportDeltas = settings.maxParallel === 1;
+    const preSessions = reportDeltas ? buildStats.sessions : 0;
+    const preCost = reportDeltas ? buildStats.totalCostUsd : 0;
 
     await tryHook(
       hooks,
@@ -226,7 +227,7 @@ export async function runTaskWithSubTasks(
 
     if (result.devResult?.summary) subSummaries.push(result.devResult.summary);
 
-    {
+    if (reportDeltas) {
       const sessionsDelta = buildStats.sessions - preSessions;
       const costDelta = buildStats.totalCostUsd - preCost;
       log(subTaskCloseTitle(stId, "implemented"));
@@ -236,6 +237,9 @@ export async function runTaskWithSubTasks(
           ["Cost", `$${costDelta.toFixed(4)}`],
         ]),
       );
+      logDetail(subTaskCloseRule());
+    } else {
+      log(subTaskCloseTitle(stId, "implemented"));
       logDetail(subTaskCloseRule());
     }
 

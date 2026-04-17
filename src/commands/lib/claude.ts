@@ -6,16 +6,15 @@ import { isSpinning, stopSpinner } from "../../lib/spinner.js";
 import { isDebug, log, logDetail, shellQuote, sleep } from "../../lib/utils.js";
 import type { BuildStats, ClaudeResult, SessionStats } from "../../types.js";
 
-// ── Active Child Process ──
+// ── Active Child Processes ──
+//
+// Under parallel workers multiple claude subprocesses run concurrently. A Set
+// lets SIGINT fan out to all of them so Ctrl-C kills every in-flight session.
 
-let activeChild: ReturnType<typeof spawn> | null = null;
+const activeChildren = new Set<ReturnType<typeof spawn>>();
 
-export function setActiveChild(child: ReturnType<typeof spawn> | null): void {
-  activeChild = child;
-}
-
-export function getActiveChild(): ReturnType<typeof spawn> | null {
-  return activeChild;
+export function getActiveChildren(): ReadonlySet<ReturnType<typeof spawn>> {
+  return activeChildren;
 }
 
 // ── Build Stats ──
@@ -186,7 +185,7 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
       writeLog(chunk.toString().trimEnd());
     });
 
-    activeChild = child;
+    activeChildren.add(child);
 
     const chunks: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => {
@@ -199,7 +198,7 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
 
     child.on("close", (code) => {
       clearTimeout(timer);
-      activeChild = null;
+      activeChildren.delete(child);
       resolveP({
         output: Buffer.concat(chunks).toString(),
         stderr: Buffer.concat(stderrChunks).toString(),
