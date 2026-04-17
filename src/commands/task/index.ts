@@ -118,7 +118,7 @@ export async function runTask(
       const task = findTask(diskData, id)!;
       for (const depId of task.depends_on ?? []) {
         const dep = findTask(diskData, depId);
-        if (dep && dep.status !== "implemented") {
+        if (dep && dep.status !== "implemented" && !requestedIds.includes(depId)) {
           unmetDeps.push(`${id} depends on ${depId} (status: ${dep.status})`);
         }
       }
