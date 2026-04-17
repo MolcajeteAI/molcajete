@@ -89,15 +89,16 @@ export function buildBuildContext(planFile: string, planName: string, stage: Bui
 }
 
 /**
- * Core dev → test → review cycle.
+ * Core dev → test → completeness cycle.
  *
  * 1. Dev session (Opus) — writes code + commits
  * 2. Test hook (mandatory) — developer-defined programmatic checks
  * 3. If test fails → loop back to dev with issues
- * 4. Review session (Sonnet) — AI code review + completeness
- * 5. If review has issues → loop back to dev with issues
- * 6. If review passes → done
+ * 4. Completeness check (Sonnet) — AI completeness gate only
+ * 5. If completeness has issues → loop back to dev with issues
+ * 6. If completeness passes → done
  *
+ * Code review is deferred to boundary level (UC/feature/plan) by the scheduler.
  * Retries up to MAX_DEV_CYCLES times.
  */
 export async function runDevTestReviewCycle(
@@ -187,8 +188,8 @@ export async function runDevTestReviewCycle(
 
     logDetail(phaseSep());
 
-    // 3. Review session — AI code review + completeness
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
+    // 3. Completeness check — code review is deferred to boundary (UC/feature/plan)
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -258,7 +259,7 @@ export async function runTaskLevelValidation(
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
@@ -347,7 +348,7 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
     }

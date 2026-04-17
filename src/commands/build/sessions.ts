@@ -20,6 +20,7 @@ import type {
   HookMap,
   RecoveryContext,
   RecoverySessionOutput,
+  ReviewMode,
   ReviewSessionOutput,
   Settings,
   Task,
@@ -224,10 +225,11 @@ export async function runReviewSession(
   taskId: string,
   settings: Settings,
   planName: string,
+  mode: ReviewMode = "full",
   cwd?: string,
   branch?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
-  log(`${phaseLabel("REVIEW")} session: ${taskId}`);
+  log(`${phaseLabel("REVIEW")} session: ${taskId} (mode: ${mode})`);
 
   // Lifecycle hook: before-review
   const beforeReviewInput: Record<string, unknown> = { task_id: taskId };
@@ -240,6 +242,7 @@ export async function runReviewSession(
   const payload = JSON.stringify({
     plan_path: planFile,
     task_id: taskId,
+    mode,
   });
 
   const result = await invokeClaude(

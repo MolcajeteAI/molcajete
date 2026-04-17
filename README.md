@@ -10,7 +10,7 @@ Molcajete is split into two packages:
 
 There is also a **reverse** path: point the plugin at an existing codebase and it will extract specs from the code, then wire BDD tests to what already exists.
 
-**@molcajeteai/cli** (this package) handles **Setup** and **Build**. Setup detects your project's tooling and generates typed hook scripts. Build picks up a plan and dispatches tasks sequentially from your repository. Each task runs a dev → test → review cycle: a Claude Opus agent writes code and commits, a developer-defined test hook runs all programmatic checks, and a Claude Sonnet agent reviews for correctness and completeness. The loop continues until all scenarios pass.
+**@molcajeteai/cli** (this package) handles **Setup** and **Build**. Setup detects your project's tooling and generates typed hook scripts. Build picks up a plan and dispatches tasks from your repository. Each task runs a dev → test → completeness cycle: a Claude Opus agent writes code and commits, a developer-defined test hook runs all programmatic checks, and a Claude Sonnet agent checks completeness. Code review is deferred to a configurable boundary level (use case by default) to save tokens and provide more holistic review coverage. The cycle retries until all checks pass.
 
 All sessions run headlessly via `claude -p` — no user interaction during execution. The orchestrator drives everything.
 
@@ -86,6 +86,15 @@ molcajete build --resume 202604021530-login   # skip already-implemented tasks
 | Flag | Description |
 |------|-------------|
 | `--resume` | Resume from where a previous build left off |
+| `--skip-docs` | Skip the documentation step after each task |
+| `--skip-review` | Skip AI code review entirely (completeness-only per task, no boundary review) |
+| `--review-level <levels>` | Comma-separated review boundaries: `scenario`, `usecase` (default), `feature`, `plan` |
+| `--parallel <n>` | Max concurrent tasks (1-16) |
+| `--no-parallel` | Disable parallelism (equivalent to `--parallel 1`) |
+| `--failure-threshold <n>` | Terminal failures allowed before draining (1-100) |
+| `--no-worktrees` | Run all tasks in the main working directory (no worktree isolation) |
+| `--yes` | Auto-confirm the startup sync prompt |
+| `--no` | Auto-decline the startup sync prompt (abort on mismatch) |
 
 ## Plugin Commands
 
@@ -136,7 +145,7 @@ Inside a Claude Code session, all commands are prefixed with `/m:`.
 |---------|-------------|
 | `research` | Deep research with tech stack context, parallel agents, and long-form output |
 
-The CLI's build commands (`develop`, `validate`, `document`) are invoked headlessly by the orchestrator via `claude -p` — they are not user-facing plugin commands.
+The CLI's build commands (`develop`, `validate`, `document`) are invoked headlessly by the orchestrator via `claude -p` — they are not user-facing plugin commands. The `validate` command supports three modes: `full` (code review + completeness), `review` (code review only), and `completeness` (completeness only). Per-task validation uses `completeness` mode; boundary reviews use the mode matching their level.
 
 ## Build Flow
 
@@ -150,11 +159,11 @@ flowchart TD
 
         CHECK -->|"No"| DEV
 
-        subgraph cycle ["Dev-Test-Review Cycle"]
+        subgraph cycle ["Dev-Test-Completeness Cycle"]
             DEV["Dev Session (Opus)"] -->|"writes code + commits"| TEST
             TEST["test hook"] -->|"failure"| DEV
-            TEST -->|"success"| REVIEW
-            REVIEW["Review Session (Sonnet)"] -->|"issues"| DEV
+            TEST -->|"success"| COMP
+            COMP["Completeness Check (Sonnet)"] -->|"issues"| DEV
         end
 
         CHECK -->|"Yes"| SUBTASKS
@@ -162,26 +171,32 @@ flowchart TD
         subgraph SUBTASKS ["Sub-task Loop"]
             direction TB
             BST["before-subtask hook"] --> SDEV
-            subgraph subcycle ["Dev-Test-Review Cycle (scope: subtask)"]
+            subgraph subcycle ["Dev-Test-Completeness Cycle (scope: subtask)"]
                 SDEV["Dev Session (Opus)"] -->|"writes code + commits"| STEST
                 STEST["test hook"] -->|"failure"| SDEV
-                STEST -->|"success"| SREVIEW
-                SREVIEW["Review Session (Sonnet)"] -->|"issues"| SDEV
+                STEST -->|"success"| SCOMP
+                SCOMP["Completeness Check (Sonnet)"] -->|"issues"| SDEV
             end
-            SREVIEW -->|"all clear"| AST["after-subtask hook"]
+            SCOMP -->|"all clear"| AST["after-subtask hook"]
         end
 
         SUBTASKS --> TVAL
 
         subgraph TVAL ["Task-Level Validation"]
-            TTEST["test hook (scope: task)"] -->|"success"| TREVIEW["Review Session"]
+            TTEST["test hook (scope: task)"] -->|"success"| TCOMP["Completeness Check"]
             TTEST -->|"failure"| TFIX["Dev fix session"] --> TTEST
-            TREVIEW -->|"issues"| TFIX
+            TCOMP -->|"issues"| TFIX
         end
 
-        REVIEW -->|"all clear"| AT["after-task hook"]
-        TREVIEW -->|"all clear"| AT
+        COMP -->|"all clear"| AT["after-task hook"]
+        TCOMP -->|"all clear"| AT
     end
+
+    AT --> DONE{"Boundary complete?"}
+    DONE -->|"Yes"| BOUNDARY["Boundary Review + Done Hooks"]
+    DONE -->|"No"| NEXT["Next task"]
+    BOUNDARY --> NEXT
+    NEXT --> LOOP
 
     LOOP --> DOC["Doc Session (Haiku)"]
     DOC --> STOP["stop hook (optional)"]
@@ -189,9 +204,9 @@ flowchart TD
 
 ### Sub-task Flow
 
-When a task has sub-tasks, each sub-task runs the full dev → test → review cycle independently. The test hook receives `scope: "subtask"` so the developer can decide what checks to run — typically format and lint, but not BDD tests since the scenario isn't complete yet.
+When a task has sub-tasks, each sub-task runs the full dev → test → completeness cycle independently. The test hook receives `scope: "subtask"` so the developer can decide what checks to run — typically format and lint, but not BDD tests since the scenario isn't complete yet.
 
-After all sub-tasks are implemented, a **task-level validation** runs: test (with `scope: "task"` so BDD can run against the full scenario) then review. No dev session is needed at this point since the code was already written by sub-tasks. If test or review fails, a dev fix session is launched to address the issues, followed by another test → review pass.
+After all sub-tasks are implemented, a **task-level validation** runs: test (with `scope: "task"` so BDD can run against the full scenario) then completeness check. No dev session is needed at this point since the code was already written by sub-tasks. If test or completeness fails, a dev fix session is launched to address the issues, followed by another test → completeness pass.
 
 ## Hooks
 
@@ -229,9 +244,11 @@ And must return:
 }
 ```
 
-### Optional Hooks (10)
+### Optional Hooks (14)
 
 Generated with `molcajete setup --all`.
+
+**Lifecycle hooks:**
 
 | Hook | When it fires | Purpose |
 |------|---------------|---------|
@@ -245,6 +262,30 @@ Generated with `molcajete setup --all`.
 | `after-review` | After the AI review session | Collect review results |
 | `before-documentation` | Before the doc session | Prepare for documentation |
 | `after-documentation` | After the doc session | Post-documentation actions |
+
+**Done hooks** (fire when a boundary is crossed):
+
+| Hook | When it fires | Purpose |
+|------|---------------|---------|
+| `scenario-complete` | All tasks for a scenario are implemented | Run scenario-level regression or notifications |
+| `usecase-complete` | All tasks for a use case are implemented | Run UC-level integration tests or deploy |
+| `feature-complete` | All tasks for a feature are implemented | Run feature regression or release notifications |
+| `plan-complete` | All plan tasks are implemented | Full regression, release notes, staging deploy |
+
+Done hooks fire in parallel and each receives the full `DoneItems` context:
+
+```json
+{
+  "task": "T-003",
+  "scenario": "SC-A1B2",
+  "usecase": "UC-0F4a",
+  "feature": "FEAT-0S9A",
+  "plan_complete": false,
+  "build": { "...BuildContext..." }
+}
+```
+
+Each field is set only if that level just completed. Hooks can check higher-level fields to decide whether to skip — e.g., a `usecase-complete` hook can return early if `feature` is also set, since `feature-complete` will handle it.
 
 Hooks derive direct tool commands (never `make`, `npm run`, or wrapper scripts).
 
@@ -281,9 +322,10 @@ import type { BuildContext } from '@molcajeteai/cli';
 |-------|------|
 | `start` | start hook |
 | `before-task` | before-task, before-subtask, after-subtask hooks |
-| `development` | test hook during dev-test-review cycle |
+| `development` | test hook during dev-test-completeness cycle |
 | `validation` | before-review, after-review hooks; test hook during task-level validation |
 | `after-task` | after-task hook |
+| `done` | scenario-complete, usecase-complete, feature-complete, plan-complete hooks |
 | `documentation` | before-documentation, after-documentation hooks |
 | `stop` | stop hook |
 
@@ -508,18 +550,29 @@ For **Specs First** (`implement` intent) plans, the agent produces production co
 
 For **Code First** (`wire-bdd` intent) plans, the agent writes step definitions against existing code (no production code changes).
 
-### 3. Test + Review
+### 3. Test + Completeness
 
-After the dev session commits, Molcajete runs two checks:
+After the dev session commits, Molcajete runs two checks per task:
 
 | Step | Runner | What it checks |
 |------|--------|----------------|
 | **Test** | Developer hook | All programmatic quality checks — format, lint, BDD tests, whatever the project needs |
-| **Review** | Claude Sonnet | Code review + completeness — the only AI validation |
+| **Completeness** | Claude Sonnet | AI completeness gate — ensures all requirements are addressed and no stubs remain |
+
+Code review is deferred to a boundary level (use case by default). When all tasks for a boundary are done, a boundary review fires with the appropriate thoroughness:
+
+| Boundary | Review mode | What it checks |
+|----------|-------------|----------------|
+| `scenario` | `completeness` | Completeness only (lightweight) |
+| `usecase` | `review` | Code review only (completeness already ran per-task) |
+| `feature` | `full` | Code review + completeness |
+| `plan` | `full` | Code review + completeness |
+
+Control with `--review-level` (default: `usecase`). Use `--skip-review` or `SKIP_REVIEW=1` to disable boundary review entirely.
 
 ### 4. Retry Logic
 
-If test or review fails, the issues are sent back to the dev agent for a fix. The dev agent starts a fresh session, applies fixes and commits, then test + review run again. Maximum retries: 7 (configurable via `MAX_DEV_CYCLES`).
+If test or completeness fails, the issues are sent back to the dev agent for a fix. The dev agent starts a fresh session, applies fixes and commits, then test + completeness run again. Maximum retries: 4 (`MAX_DEV_CYCLES`). Boundary review issues are logged as warnings (no automatic retry — tasks are already merged).
 
 ### 5. Documentation
 
@@ -546,6 +599,9 @@ Override defaults by setting these before running `molcajete build`:
 | `MOLCAJETE_BUDGET_AGENT` | `15.00` | Token budget for task agent |
 | `MOLCAJETE_TASK_TIMEOUT` | `897` | Timeout per task in seconds |
 | `MOLCAJETE_HOOK_TIMEOUT` | `30000` | Timeout per hook in milliseconds |
+| `SKIP_REVIEW` | `0` | Set to `1` to skip boundary code review |
+| `SKIP_DOCS` | `0` | Set to `1` to skip documentation step |
+| `REVIEW_LEVEL` | `usecase` | Comma-separated review boundaries: `scenario`, `usecase`, `feature`, `plan` |
 
 ### Plan Files
 

@@ -1,6 +1,8 @@
 import { type AsyncMutex, createMutex } from "../../lib/async-mutex.js";
 import { log } from "../../lib/utils.js";
-import type { HookMap, Settings } from "../../types.js";
+import type { HookMap, ReviewLevel, Settings } from "../../types.js";
+import { type BoundaryReviewResult, resolveReviewAction, runBoundaryReview, taskIdsForBoundary } from "./boundary-review.js";
+import { getDoneItems, triggerDoneHooks } from "./done-items.js";
 import type { PlanState } from "./plan-state.js";
 import { runRecoveryWorker, runTaskWorker, type WorkerResult } from "./worker.js";
 
@@ -19,6 +21,8 @@ export interface SchedulerInputs {
    */
   resumeTaskIds: Set<string>;
   skipDocs: boolean;
+  skipReview: boolean;
+  reviewLevels: Set<ReviewLevel>;
 }
 
 export interface SchedulerResult {
@@ -38,14 +42,15 @@ export interface SchedulerResult {
  * needed beyond gitMutex for worktree add/remove).
  */
 export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerResult> {
-  const { hooks, projectRoot, planFile, planName, settings, planState, resume, noWorktrees, resumeTaskIds, skipDocs } = inputs;
+  const { hooks, projectRoot, planFile, planName, settings, planState, resume, noWorktrees, resumeTaskIds, skipDocs, skipReview, reviewLevels } = inputs;
 
   const gitMutex: AsyncMutex = createMutex();
   const maxParallel = Math.max(1, settings.maxParallel);
   const effectiveThreshold = maxParallel === 1 ? 1 : Math.max(1, settings.failureThreshold);
 
   const recoveredTasks = new Set<string>();
-  const inflight = new Map<string, Promise<{ kind: "task" | "recovery"; result: unknown }>>();
+  const reviewedBoundaries = new Set<string>(); // "usecase:UC-001", "feature:FEAT-001", etc.
+  const inflight = new Map<string, Promise<{ kind: "task" | "recovery" | "boundary-review"; result: unknown }>>();
 
   let doneCount = 0;
   let failedCount = 0;
@@ -107,12 +112,56 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
     inflight.set(key, p);
   };
 
+  const launchBoundaryReview = (taskId: string): void => {
+    const snap = planState.snapshot();
+    const doneItems = getDoneItems(snap, taskId);
+
+    // Always fire done hooks (regardless of --skip-review)
+    triggerDoneHooks(hooks, doneItems, planFile, planName, settings).catch(() => {
+      // Hook failures are non-fatal for done hooks
+    });
+
+    if (skipReview || draining) return;
+
+    const action = resolveReviewAction(doneItems, reviewLevels);
+    if (!action) return;
+
+    const boundaryKey = `${action.level}:${action.boundaryId}`;
+    if (reviewedBoundaries.has(boundaryKey)) return;
+    reviewedBoundaries.add(boundaryKey);
+
+    const taskIds = taskIdsForBoundary(snap, action.level, action.boundaryId);
+    const inflightKey = `boundary-review:${boundaryKey}`;
+
+    log(`Launching ${action.level}-level boundary review for ${action.boundaryId} (mode: ${action.mode})`);
+
+    const p = runBoundaryReview(
+      hooks,
+      projectRoot,
+      planFile,
+      taskIds,
+      action.level,
+      action.boundaryId,
+      action.mode,
+      settings,
+      planName,
+    ).then((result) => ({ kind: "boundary-review" as const, result }));
+    inflight.set(inflightKey, p);
+  };
+
+  const handleBoundaryReviewResult = (result: BoundaryReviewResult): void => {
+    if (result.issues.length > 0) {
+      log(`Boundary review ${result.level} ${result.boundaryId}: ${result.issues.length} issue(s) logged as warnings`);
+    }
+  };
+
   const handleTaskResult = (result: WorkerResult): void => {
     if (result.outcome === "ok") {
       if (result.worktreeFinalState) {
         planState.mergeWorkerResult(result.taskId, result.worktreeFinalState);
       }
       doneCount++;
+      launchBoundaryReview(result.taskId);
       return;
     }
 
@@ -212,8 +261,10 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
 
     if (winner.payload.kind === "task") {
       handleTaskResult(winner.payload.result as WorkerResult);
-    } else {
+    } else if (winner.payload.kind === "recovery") {
       handleRecoveryResult(winner.payload.result as { taskId: string; outcome: "recovered" | "recovery_failed"; error?: string });
+    } else {
+      handleBoundaryReviewResult(winner.payload.result as BoundaryReviewResult);
     }
 
     if (!draining && terminalFailures >= effectiveThreshold) {

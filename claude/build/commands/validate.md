@@ -26,6 +26,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 |-------|------|-------------|
 | `plan_path` | string | Absolute path to the plan JSON file |
 | `task_id` | string | Task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`) |
+| `mode` | string (optional) | `"full"` (default) — both gates; `"review"` — code review only; `"completeness"` — completeness only |
 
 ## Step 1: Load Context
 
@@ -39,9 +40,14 @@ Issue every Read and Glob in this step as part of a parallel batch: group all in
 
 ## Step 2: Spawn Sub-Agents (All in Parallel)
 
-Both gates are **read-only** — they report issues but do not fix them. Spawn both as parallel sub-agents using the Agent tool.
+Both gates are **read-only** — they report issues but do not fix them. Spawn sub-agents using the Agent tool.
 
-**Parallel spawn is literal:** emit both Agent tool_use blocks in a single assistant turn. Do not issue them in sequential turns — that serializes the work and wastes the turn budget.
+**Mode controls which gates run:**
+- `mode: "full"` (or absent) → spawn **both** Code Review and Completeness gates in parallel
+- `mode: "review"` → spawn **only** the Code Review gate; set `completeness: []` in output
+- `mode: "completeness"` → spawn **only** the Completeness gate; set `code_review: []` in output
+
+**Parallel spawn is literal:** when spawning both gates, emit both Agent tool_use blocks in a single assistant turn. Do not issue them in sequential turns — that serializes the work and wastes the turn budget.
 
 ### Code Review Gate
 

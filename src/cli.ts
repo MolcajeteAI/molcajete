@@ -23,7 +23,7 @@ program
 
 program
   .command("build")
-  .description("Execute all pending tasks in a plan")
+  .description("Execute all pending tasks in a plan (completeness per task, code review at boundary)")
   .argument("<plan-name>", "Plan name, path, timestamp, or slug")
   .option("--resume", "Resume from where a previous build left off (skip implemented tasks)")
   .option("--no-worktrees", "Run all tasks in the main working directory (no worktree isolation)")
@@ -33,6 +33,8 @@ program
     Number.parseInt(v, 10),
   )
   .option("--skip-docs", "Skip the documentation step after each task")
+  .option("--skip-review", "Skip AI code review entirely (completeness-only per task, no boundary review)")
+  .option("--review-level <levels>", "Comma-separated review boundaries: scenario,usecase,feature,plan (default: usecase)")
   .option("--yes", "Auto-confirm the startup sync prompt (fast-forward or push)")
   .option("--no", "Auto-decline the startup sync prompt (abort on mismatch)")
   .action(async (planName, opts) => {
@@ -45,6 +47,8 @@ program
       failureThreshold: typeof opts.failureThreshold === "number" ? opts.failureThreshold : undefined,
       syncAnswer: opts.yes === true ? "yes" : opts.no === true ? "no" : undefined,
       skipDocs: opts.skipDocs || !!process.env.SKIP_DOCS,
+      skipReview: opts.skipReview || !!process.env.SKIP_REVIEW,
+      reviewLevel: opts.reviewLevel || process.env.REVIEW_LEVEL,
     });
   });
 

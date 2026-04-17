@@ -44,6 +44,10 @@ export const ALL_HOOKS = [
   "after-worktree-merge",
   "before-documentation",
   "after-documentation",
+  "scenario-complete",
+  "usecase-complete",
+  "feature-complete",
+  "plan-complete",
 ];
 export const HOOK_TIMEOUT = parseInt(process.env.MOLCAJETE_HOOK_TIMEOUT ?? "30000", 10);
 

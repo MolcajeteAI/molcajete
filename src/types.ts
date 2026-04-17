@@ -2,6 +2,23 @@
 
 export type Phase = "DEV" | "VERIFY" | "REVIEW" | "DOC" | "RECOVERY" | "HEALTH";
 
+// ── Review ──
+
+/** Thoroughness level for the validate session. */
+export type ReviewMode = "full" | "review" | "completeness";
+
+/** Granularity levels at which boundary review can fire. */
+export type ReviewLevel = "scenario" | "usecase" | "feature" | "plan";
+
+/** What just completed after a task finishes — each field is independently computed. */
+export interface DoneItems {
+  task: string;
+  scenario?: string;
+  usecase?: string;
+  feature?: string;
+  plan_complete?: boolean;
+}
+
 // ── Build Context ──
 
 export type BuildStage =
@@ -17,7 +34,8 @@ export type BuildStage =
   | "documentation"
   | "stop"
   | "halted"
-  | "failed";
+  | "failed"
+  | "done";
 
 export interface BuildContext {
   plan_path: string;
