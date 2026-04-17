@@ -3,7 +3,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { PlanData, ResolveConflictsOutput, Task } from "../types.js";
 import { MODEL, RESOLVE_CONFLICTS_SCHEMA } from "./config.js";
-import { log } from "./utils.js";
+
 
 export interface GitResult {
   status: "success" | "failure";

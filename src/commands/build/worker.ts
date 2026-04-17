@@ -72,7 +72,6 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
     settings,
     taskId,
     resume,
-    skipDocs,
     gitMutex,
     planStateSnapshot,
   } = inputs;
