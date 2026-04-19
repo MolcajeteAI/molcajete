@@ -52,7 +52,7 @@ export async function setupWorktree(
       }
     }
 
-    logDetail(`Creating worktree: ${branchName}`);
+    logDetail(`${resume ? "Reusing" : "Creating"} worktree: ${branchName}`);
     const result = createWorktree(projectRoot, branchName, worktreePath, baseBranch, {
       resume,
       remote: settings.remote,

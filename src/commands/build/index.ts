@@ -146,10 +146,37 @@ async function runAllTasksMode(
     log(`Base sync: ${syncOutcome.action}`);
   }
 
-  // Reset failed tasks on the in-memory plan (unless resuming). No commit —
-  // the on-disk plan.json is frozen until build end.
   const freshData = readPlan(planFile);
-  if (!resume) {
+  const resumeTaskIds = new Set<string>();
+
+  if (resume) {
+    // On resume the worktree's plan.json is the source of truth. For each
+    // non-implemented task: the worktree MUST exist — if it doesn't, abort.
+    // The user can delete worktrees and run without --resume for a fresh start.
+    for (const t of freshData.tasks) {
+      if (t.status === "implemented") continue;
+
+      const branchName = `${planName}--${t.id}`;
+      const worktreePath = resolve(projectRoot, ".molcajete", "worktrees", branchName);
+
+      if (existsSync(worktreePath)) {
+        // Worktree exists — reset task to pending so the scheduler picks it
+        // up, but the worker will read sub-task statuses from the worktree's
+        // plan.json (the source of truth).
+        t.status = "pending";
+        t.errors = [];
+        delete t.stage;
+        resumeTaskIds.add(t.id);
+      } else if (t.status === "pending") {
+        // Never attempted — will start fresh, no worktree expected.
+      } else {
+        log(`BUILD ABORTED: --resume: no worktree for ${t.id} (status: ${t.status}). Remove stale worktrees or run without --resume.`);
+        process.exit(1);
+      }
+    }
+    if (freshData.status === "failed") freshData.status = "pending";
+  } else {
+    // Fresh build: reset all failed tasks so they can be re-queued.
     for (const t of freshData.tasks) {
       if (t.status === "failed") {
         t.status = "pending";
@@ -170,15 +197,6 @@ async function runAllTasksMode(
   }
 
   const planState = new PlanState(freshData);
-
-  // Snapshot tasks that were in_progress at start — those get resume=true so
-  // setupWorktree reattaches rather than creating a fresh branch.
-  const resumeTaskIds = new Set<string>();
-  if (resume) {
-    for (const t of freshData.tasks) {
-      if (t.status === "in_progress") resumeTaskIds.add(t.id);
-    }
-  }
 
   planState.setPlanStatus("in_progress");
 
