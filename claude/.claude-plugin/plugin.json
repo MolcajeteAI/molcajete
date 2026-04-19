@@ -10,6 +10,8 @@
   "commands": [
     "./build/commands/develop.md",
     "./build/commands/fix.md",
+    "./build/commands/recover.md",
+    "./build/commands/review-fix.md",
     "./build/commands/validate.md",
     "./build/commands/document.md",
     "./build/commands/resolve-conflicts.md",
