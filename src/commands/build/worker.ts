@@ -53,6 +53,8 @@ export interface WorkerInputs {
    * Threaded through the dev/test/review cycle as context for the model.
    */
   priorSummaries: string[];
+  /** Session name for the seed session. When set, child sessions fork from it. */
+  seedSessionName?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ async function runTaskWorkerInner(inputs: WorkerInputs): Promise<WorkerResult> {
     resume,
     gitMutex,
     planStateSnapshot,
+    seedSessionName,
   } = inputs;
 
   const task = planStateSnapshot.tasks.find((t) => t.id === taskId);
@@ -148,6 +151,7 @@ async function runTaskWorkerBody({
     gitMutex,
     planStateSnapshot,
     priorSummaries,
+    seedSessionName,
   } = inputs;
 
   const taskCwd = worktree.worktreePath;
@@ -215,6 +219,7 @@ async function runTaskWorkerBody({
       baseBranch,
       taskCwd,
       taskBranch,
+      seedSessionName,
     );
   } else {
     cycleResult = await runSimpleTask(
@@ -229,6 +234,7 @@ async function runTaskWorkerBody({
       baseBranch,
       taskCwd,
       taskBranch,
+      seedSessionName,
     );
   }
 
@@ -400,6 +406,7 @@ export async function runRecoveryWorker(inputs: {
   priorSummaries: string[];
   error: string;
   planStateSnapshot: PlanData;
+  seedSessionName?: string;
 }): Promise<{ taskId: string; outcome: "recovered" | "recovery_failed"; error?: string }> {
   return taskContext.run({ taskId: `${inputs.taskId}+recovery` }, () => runRecoveryWorkerInner(inputs));
 }
@@ -415,8 +422,9 @@ async function runRecoveryWorkerInner(inputs: {
   priorSummaries: string[];
   error: string;
   planStateSnapshot: PlanData;
+  seedSessionName?: string;
 }): Promise<{ taskId: string; outcome: "recovered" | "recovery_failed"; error?: string }> {
-  const { hooks, projectRoot, planFile, planName, settings, taskId, gitMutex, priorSummaries, error, planStateSnapshot } = inputs;
+  const { hooks, projectRoot, planFile, planName, settings, taskId, gitMutex, priorSummaries, error, planStateSnapshot, seedSessionName } = inputs;
 
   const baseBranch = planStateSnapshot.base_branch || "main";
   const recoveryBranchTag = `${taskId}-recovery`;

@@ -21,6 +21,7 @@ export async function runSimpleTask(
   baseBranch: string,
   cwd?: string,
   branch?: string,
+  seedSessionName?: string,
 ): Promise<{ ok: boolean; error?: string; devResult?: unknown }> {
   const taskId = task.id;
 
@@ -55,6 +56,7 @@ export async function runSimpleTask(
     baseBranch,
     cwd,
     branch,
+    seedSessionName,
   );
 
   if (!result.ok) {
@@ -111,6 +113,7 @@ export async function runTaskWithSubTasks(
   baseBranch: string,
   cwd?: string,
   branch?: string,
+  seedSessionName?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const taskId = task.id;
   const subTasks = task.sub_tasks ?? [];
@@ -198,6 +201,7 @@ export async function runTaskWithSubTasks(
       baseBranch,
       cwd,
       branch,
+      seedSessionName,
     );
 
     if (!result.ok) {
@@ -273,6 +277,7 @@ export async function runTaskWithSubTasks(
     baseBranch,
     cwd,
     branch,
+    seedSessionName,
   );
 
   if (!taskResult.ok) {

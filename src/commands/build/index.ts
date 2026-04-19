@@ -20,6 +20,7 @@ import {
 } from "./plan-data.js";
 import { PlanState } from "./plan-state.js";
 import { updatePrdStatuses } from "./prd.js";
+import { createSeedSession } from "./seed-session.js";
 import { runHealthcheckHook } from "./sessions.js";
 import { runScheduler } from "./scheduler.js";
 import { sweepActiveWorktrees } from "./worktree-registry.js";
@@ -211,6 +212,11 @@ async function runAllTasksMode(
 
   const taskCount = freshData.tasks.length;
 
+  // Create seed session for context preloading. Child sessions fork from it
+  // to inherit loaded context without re-reading files.
+  const seedResult = await createSeedSession(projectRoot, planFile, freshData);
+  const seedSessionName = seedResult.ok ? seedResult.sessionName ?? undefined : undefined;
+
   const schedulerResult = await runScheduler({
     hooks,
     projectRoot,
@@ -221,6 +227,7 @@ async function runAllTasksMode(
     resume,
     resumeTaskIds,
     skipDocs,
+    seedSessionName,
   });
 
   let { doneCount, failedCount, drainedEarly, blockedTaskIds } = schedulerResult;
@@ -244,6 +251,7 @@ async function runAllTasksMode(
       planName,
       settings,
       taskIds: allTaskIds,
+      seedSessionName,
     });
     if (!reviewResult.ok) {
       log(`End-of-build review: ${reviewResult.issues.length} unresolved issue(s)`);

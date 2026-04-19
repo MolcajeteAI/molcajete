@@ -19,6 +19,8 @@ export interface SchedulerInputs {
    */
   resumeTaskIds: Set<string>;
   skipDocs: boolean;
+  /** Session name for the seed session. When set, child sessions fork from it. */
+  seedSessionName?: string;
 }
 
 export interface SchedulerResult {
@@ -39,7 +41,7 @@ export interface SchedulerResult {
  * needed beyond gitMutex for worktree add/remove).
  */
 export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerResult> {
-  const { hooks, projectRoot, planFile, planName, settings, planState, resume, resumeTaskIds, skipDocs } = inputs;
+  const { hooks, projectRoot, planFile, planName, settings, planState, resume, resumeTaskIds, skipDocs, seedSessionName } = inputs;
 
   const gitMutex: AsyncMutex = createMutex();
   const maxParallel = Math.max(1, settings.maxParallel);
@@ -79,6 +81,7 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
       gitMutex,
       planStateSnapshot: snapshot,
       priorSummaries,
+      seedSessionName,
     }).then((result) => ({ kind: "task" as const, result }));
     inflight.set(taskId, p);
   };
@@ -101,6 +104,7 @@ export async function runScheduler(inputs: SchedulerInputs): Promise<SchedulerRe
       priorSummaries,
       error,
       planStateSnapshot: snapshot,
+      seedSessionName,
     }).then((result) => ({ kind: "recovery" as const, result }));
     inflight.set(key, p);
   };

@@ -114,8 +114,10 @@ export async function runDevTestReviewCycle(
   baseBranch: string,
   cwd?: string,
   branch?: string,
+  seedSessionName?: string,
 ): Promise<DevTestReviewResult> {
   let issues: string[] = [];
+  let priorFilesModified: string[] | undefined;
 
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Dev-test-review cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
@@ -145,7 +147,9 @@ export async function runDevTestReviewCycle(
     }
 
     // 1. Dev session — writes code + commits
-    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
+    // On retry cycles (issues non-empty), pass priorFilesModified so the session
+    // dispatches to fix.md instead of develop.md for faster context loading.
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd, seedSessionName, priorFilesModified);
     if (!dev.ok) {
       return {
         ok: false,
@@ -159,6 +163,7 @@ export async function runDevTestReviewCycle(
     logDetail(phaseSep());
 
     const filesModified = dev.structured.files_modified || [];
+    priorFilesModified = filesModified;
 
     // 2. Test hook — mandatory programmatic checks
     const test = await runVerifyHook(hooks, {
@@ -188,7 +193,7 @@ export async function runDevTestReviewCycle(
     logDetail(phaseSep());
 
     // 3. Completeness check — code review runs at end-of-build
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -237,6 +242,7 @@ export async function runTaskLevelValidation(
   baseBranch: string,
   cwd?: string,
   branch?: string,
+  seedSessionName?: string,
 ): Promise<DevTestReviewResult> {
   // First pass: test + review only (no dev session needed)
   log(`Task-level validation for ${taskId} (test + review)`);
@@ -258,7 +264,7 @@ export async function runTaskLevelValidation(
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-1`, review.structured);
     }
@@ -282,6 +288,7 @@ export async function runTaskLevelValidation(
       baseBranch,
       cwd,
       branch,
+      seedSessionName,
     );
   }
 
@@ -290,6 +297,7 @@ export async function runTaskLevelValidation(
 
   // Feed test issues directly into a dev-test-review cycle
   let issues = test.issues;
+  let taskFixFilesModified: string[] | undefined;
 
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`Task-level fix cycle ${cycle}/${MAX_DEV_CYCLES} for ${taskId}`);
@@ -310,7 +318,7 @@ export async function runTaskLevelValidation(
       }
     }
 
-    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd);
+    const dev = await runDevSession(projectRoot, planFile, taskId, priorSummaries, issues, planName, cwd, seedSessionName, taskFixFilesModified);
     if (!dev.ok) {
       return {
         ok: false,
@@ -323,6 +331,7 @@ export async function runTaskLevelValidation(
     await maybePushAfterCommit(settings, `dev ${taskId}`, cwd);
 
     const filesModified = dev.structured.files_modified || [];
+    taskFixFilesModified = filesModified;
 
     const reTest = await runVerifyHook(hooks, {
       taskId,
@@ -347,7 +356,7 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
     if (planDir) {
       writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
     }

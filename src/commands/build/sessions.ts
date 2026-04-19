@@ -29,6 +29,7 @@ import type {
 import { extractFailureReason, extractStructuredOutput, invokeClaude } from "../lib/claude.js";
 import { runHook, tryHook } from "../lib/hooks.js";
 import { buildBuildContext } from "./cycle.js";
+import { resolveTaskContext } from "./context.js";
 import { findTask, readPlan } from "./plan-data.js";
 
 // ── Remote Push ──
@@ -60,21 +61,58 @@ export async function runDevSession(
   issues: string[],
   planName: string,
   cwd?: string,
+  seedSessionName?: string,
+  priorFilesModified?: string[],
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
   const _label = sessionLabel(planName, taskId, "dev");
-  const retrySuffix = issues.length ? ` (retry, ${issues.length} issues)` : "";
+  const isRetry = issues.length > 0;
+  const retrySuffix = isRetry ? ` (retry, ${issues.length} issues)` : "";
   log(`${phaseLabel("DEV")} session: ${taskId}${retrySuffix}`);
 
-  const payload = JSON.stringify({
-    plan_path: planFile,
-    task_id: taskId,
-    prior_summaries: priorSummaries,
-    issues,
-  });
+  const planData = readPlan(planFile);
+  const context = resolveTaskContext(planFile, planData, taskId, cwd);
+
+  // Seed forking only works when running in projectRoot (same directory as
+  // the seed session). Worktree sessions (cwd is set) have a different
+  // project scope and can't find the seed session.
+  const canFork = seedSessionName && !cwd;
+  const forkArgs = canFork
+    ? ["--resume", seedSessionName, "--fork-session"]
+    : [];
+
+  let payload: string;
+  let command: string;
+
+  if (isRetry && priorFilesModified) {
+    // Retry: use fix.md with minimal payload — no full context reload
+    payload = JSON.stringify({
+      task: context.task,
+      plan_section: context.plan_section,
+      issues,
+      files_modified: priorFilesModified,
+    });
+    command = `/molcajete:fix ${payload}`;
+  } else {
+    // First run: use develop.md with rich payload
+    payload = JSON.stringify({
+      task: context.task,
+      plan_section: context.plan_section,
+      gherkin: context.gherkin,
+      steps_index: context.steps_index,
+      feature_file_path: context.feature_file_path,
+      uc_file_path: context.uc_file_path,
+      architecture_path: context.architecture_path,
+      prior_summaries: priorSummaries,
+      issues,
+      ...(canFork && { context_preloaded: true }),
+    });
+    command = `/molcajete:develop ${payload}`;
+  }
 
   const result = await invokeClaude(
     cwd || projectRoot,
     [
+      ...forkArgs,
       "--model",
       MODEL,
       "--allowedTools",
@@ -85,7 +123,7 @@ export async function runDevSession(
       BUDGET_AGENT,
       "--json-schema",
       JSON.stringify(DEV_SESSION_SCHEMA),
-      `/molcajete:develop ${payload}`,
+      command,
     ],
     "DEV",
   );
@@ -227,6 +265,7 @@ export async function runReviewSession(
   cwd?: string,
   branch?: string,
   taskIds?: string[],
+  seedSessionName?: string,
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
   const scopeLabel = taskIds ? `${taskIds.length} task(s)` : taskId;
   log(`${phaseLabel("REVIEW")} session: ${scopeLabel} (mode: ${mode})`);
@@ -239,9 +278,13 @@ export async function runReviewSession(
   await tryHook(hooks, "before-review", beforeReviewInput, { timeout: settings.hookTimeout });
 
   const _label = sessionLabel(planName, taskId, "review");
+  // Seed forking only works when running in projectRoot (same directory as
+  // the seed). Worktree sessions (cwd is set) can't find the seed session.
+  const canFork = seedSessionName && !cwd;
   const payloadObj: Record<string, unknown> = {
     plan_path: planFile,
     mode,
+    ...(canFork && { context_preloaded: true }),
   };
   if (taskIds) {
     payloadObj.task_ids = taskIds;
@@ -250,9 +293,14 @@ export async function runReviewSession(
   }
   const payload = JSON.stringify(payloadObj);
 
+  const forkArgs = canFork
+    ? ["--resume", seedSessionName, "--fork-session"]
+    : [];
+
   const result = await invokeClaude(
     cwd || projectRoot,
     [
+      ...forkArgs,
       "--model",
       MODEL,
       "--allowedTools",
@@ -297,18 +345,27 @@ export async function runReviewFixSession(
   taskIds: string[],
   planName: string,
   cwd?: string,
+  seedSessionName?: string,
 ): Promise<{ ok: boolean; structured: DevSessionOutput }> {
   log(`${phaseLabel("DEV")} review-fix session: ${taskIds.length} task(s), ${issues.length} issue(s)`);
 
+  // Seed forking only works when running in projectRoot.
+  const canFork = seedSessionName && !cwd;
   const payload = JSON.stringify({
     plan_path: planFile,
     task_ids: taskIds,
     issues,
+    ...(canFork && { context_preloaded: true }),
   });
+
+  const forkArgs = canFork
+    ? ["--resume", seedSessionName, "--fork-session"]
+    : [];
 
   const result = await invokeClaude(
     cwd || projectRoot,
     [
+      ...forkArgs,
       "--model",
       MODEL,
       "--allowedTools",

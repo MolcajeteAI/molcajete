@@ -15,6 +15,7 @@ export interface EndOfBuildReviewOptions {
   planName: string;
   settings: Settings;
   taskIds: string[];
+  seedSessionName?: string;
 }
 
 export interface EndOfBuildReviewResult {
@@ -34,7 +35,7 @@ export interface EndOfBuildReviewResult {
 export async function runEndOfBuildReview(
   opts: EndOfBuildReviewOptions,
 ): Promise<EndOfBuildReviewResult> {
-  const { hooks, projectRoot, planFile, planName, settings, taskIds } = opts;
+  const { hooks, projectRoot, planFile, planName, settings, taskIds, seedSessionName } = opts;
 
   log(`${phaseLabel("REVIEW")} end-of-build: ${taskIds.length} task(s) (mode: review)`);
 
@@ -51,6 +52,7 @@ export async function runEndOfBuildReview(
     undefined,
     undefined,
     taskIds,
+    seedSessionName,
   );
 
   if (review.ok) {
@@ -70,6 +72,8 @@ export async function runEndOfBuildReview(
     reviewIssues,
     taskIds,
     planName,
+    undefined,
+    seedSessionName,
   );
 
   if (!fix.ok) {
@@ -98,6 +102,7 @@ export async function runEndOfBuildReview(
       undefined,
       undefined,
       taskIds,
+      seedSessionName,
     );
 
     if (!completeness.ok) {
@@ -112,6 +117,8 @@ export async function runEndOfBuildReview(
           lastIssues,
           taskIds,
           planName,
+          undefined,
+          seedSessionName,
         );
         if (!reFix.ok) {
           log(`${phaseLabel("REVIEW")} end-of-build: fix session failed on cycle ${cycle}`);
@@ -136,6 +143,8 @@ export async function runEndOfBuildReview(
           lastIssues,
           taskIds,
           planName,
+          undefined,
+          seedSessionName,
         );
         if (!reFix.ok) {
           log(`${phaseLabel("REVIEW")} end-of-build: fix session failed on cycle ${cycle}`);
