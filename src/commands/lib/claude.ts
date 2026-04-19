@@ -150,7 +150,6 @@ export function spawnClaude(workdir: string, args: string[]): Promise<ClaudeResu
     const flagArgs = args.slice(0, -1);
 
     const fullArgs = [
-      "--bare",
       "--output-format",
       "json",
       "--plugin-dir",
