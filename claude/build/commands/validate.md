@@ -29,6 +29,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 | `task_ids` | string[] (optional) | Array of task IDs for multi-task scope (e.g., end-of-build review). When present, review all listed tasks as a cohesive unit. |
 | `mode` | string (optional) | `"full"` (default) — both gates; `"review"` — code review only; `"completeness"` — completeness only |
 | `context_preloaded` | boolean (optional) | If true, project context was pre-loaded via seed session — skip project-level reads |
+| `prior_issues` | string[] (optional) | Issues found and fixed in prior review passes — scan beyond these to catch remaining gaps |
 
 **Exactly one of `task_id` or `task_ids` must be present.** When `task_ids` is provided, operate in multi-task mode: load all listed tasks from the plan and review their combined scope as a single cohesive unit.
 
@@ -82,6 +83,8 @@ Trace requirements to code:
 - Report **all** in-scope gaps or stubs found.
 
 **Exhaustive scan required:** Do NOT stop after finding the first issue. Complete the full checklist above — scan every step definition, every in-scope requirement, every modified file — before producing the final report. A single-issue report followed by a re-review cycle costs $2+ and 10+ minutes. Surface everything in one pass.
+
+**Prior issues context:** When `prior_issues` is present, these issues were found in a previous review pass and have already been fixed. Use them as a signal that the scope is broad — scan thoroughly for issues in areas NOT covered by the prior findings. Do not re-report issues from `prior_issues` unless they are still present in the code.
 
 **Out of scope — do not flag these:**
 

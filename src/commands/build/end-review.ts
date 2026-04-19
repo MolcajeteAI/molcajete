@@ -90,7 +90,7 @@ export async function runEndOfBuildReview(
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
     log(`${phaseLabel("REVIEW")} end-of-build: completeness + test cycle ${cycle}/${MAX_DEV_CYCLES}`);
 
-    // Completeness check — pass original review issues + fix summary as context
+    // Completeness check — pass prior issues so the reviewer scans beyond them
     const completeness = await runReviewSession(
       hooks,
       projectRoot,
@@ -103,6 +103,7 @@ export async function runEndOfBuildReview(
       undefined,
       taskIds,
       seedSessionName,
+      lastIssues,
     );
 
     if (!completeness.ok) {

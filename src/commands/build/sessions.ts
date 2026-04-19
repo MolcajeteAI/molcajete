@@ -266,6 +266,7 @@ export async function runReviewSession(
   branch?: string,
   taskIds?: string[],
   seedSessionName?: string,
+  priorIssues?: string[],
 ): Promise<{ ok: boolean; issues: string[]; structured: ReviewSessionOutput }> {
   const scopeLabel = taskIds ? `${taskIds.length} task(s)` : taskId;
   log(`${phaseLabel("REVIEW")} session: ${scopeLabel} (mode: ${mode})`);
@@ -285,6 +286,7 @@ export async function runReviewSession(
     plan_path: planFile,
     mode,
     ...(canFork && { context_preloaded: true }),
+    ...(priorIssues?.length && { prior_issues: priorIssues }),
   };
   if (taskIds) {
     payloadObj.task_ids = taskIds;
