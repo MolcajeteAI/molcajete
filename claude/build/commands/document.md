@@ -29,6 +29,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 | `intent` | string | `implement` or `wire-bdd` |
 | `files_modified` | string[] | Files created/modified by the dev session |
 | `dev_summary` | string | Summary from the dev session |
+| `context_preloaded` | boolean (optional) | If true, project context was pre-loaded via seed session — skip project-level reads |
 
 ## Step 1: Load Context
 
@@ -97,3 +98,4 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 - This session only modifies documentation files — never production code or step definitions.
 - Doc session failures are **non-blocking** — the orchestrator logs a warning and proceeds.
 - Do NOT stage or commit — the orchestrator handles the doc commit separately.
+- When `context_preloaded` is true, project-level context (PROJECT.md, TECH-STACK.md, MODULES.md, CLAUDE.md, `.claude/rules/*.md`) was already loaded via seed session fork — do not re-read these files. Still read plan.json, plan.md, ARCHITECTURE.md, UC files, and feature files as needed.

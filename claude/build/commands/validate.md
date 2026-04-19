@@ -28,6 +28,7 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 | `task_id` | string (optional) | Single task ID (e.g., `T-003`) or sub-task ID (e.g., `T-003-2`). Used for per-task validation. |
 | `task_ids` | string[] (optional) | Array of task IDs for multi-task scope (e.g., end-of-build review). When present, review all listed tasks as a cohesive unit. |
 | `mode` | string (optional) | `"full"` (default) — both gates; `"review"` — code review only; `"completeness"` — completeness only |
+| `context_preloaded` | boolean (optional) | If true, project context was pre-loaded via seed session — skip project-level reads |
 
 **Exactly one of `task_id` or `task_ids` must be present.** When `task_ids` is provided, operate in multi-task mode: load all listed tasks from the plan and review their combined scope as a single cohesive unit.
 
@@ -113,3 +114,4 @@ Wait for all sub-agents to complete. Collect results into a single structured JS
 - All sub-agents run in the project root.
 - Spawn both gates in parallel — emit both Agent tool_use blocks in the same assistant turn, not in back-to-back turns.
 - Report every issue with enough detail for the dev session to locate and fix it (file path, line number, description).
+- When `context_preloaded` is true, project-level context (PROJECT.md, TECH-STACK.md, MODULES.md, CLAUDE.md, `.claude/rules/*.md`) was already loaded via seed session fork — do not re-read these files. Still read plan.json, plan.md, UC files, and feature files as needed for task-specific validation.

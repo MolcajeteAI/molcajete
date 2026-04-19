@@ -26,10 +26,13 @@ Parse `$ARGUMENTS` as a JSON payload with these fields:
 | `plan_path` | string | Absolute path to the plan JSON file |
 | `task_ids` | string[] | All task IDs in scope (the tasks whose code is being reviewed) |
 | `issues` | string[] | Issues to fix — from code review, completeness check, or test failures |
+| `context_preloaded` | boolean (optional) | If true, project context was pre-loaded via seed session — skip project-level reads |
 
 ## Step 1: Load Skills
 
 Load all three skill files in a single parallel batch of Read calls (one assistant turn with three tool_use blocks). Do not issue them sequentially — that wastes turns.
+
+**Skip this step when `context_preloaded` is true** — skills were loaded in the seed session.
 
 1. `${CLAUDE_PLUGIN_ROOT}/build/skills/SKILL.md` — dispatch rules, implementation procedures
 2. `${CLAUDE_PLUGIN_ROOT}/shared/skills/gherkin/SKILL.md` — BDD conventions
@@ -42,9 +45,9 @@ Issue every Read and Glob in this step as part of a parallel batch: group all in
 1. Read the plan JSON file
 2. Find all tasks matching `task_ids` — extract their `intent`, `module`, `scenario`, `use_case`, and `files_to_modify`
 3. Read the companion `plan.md` when present. Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/` that contains both `plan.json` and `plan.md` side by side. Locate the `### T-NNN` sections for all task IDs in scope. These sections provide implementation intent context.
-4. Read project context files:
-   - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/MODULES.md`
-   - `CLAUDE.md` and `.claude/rules/*.md`
+4. Read project context files (**skip project-level reads when `context_preloaded` is true** — only read task-specific files):
+   - `prd/PROJECT.md`, `prd/TECH-STACK.md`, `prd/MODULES.md` (**skip when `context_preloaded`**)
+   - `CLAUDE.md` and `.claude/rules/*.md` (**skip when `context_preloaded`**)
    - Feature REQUIREMENTS.md and ARCHITECTURE.md for each unique feature in scope
    - UC files for each unique use case in scope (`Glob prd/modules/*/features/*/use-cases/{UC-XXXX}-*.md`)
    - Gherkin feature files for each unique UC (`Glob bdd/features/**/{UC-XXXX}-*.feature` or `*.feature.md`)
