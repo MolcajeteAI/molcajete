@@ -546,7 +546,7 @@ Every plan lives in a directory named `.molcajete/plans/{YYYYMMDDHHmm}-{slug}/`.
 | Plan type | Generating command | `plan.md` |
 |-----------|--------------------|-----------|
 | Greenfield (`intent: implement`) | `/m:plan` | **Required.** Missing MD is a hard error for the `develop` session (returns `status: "failed"`). |
-| Reverse (`intent: wire-bdd`) | `/m:reverse-plan` | **Optional.** Present only when at least one scoped UC has a surviving `UC-XXXX-{slug}-TEST-ISSUES.md` REC after the `ARCHITECTURE.md#Testing Decisions` filter. Absence is silent and expected. |
+| Reverse (`intent: wire-bdd`) | `/m:reverse-plan` | **Required.** Always written alongside `plan.json`. Contains per-task implementation sections (what to wire, snippets, files, verification). Prerequisite sections included only when blocking RECs exist. |
 
 ### Per-task structure
 
