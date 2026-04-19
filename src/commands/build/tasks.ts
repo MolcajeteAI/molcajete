@@ -157,10 +157,20 @@ export async function runTaskWithSubTasks(
       continue;
     }
 
-    if (st.status === "implemented") {
-      if (st.summary) subSummaries.push(st.summary);
+    // Check worktree's plan.json for sub-task status — on resume, it may be
+    // ahead of the in-memory snapshot (which was reset to pending).
+    const freshSt = freshTask.sub_tasks?.find((s) => s.id === stId);
+
+    if (st.status === "implemented" || freshSt?.status === "implemented") {
+      const summary = freshSt?.summary ?? st.summary;
+      if (summary) subSummaries.push(summary);
       continue;
     }
+
+    // Extract prior errors before marking in_progress — on resume, the
+    // worktree's plan.json carries errors from the prior failed run so the
+    // cycle can start with fix.md instead of develop.md.
+    const priorErrors = freshSt?.status === "failed" ? (freshSt.errors ?? []) : [];
 
     {
       const h = subTaskHeading(stId, st.title);
@@ -202,6 +212,7 @@ export async function runTaskWithSubTasks(
       cwd,
       branch,
       seedSessionName,
+      priorErrors,
     );
 
     if (!result.ok) {

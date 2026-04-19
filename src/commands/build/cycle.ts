@@ -115,8 +115,9 @@ export async function runDevTestReviewCycle(
   cwd?: string,
   branch?: string,
   seedSessionName?: string,
+  initialIssues?: string[],
 ): Promise<DevTestReviewResult> {
-  let issues: string[] = [];
+  let issues: string[] = initialIssues ?? [];
   let priorFilesModified: string[] | undefined;
 
   for (let cycle = 1; cycle <= MAX_DEV_CYCLES; cycle++) {
@@ -193,7 +194,7 @@ export async function runDevTestReviewCycle(
     logDetail(phaseSep());
 
     // 3. Completeness check — code review runs at end-of-build
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
+    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName, issues);
 
     if (planDir) {
       writeReport(planDir, `${taskId}-review-${cycle}`, review.structured);
@@ -264,32 +265,9 @@ export async function runTaskLevelValidation(
   }
 
   if (test.ok) {
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
-    if (planDir) {
-      writeReport(planDir, `${taskId}-task-review-1`, review.structured);
-    }
-
-    if (review.ok) {
-      return { ok: true, devResult: null, reviewResult: review.structured };
-    }
-
-    // Review failed — need a dev fix
-    logDetail(`Task-level review found ${review.issues.length} issues — launching fix cycle`);
-    return runDevTestReviewCycle(
-      hooks,
-      projectRoot,
-      planFile,
-      taskId,
-      priorSummaries,
-      planDir,
-      "task",
-      settings,
-      planName,
-      baseBranch,
-      cwd,
-      branch,
-      seedSessionName,
-    );
+    // Subtasks already passed their own completeness reviews — skip redundant
+    // task-level completeness review.  The verify hook (BDD) is the integration gate.
+    return { ok: true, devResult: null, reviewResult: null };
   }
 
   // Test failed — need a dev fix
@@ -356,20 +334,8 @@ export async function runTaskLevelValidation(
       continue;
     }
 
-    const review = await runReviewSession(hooks, projectRoot, planFile, taskId, settings, planName, "completeness", cwd, branch, undefined, seedSessionName);
-    if (planDir) {
-      writeReport(planDir, `${taskId}-task-review-${cycle + 1}`, review.structured);
-    }
-
-    if (!review.ok) {
-      issues = review.issues;
-      logDetail(
-        `Fix cycle ${cycle} review found ${issues.length} issues — ${cycle < MAX_DEV_CYCLES ? "retrying" : "exhausted"}`,
-      );
-      continue;
-    }
-
-    return { ok: true, devResult: dev.structured, reviewResult: review.structured };
+    // Subtasks already passed completeness — skip redundant task-level review.
+    return { ok: true, devResult: dev.structured, reviewResult: null };
   }
 
   return {
