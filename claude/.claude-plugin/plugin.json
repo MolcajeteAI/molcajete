@@ -9,6 +9,7 @@
   "keywords": ["workflow", "development", "testing", "specs", "bdd"],
   "commands": [
     "./build/commands/develop.md",
+    "./build/commands/fix.md",
     "./build/commands/validate.md",
     "./build/commands/document.md",
     "./build/commands/resolve-conflicts.md",
